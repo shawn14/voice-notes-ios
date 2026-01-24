@@ -1,0 +1,15 @@
+# API Keys - never commit these
+APIKeys.swift
+
+# Xcode
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+DerivedData/
+.build/
+
+# macOS
+.DS_Store
+
+# CocoaPods
+Pods/

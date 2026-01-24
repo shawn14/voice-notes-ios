@@ -4,21 +4,20 @@
 //
 //  Created by Shawn Carpenter on 1/24/26.
 //
+//  Note: This file is no longer used. The app entry point is NotesListView.
+//  You can delete this file from the project.
+//
 
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        NotesListView()
     }
 }
 
 #Preview {
     ContentView()
+        .modelContainer(for: [Note.self, Tag.self], inMemory: true)
 }
