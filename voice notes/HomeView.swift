@@ -893,6 +893,8 @@ struct SettingsView: View {
     @State private var showingResetConfirm = false
     @State private var showingSignOutConfirm = false
     @State private var showingDeleteAllDataConfirm = false
+    @State private var showingEditName = false
+    @State private var editedName = ""
 
     private let usage = UsageService.shared
 
@@ -908,36 +910,50 @@ struct SettingsView: View {
 
                 // MARK: - Account Section
                 Section {
-                    // Account info
-                    HStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.blue.opacity(0.15))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: AuthService.shared.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle")
-                                .foregroundStyle(.blue)
-                        }
+                    // Account info with edit button
+                    Button {
+                        editedName = AuthService.shared.userName ?? ""
+                        showingEditName = true
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+                                Image(systemName: AuthService.shared.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle")
+                                    .foregroundStyle(.blue)
+                            }
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            if AuthService.shared.isSignedIn {
-                                Text(AuthService.shared.displayName)
-                                    .font(.body.weight(.medium))
-                                if let email = AuthService.shared.userEmail {
-                                    Text(email)
+                            VStack(alignment: .leading, spacing: 2) {
+                                if AuthService.shared.isSignedIn {
+                                    Text(AuthService.shared.displayName)
+                                        .font(.body.weight(.medium))
+                                        .foregroundStyle(.primary)
+                                    if let email = AuthService.shared.userEmail {
+                                        Text(email)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    Text("Not signed in")
+                                        .font(.body.weight(.medium))
+                                        .foregroundStyle(.primary)
+                                    Text("Local data only")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                            } else {
-                                Text("Not signed in")
-                                    .font(.body.weight(.medium))
-                                Text("Local data only")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            if AuthService.shared.isSignedIn {
+                                Text("Edit")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.blue)
                             }
                         }
-
-                        Spacer()
                     }
+                    .buttonStyle(.plain)
                     .padding(.vertical, 4)
 
                     // Current level
@@ -1291,6 +1307,19 @@ struct SettingsView: View {
                         newProjectName = ""
                     }
                 }
+            }
+            .alert("Edit Name", isPresented: $showingEditName) {
+                TextField("Your name", text: $editedName)
+                Button("Cancel", role: .cancel) { editedName = "" }
+                Button("Save") {
+                    let trimmed = editedName.trimmingCharacters(in: .whitespaces)
+                    if !trimmed.isEmpty {
+                        AuthService.shared.userName = trimmed
+                    }
+                    editedName = ""
+                }
+            } message: {
+                Text("This name will be shown in the app and used for your avatar initials.")
             }
             .sheet(isPresented: $showingShareSheet) {
                 ShareSheet(items: [URL(string: "https://apps.apple.com/app/voice-notes")!])
