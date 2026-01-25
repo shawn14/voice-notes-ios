@@ -773,7 +773,8 @@ struct SettingsView: View {
     @State private var showingShareSheet = false
     @State private var showingPaywall = false
     @State private var showingResetConfirm = false
-    @State private var showingResetUsageConfirm = false
+    @State private var showingSignOutConfirm = false
+    @State private var showingDeleteAllDataConfirm = false
 
     private let usage = UsageService.shared
 
@@ -1047,16 +1048,34 @@ struct SettingsView: View {
                         .padding(.vertical, 4)
                     }
 
-                    // Sign Out / Reset
+                    // Sign Out (keeps data)
                     Button {
-                        showingResetUsageConfirm = true
+                        showingSignOutConfirm = true
                     } label: {
                         HStack(spacing: 16) {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(.primary)
                                 .frame(width: 44)
 
                             Text("Sign Out")
+                                .font(.body)
+
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+
+                    // Delete All Data (destructive)
+                    Button {
+                        showingDeleteAllDataConfirm = true
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                                .frame(width: 44)
+
+                            Text("Delete All Data")
                                 .font(.body)
                                 .foregroundStyle(.red)
 
@@ -1249,13 +1268,21 @@ struct SettingsView: View {
             } message: {
                 Text("You will lose access to unlimited extractions and resolutions.")
             }
-            .confirmationDialog("Sign Out?", isPresented: $showingResetUsageConfirm, titleVisibility: .visible) {
-                Button("Sign Out", role: .destructive) {
-                    signOutAndClearData()
+            .confirmationDialog("Sign Out?", isPresented: $showingSignOutConfirm, titleVisibility: .visible) {
+                Button("Sign Out") {
+                    signOutOnly()
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text("This will delete all your notes and reset the app. You'll start fresh as a new user.")
+                Text("Your notes will be kept and synced with iCloud. You can sign back in anytime.")
+            }
+            .confirmationDialog("Delete All Data?", isPresented: $showingDeleteAllDataConfirm, titleVisibility: .visible) {
+                Button("Delete Everything", role: .destructive) {
+                    deleteAllDataAndSignOut()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This will permanently delete all your notes, projects, and data. This cannot be undone.")
             }
         }
     }
@@ -1279,7 +1306,18 @@ struct SettingsView: View {
         }
     }
 
-    private func signOutAndClearData() {
+    private func signOutOnly() {
+        // Just sign out - keep all data locally and in iCloud
+        AuthService.shared.signOut()
+
+        // Reset onboarding flag to show sign in screen again
+        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+
+        // Dismiss settings
+        dismiss()
+    }
+
+    private func deleteAllDataAndSignOut() {
         // Delete all notes
         for note in notes {
             modelContext.delete(note)
