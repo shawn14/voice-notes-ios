@@ -286,7 +286,16 @@ struct NotesListView: View {
     }
 
     private func saveNote(transcript: String?) {
+        // Auto-generate title from first few words of transcript
+        var autoTitle = ""
+        if let transcript = transcript, !transcript.isEmpty {
+            let words = transcript.split(separator: " ").prefix(6).joined(separator: " ")
+            autoTitle = words.count > 30 ? String(words.prefix(30)) + "..." : words
+        }
+
         let note = Note(
+            title: autoTitle,
+            content: transcript ?? "",  // Put transcript in editable Notes field
             transcript: transcript,
             audioFileName: currentAudioFileName
         )
