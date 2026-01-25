@@ -481,6 +481,15 @@ struct NoteEditorView: View {
                     }
                     note.inferredProjectName = result.inferredProject
 
+                    // Auto-match inferred project to existing projects
+                    if let inferredName = result.inferredProject, !inferredName.isEmpty {
+                        // Try to find a matching project using ProjectMatcher
+                        let textToMatch = "\(inferredName) \(note.content)"
+                        if let match = ProjectMatcher.findMatch(for: textToMatch, in: self.allProjects) {
+                            note.projectId = match.project.id
+                        }
+                    }
+
                     // Also populate the legacy analysis for backward compatibility
                     analysis = NoteAnalysis(
                         summary: result.summary,
