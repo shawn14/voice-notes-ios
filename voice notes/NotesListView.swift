@@ -286,30 +286,28 @@ struct NotesListView: View {
     }
 
     private func saveNote(transcript: String?) {
-        // Auto-generate title from first few words of transcript
-        var autoTitle = ""
-        if let transcript = transcript, !transcript.isEmpty {
-            let words = transcript.split(separator: " ").prefix(6).joined(separator: " ")
-            autoTitle = words.count > 30 ? String(words.prefix(30)) + "..." : words
-        }
-
         let note = Note(
-            title: autoTitle,
-            content: transcript ?? "",  // Put transcript in editable Notes field
+            title: "",  // Will be set by AI
+            content: transcript ?? "",  // Full transcript in Notes field
             transcript: transcript,
             audioFileName: currentAudioFileName
         )
         modelContext.insert(note)
 
-        // Auto-extract tags
+        // Auto-generate title and extract tags with AI
         if let transcript = transcript, !transcript.isEmpty,
            let apiKey = APIKeys.openAI, !apiKey.isEmpty {
             Task {
                 do {
+                    // Generate summary title
+                    let title = try await generateTitle(for: transcript, apiKey: apiKey)
+
+                    // Extract tags
                     let extractor = TagExtractor(apiKey: apiKey)
                     let tagNames = try await extractor.extractTags(from: transcript)
 
                     await MainActor.run {
+                        note.title = title
                         for name in tagNames {
                             let tag = Tag(name: name)
                             modelContext.insert(tag)
@@ -317,13 +315,53 @@ struct NotesListView: View {
                         }
                     }
                 } catch {
-                    print("Tag extraction failed: \(error)")
+                    print("AI processing failed: \(error)")
                 }
             }
         }
 
         currentAudioFileName = nil
         isTranscribing = false
+    }
+
+    private func generateTitle(for transcript: String, apiKey: String) async throws -> String {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let prompt = """
+        Generate a very short title (3-6 words max) that summarizes this voice note transcript.
+        Return ONLY the title, no quotes or punctuation at the end.
+
+        Transcript: \(transcript.prefix(500))
+        """
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [["role": "user", "content": prompt]],
+            "temperature": 0.3,
+            "max_tokens": 20
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        struct Response: Codable {
+            struct Choice: Codable {
+                struct Message: Codable {
+                    let content: String
+                }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+
+        let response = try JSONDecoder().decode(Response.self, from: data)
+        return response.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Voice Note"
     }
 
     private func deleteNote(_ note: Note) {
