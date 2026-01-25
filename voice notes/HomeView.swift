@@ -230,27 +230,37 @@ struct HomeView: View {
                     )
                 }
 
-                // Sign in button (bottom right) - shows when not signed in
-                if !AuthService.shared.isSignedIn && !isRecording && !isTranscribing {
+                // Bottom right button - Sign in or User avatar
+                if !isRecording && !isTranscribing {
                     VStack {
                         Spacer()
                         HStack {
                             Spacer()
-                            Button(action: { showSignIn = true }) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "person.crop.circle.badge.plus")
-                                    Text("Sign In")
+                            if AuthService.shared.isSignedIn {
+                                // User avatar button - opens settings
+                                Button(action: { showingSettings = true }) {
+                                    UserAvatarView(name: AuthService.shared.displayName)
                                 }
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.blue)
-                                .cornerRadius(20)
-                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                                .padding(.trailing, 20)
+                                .padding(.bottom, 100)
+                            } else {
+                                // Sign in button
+                                Button(action: { showSignIn = true }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "person.crop.circle.badge.plus")
+                                        Text("Sign In")
+                                    }
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color.blue)
+                                    .cornerRadius(20)
+                                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                                }
+                                .padding(.trailing, 20)
+                                .padding(.bottom, 100)
                             }
-                            .padding(.trailing, 20)
-                            .padding(.bottom, 100)
                         }
                     }
                 }
@@ -671,6 +681,45 @@ struct HomeBottomBar: View {
         }
         .disabled(isTranscribing)
         .padding(.bottom, 30)
+    }
+}
+
+// MARK: - User Avatar View
+
+struct UserAvatarView: View {
+    let name: String
+
+    private var initials: String {
+        let components = name.split(separator: " ")
+        if components.count >= 2 {
+            // First letter of first and last name
+            let first = components.first?.prefix(1) ?? ""
+            let last = components.last?.prefix(1) ?? ""
+            return "\(first)\(last)".uppercased()
+        } else if let first = components.first {
+            // Just first letter if single name
+            return String(first.prefix(1)).uppercased()
+        }
+        return "U"
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [.blue, .purple],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 44, height: 44)
+
+            Text(initials)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+        }
+        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 }
 
