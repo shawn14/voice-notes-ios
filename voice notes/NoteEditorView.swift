@@ -84,11 +84,20 @@ struct NoteEditorView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Title field - wraps to multiple lines
-                TextField("Title", text: $note.title, axis: .vertical)
-                    .font(.system(.title2, design: .serif, weight: .bold))
-                    .textFieldStyle(.plain)
-                    .lineLimit(1...4)
+                // Title field - editable, wraps to multiple lines
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Title")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextField("Tap to add title...", text: $note.title, axis: .vertical)
+                        .font(.system(.title2, design: .serif, weight: .bold))
+                        .textFieldStyle(.plain)
+                        .lineLimit(1...4)
+                        .padding(12)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                }
 
                 // Audio playback bar (if has audio)
                 if let url = note.audioURL {
@@ -117,6 +126,52 @@ struct NoteEditorView: View {
                             .tint(UsageService.shared.canExtract ? .red : .secondary)
                             .disabled(isAnalyzing)
                         }
+                    }
+                }
+
+                // Editable Transcript (if has audio with transcript)
+                if note.audioURL != nil {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Transcript")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            if let transcript = note.transcript, !transcript.isEmpty {
+                                Text("\(transcript.split(separator: " ").count) words")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+
+                        TextEditor(text: Binding(
+                            get: { note.transcript ?? "" },
+                            set: { note.transcript = $0.isEmpty ? nil : $0 }
+                        ))
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(.primary)
+                        .frame(minHeight: 100)
+                        .scrollContentBackground(.hidden)
+                        .padding(12)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                        )
+                        .overlay(
+                            Group {
+                                if note.transcript?.isEmpty != false {
+                                    Text("Transcript will appear here after recording...")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.tertiary)
+                                        .padding(16)
+                                }
+                            },
+                            alignment: .topLeading
+                        )
                     }
                 }
 
