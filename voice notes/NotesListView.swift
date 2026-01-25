@@ -15,6 +15,7 @@ struct NotesListView: View {
     @State private var selectedTag: Tag?
     @State private var showingNewNote = false
     @State private var showingRecording = false
+    @State private var pulseAnimation = false
 
     let noteColors: [Color] = [
         Color(red: 1.0, green: 0.95, blue: 0.7),   // Yellow sticky
@@ -78,18 +79,27 @@ struct NotesListView: View {
 
                         // Notes grid
                         if filteredNotes.isEmpty {
-                            VStack(spacing: 16) {
+                            VStack(spacing: 20) {
                                 Spacer()
-                                    .frame(height: 100)
-                                Image(systemName: "note.text")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(.secondary.opacity(0.5))
+                                    .frame(height: 60)
+
+                                Image(systemName: "waveform.circle.fill")
+                                    .font(.system(size: 80))
+                                    .foregroundStyle(.red.opacity(0.3))
+
                                 Text("No Notes Yet")
                                     .font(.title2.bold())
                                     .foregroundStyle(.secondary)
-                                Text("Tap + to create a note or start recording")
+
+                                Text("Tap the record button to start")
                                     .font(.subheadline)
                                     .foregroundStyle(.tertiary)
+
+                                // Arrow pointing down to record button
+                                Image(systemName: "arrow.down")
+                                    .font(.title)
+                                    .foregroundStyle(.red.opacity(0.5))
+                                    .padding(.top, 20)
                             }
                         } else {
                             LazyVGrid(columns: columns, spacing: 12) {
@@ -111,29 +121,81 @@ struct NotesListView: View {
                                 }
                             }
                             .padding(.horizontal)
+                            .padding(.bottom, 100) // Space for floating button
                         }
                     }
                     .padding(.top)
                 }
+
+                // Floating Record Button
+                VStack {
+                    Spacer()
+
+                    HStack {
+                        // Text note button (smaller, left side)
+                        Button(action: { showingNewNote = true }) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.title2)
+                                .foregroundStyle(.white)
+                                .frame(width: 50, height: 50)
+                                .background(Color(.systemGray))
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        }
+
+                        Spacer()
+
+                        // Big Record Button (center focus)
+                        Button(action: { showingRecording = true }) {
+                            ZStack {
+                                // Outer pulse ring
+                                Circle()
+                                    .fill(Color.red.opacity(0.2))
+                                    .frame(width: 90, height: 90)
+                                    .scaleEffect(pulseAnimation ? 1.2 : 1.0)
+                                    .opacity(pulseAnimation ? 0 : 0.6)
+
+                                // Middle ring
+                                Circle()
+                                    .fill(Color.red.opacity(0.3))
+                                    .frame(width: 80, height: 80)
+
+                                // Main button
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.red, Color(red: 0.8, green: 0, blue: 0)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    .frame(width: 70, height: 70)
+                                    .shadow(color: .red.opacity(0.4), radius: 8, x: 0, y: 4)
+
+                                // Mic icon
+                                Image(systemName: "mic.fill")
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
+                                pulseAnimation = true
+                            }
+                        }
+
+                        Spacer()
+
+                        // Placeholder for balance (invisible)
+                        Color.clear
+                            .frame(width: 50, height: 50)
+                    }
+                    .padding(.horizontal, 30)
+                    .padding(.bottom, 20)
+                }
             }
             .searchable(text: $searchText, prompt: "Search notes")
             .navigationTitle("Voice Notes")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button(action: { showingNewNote = true }) {
-                            Label("New Text Note", systemImage: "square.and.pencil")
-                        }
-                        Button(action: { showingRecording = true }) {
-                            Label("New Recording", systemImage: "mic.fill")
-                        }
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(.red)
-                    }
-                }
-            }
             .sheet(isPresented: $showingNewNote) {
                 NavigationStack {
                     NoteEditorView(note: nil)
