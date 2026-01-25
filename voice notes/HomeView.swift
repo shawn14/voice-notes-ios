@@ -61,6 +61,11 @@ struct HomeView: View {
 
     // Filtered notes based on search and filter
     private var filteredNotes: [Note] {
+        // Don't show notes when signed out - they'll reappear on sign in
+        guard AuthService.shared.isSignedIn else {
+            return []
+        }
+
         var result = notes
 
         // Apply search filter
@@ -197,16 +202,42 @@ struct HomeView: View {
                     // Notes list
                     if filteredNotes.isEmpty {
                         Spacer()
-                        VStack(spacing: 12) {
-                            Image(systemName: "waveform")
-                                .font(.system(size: 48))
-                                .foregroundStyle(.gray)
-                            Text("No notes yet")
-                                .font(.headline)
-                                .foregroundStyle(.gray)
-                            Text("Tap the record button to get started")
-                                .font(.subheadline)
-                                .foregroundStyle(.gray.opacity(0.7))
+                        if !AuthService.shared.isSignedIn {
+                            // Signed out - prompt to sign in
+                            VStack(spacing: 16) {
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                    .font(.system(size: 48))
+                                    .foregroundStyle(.blue)
+                                Text("Sign in to see your notes")
+                                    .font(.headline)
+                                    .foregroundStyle(.white)
+                                Text("Your notes are safely stored in iCloud")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.gray)
+                                Button(action: { showSignIn = true }) {
+                                    Text("Sign In")
+                                        .font(.headline)
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 32)
+                                        .padding(.vertical, 12)
+                                        .background(Color.blue)
+                                        .cornerRadius(10)
+                                }
+                                .padding(.top, 8)
+                            }
+                        } else {
+                            // Signed in but no notes
+                            VStack(spacing: 12) {
+                                Image(systemName: "waveform")
+                                    .font(.system(size: 48))
+                                    .foregroundStyle(.gray)
+                                Text("No notes yet")
+                                    .font(.headline)
+                                    .foregroundStyle(.gray)
+                                Text("Tap the record button to get started")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.gray.opacity(0.7))
+                            }
                         }
                         Spacer()
                     } else {
@@ -343,6 +374,11 @@ struct HomeView: View {
         if isRecording {
             stopRecording()
         } else {
+            // Must be signed in to record
+            if !AuthService.shared.isSignedIn {
+                showSignIn = true
+                return
+            }
             // Check if user can create more notes
             if !UsageService.shared.canCreateNote {
                 showPaywall = true
