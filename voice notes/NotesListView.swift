@@ -297,6 +297,7 @@ struct NotesListView: View {
         // Auto-generate title and extract tags with AI
         if let transcript = transcript, !transcript.isEmpty,
            let apiKey = APIKeys.openAI, !apiKey.isEmpty {
+            let existingTags = tags  // Capture current tags
             Task {
                 do {
                     // Generate summary title
@@ -309,9 +310,16 @@ struct NotesListView: View {
                     await MainActor.run {
                         note.title = title
                         for name in tagNames {
-                            let tag = Tag(name: name)
-                            modelContext.insert(tag)
-                            note.tags.append(tag)
+                            // Check if tag already exists (case-insensitive)
+                            if let existingTag = existingTags.first(where: { $0.name.lowercased() == name.lowercased() }) {
+                                if !note.tags.contains(existingTag) {
+                                    note.tags.append(existingTag)
+                                }
+                            } else {
+                                let newTag = Tag(name: name)
+                                modelContext.insert(newTag)
+                                note.tags.append(newTag)
+                            }
                         }
                     }
                 } catch {
@@ -332,11 +340,21 @@ struct NotesListView: View {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        // For longer transcripts, include beginning and end for better context
+        let transcriptForTitle: String
+        if transcript.count > 2000 {
+            let start = String(transcript.prefix(1000))
+            let end = String(transcript.suffix(1000))
+            transcriptForTitle = "\(start)\n...[middle truncated]...\n\(end)"
+        } else {
+            transcriptForTitle = transcript
+        }
+
         let prompt = """
         Generate a very short title (3-6 words max) that summarizes this voice note transcript.
         Return ONLY the title, no quotes or punctuation at the end.
 
-        Transcript: \(transcript.prefix(500))
+        Transcript: \(transcriptForTitle)
         """
 
         let body: [String: Any] = [

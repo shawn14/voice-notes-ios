@@ -33,10 +33,30 @@ enum SummaryService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        // For longer transcripts, sample throughout the text
+        let textToAnalyze: String
+        if text.count > 8000 {
+            let chunkSize = 2000
+            let start = String(text.prefix(chunkSize))
+            let q1Start = text.index(text.startIndex, offsetBy: text.count / 4 - chunkSize/2)
+            let q1End = text.index(text.startIndex, offsetBy: text.count / 4 + chunkSize/2)
+            let q1 = String(text[q1Start..<q1End])
+            let midStart = text.index(text.startIndex, offsetBy: text.count / 2 - chunkSize/2)
+            let midEnd = text.index(text.startIndex, offsetBy: text.count / 2 + chunkSize/2)
+            let mid = String(text[midStart..<midEnd])
+            let q3Start = text.index(text.startIndex, offsetBy: 3 * text.count / 4 - chunkSize/2)
+            let q3End = text.index(text.startIndex, offsetBy: 3 * text.count / 4 + chunkSize/2)
+            let q3 = String(text[q3Start..<q3End])
+            let end = String(text.suffix(chunkSize))
+            textToAnalyze = "\(start)\n...\n\(q1)\n...\n\(mid)\n...\n\(q3)\n...\n\(end)"
+        } else {
+            textToAnalyze = text
+        }
+
         let prompt = """
         Analyze the following transcript and extract:
-        1. Key Points: The most important facts, decisions, or information mentioned (3-5 bullet points)
-        2. Action Items: Any tasks, to-dos, or next steps mentioned (0-5 items)
+        1. Key Points: The most important facts, decisions, or information mentioned (3-7 bullet points)
+        2. Action Items: Any tasks, to-dos, or next steps mentioned (0-7 items)
 
         Return your response as a JSON object with this exact structure:
         {
@@ -49,7 +69,7 @@ enum SummaryService {
         Return ONLY the JSON, no other text.
 
         Transcript:
-        \(text.prefix(4000))
+        \(textToAnalyze)
         """
 
         let body: [String: Any] = [

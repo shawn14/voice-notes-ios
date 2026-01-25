@@ -41,14 +41,28 @@ actor TagExtractor {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        // For longer transcripts, sample beginning, middle, and end
+        let textToAnalyze: String
+        if text.count > 4000 {
+            let start = String(text.prefix(1500))
+            let middleStart = text.index(text.startIndex, offsetBy: text.count / 2 - 500)
+            let middleEnd = text.index(text.startIndex, offsetBy: text.count / 2 + 500)
+            let middle = String(text[middleStart..<middleEnd])
+            let end = String(text.suffix(1500))
+            textToAnalyze = "\(start)\n...\n\(middle)\n...\n\(end)"
+        } else {
+            textToAnalyze = text
+        }
+
         let prompt = """
-        Analyze the following text and extract 2-5 relevant topic tags.
+        Analyze the following text and extract 3-5 relevant topic tags.
         Return ONLY a JSON array of lowercase tag strings, no explanation.
         Tags should be single words or short phrases (2-3 words max).
+        Focus on the main topics, people, places, and action items mentioned.
         Example output: ["meeting", "project update", "q4 goals"]
 
         Text to analyze:
-        \(text.prefix(2000))
+        \(textToAnalyze)
         """
 
         let body: [String: Any] = [
