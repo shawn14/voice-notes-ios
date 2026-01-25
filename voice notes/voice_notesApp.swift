@@ -12,6 +12,7 @@ import SwiftData
 struct voice_notesApp: App {
     let container: ModelContainer
     @State private var authService = AuthService.shared
+    @State private var subscriptionManager = SubscriptionManager.shared
     @State private var hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
 
     init() {
@@ -59,6 +60,8 @@ struct voice_notesApp: App {
                     .task {
                         // Check if Apple ID credential is still valid
                         await authService.checkCredentialState()
+                        // Check subscription status
+                        await subscriptionManager.updateSubscriptionStatus()
                     }
             } else {
                 SignInView {

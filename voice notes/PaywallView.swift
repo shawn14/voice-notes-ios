@@ -2,52 +2,23 @@
 //  PaywallView.swift
 //  voice notes
 //
-//  Consent-based upgrade prompt
+//  Consent-based upgrade prompt with StoreKit 2
 //
 
 import SwiftUI
-
-// MARK: - Subscription Plan
-
-enum SubscriptionPlan: String, CaseIterable {
-    case monthly
-    case annual
-
-    var price: String {
-        switch self {
-        case .monthly: return "$9.99"
-        case .annual: return "$79.99"
-        }
-    }
-
-    var period: String {
-        switch self {
-        case .monthly: return "month"
-        case .annual: return "year"
-        }
-    }
-
-    var monthlyEquivalent: String? {
-        switch self {
-        case .monthly: return nil
-        case .annual: return "$6.67/month"
-        }
-    }
-
-    var savings: String? {
-        switch self {
-        case .monthly: return nil
-        case .annual: return "Save 33%"
-        }
-    }
-}
+import StoreKit
 
 // MARK: - Paywall View
 
 struct PaywallView: View {
     let onDismiss: () -> Void
-    @State private var selectedPlan: SubscriptionPlan = .annual  // Default to annual (best value)
+
+    @State private var selectedProductID: String = SubscriptionProduct.annual.rawValue
     @State private var isPurchasing = false
+    @State private var errorMessage: String?
+    @State private var showError = false
+
+    private let subscriptionManager = SubscriptionManager.shared
 
     var body: some View {
         ScrollView {
@@ -83,23 +54,46 @@ struct PaywallView: View {
 
                 Spacer().frame(height: 8)
 
-                // Plan selection
-                VStack(spacing: 12) {
-                    // Annual plan (recommended)
-                    PlanOptionCard(
-                        plan: .annual,
-                        isSelected: selectedPlan == .annual,
-                        onSelect: { selectedPlan = .annual }
-                    )
+                // Plan selection from StoreKit
+                if subscriptionManager.isLoading && subscriptionManager.products.isEmpty {
+                    ProgressView("Loading plans...")
+                        .padding()
+                } else if subscriptionManager.products.isEmpty {
+                    Text("Unable to load subscription options")
+                        .foregroundStyle(.secondary)
+                        .padding()
 
-                    // Monthly plan
-                    PlanOptionCard(
-                        plan: .monthly,
-                        isSelected: selectedPlan == .monthly,
-                        onSelect: { selectedPlan = .monthly }
-                    )
+                    Button("Retry") {
+                        Task {
+                            await subscriptionManager.loadProducts()
+                        }
+                    }
+                } else {
+                    VStack(spacing: 12) {
+                        // Annual plan (recommended)
+                        if let annualProduct = subscriptionManager.annualProduct {
+                            ProductOptionCard(
+                                product: annualProduct,
+                                isSelected: selectedProductID == annualProduct.id,
+                                isAnnual: true,
+                                monthlyProduct: subscriptionManager.monthlyProduct,
+                                onSelect: { selectedProductID = annualProduct.id }
+                            )
+                        }
+
+                        // Monthly plan
+                        if let monthlyProduct = subscriptionManager.monthlyProduct {
+                            ProductOptionCard(
+                                product: monthlyProduct,
+                                isSelected: selectedProductID == monthlyProduct.id,
+                                isAnnual: false,
+                                monthlyProduct: nil,
+                                onSelect: { selectedProductID = monthlyProduct.id }
+                            )
+                        }
+                    }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
 
                 // CTA
                 Button(action: handlePurchase) {
@@ -107,7 +101,7 @@ struct PaywallView: View {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Text("Start Pro - \(selectedPlan.price)/\(selectedPlan.period)")
+                        Text(purchaseButtonText)
                             .font(.headline)
                     }
                 }
@@ -117,7 +111,19 @@ struct PaywallView: View {
                 .foregroundStyle(.white)
                 .cornerRadius(12)
                 .padding(.horizontal)
-                .disabled(isPurchasing)
+                .disabled(isPurchasing || subscriptionManager.products.isEmpty)
+
+                // Restore purchases
+                Button("Restore Purchases") {
+                    Task {
+                        await subscriptionManager.restorePurchases()
+                        if subscriptionManager.isSubscribed {
+                            onDismiss()
+                        }
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.blue)
 
                 // Dismiss - low friction
                 Button("Maybe Later") {
@@ -126,22 +132,65 @@ struct PaywallView: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .padding(.bottom, 32)
+                .padding(.bottom, 16)
+
+                // Legal text
+                Text("Payment will be charged to your Apple ID account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 32)
+            }
+        }
+        .alert("Purchase Error", isPresented: $showError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage ?? "Something went wrong")
+        }
+        .onAppear {
+            // Ensure products are loaded
+            if subscriptionManager.products.isEmpty {
+                Task {
+                    await subscriptionManager.loadProducts()
+                }
             }
         }
     }
 
+    private var purchaseButtonText: String {
+        guard let product = subscriptionManager.products.first(where: { $0.id == selectedProductID }) else {
+            return "Subscribe"
+        }
+        return "Start Pro - \(product.displayPrice)/\(product.subscriptionPeriodText)"
+    }
+
     private func handlePurchase() {
+        guard let product = subscriptionManager.products.first(where: { $0.id == selectedProductID }) else {
+            return
+        }
+
         isPurchasing = true
 
-        // TODO: Implement StoreKit purchase for selectedPlan
-        // For now, simulate a brief delay then dismiss
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            isPurchasing = false
-            // In real implementation, check if purchase succeeded
-            // UsageService.shared.upgradeToPro()
-            UsageService.shared.hasShownPaywall = true
-            onDismiss()
+        Task {
+            do {
+                let success = try await subscriptionManager.purchase(product)
+
+                await MainActor.run {
+                    isPurchasing = false
+
+                    if success {
+                        UsageService.shared.hasShownPaywall = true
+                        onDismiss()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isPurchasing = false
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
+            }
         }
     }
 }
@@ -168,24 +217,38 @@ struct FeatureRow: View {
     }
 }
 
-// MARK: - Plan Option Card
+// MARK: - Product Option Card
 
-struct PlanOptionCard: View {
-    let plan: SubscriptionPlan
+struct ProductOptionCard: View {
+    let product: Product
     let isSelected: Bool
+    let isAnnual: Bool
+    let monthlyProduct: Product?
     let onSelect: () -> Void
+
+    private var savingsPercentage: Int? {
+        guard isAnnual,
+              let monthlyProduct = monthlyProduct,
+              let annualMonthly = product.monthlyEquivalentPrice else {
+            return nil
+        }
+
+        let monthlyPrice = monthlyProduct.price
+        let savings = (1 - (annualMonthly / monthlyPrice)) * 100
+        return Int(NSDecimalNumber(decimal: savings).doubleValue)
+    }
 
     var body: some View {
         Button(action: onSelect) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
-                        Text(plan == .annual ? "Annual" : "Monthly")
+                        Text(isAnnual ? "Annual" : "Monthly")
                             .font(.headline)
                             .foregroundStyle(.primary)
 
-                        if let savings = plan.savings {
-                            Text(savings)
+                        if let savings = savingsPercentage, savings > 0 {
+                            Text("Save \(savings)%")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 8)
@@ -195,8 +258,8 @@ struct PlanOptionCard: View {
                         }
                     }
 
-                    if let equivalent = plan.monthlyEquivalent {
-                        Text(equivalent)
+                    if isAnnual, let monthlyEquiv = product.monthlyEquivalentPrice {
+                        Text("\(monthlyEquiv.formatted(.currency(code: "USD")))/month")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -204,7 +267,7 @@ struct PlanOptionCard: View {
 
                 Spacer()
 
-                Text("\(plan.price)/\(plan.period)")
+                Text("\(product.displayPrice)/\(product.subscriptionPeriodText)")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
 
