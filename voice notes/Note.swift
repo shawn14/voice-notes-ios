@@ -42,12 +42,12 @@ enum NoteIntent: String, CaseIterable, Codable {
 
 // MARK: - Structured Extraction Models
 
-struct ExtractedSubject: Codable {
+struct ExtractedSubject: Codable, Sendable {
     let topic: String
     let action: String?
 }
 
-struct MissingInfoItem: Codable {
+struct MissingInfoItem: Codable, Sendable {
     let field: String
     let description: String
 }
