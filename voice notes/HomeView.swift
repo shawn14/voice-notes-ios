@@ -111,9 +111,13 @@ struct HomeView: View {
                         Button {
                             showingSettings = true
                         } label: {
-                            Image(systemName: "gearshape")
-                                .font(.title2)
-                                .foregroundStyle(.gray)
+                            if AuthService.shared.isSignedIn {
+                                UserAvatarView(name: AuthService.shared.displayName, size: 36)
+                            } else {
+                                Image(systemName: "person.circle")
+                                    .font(.title2)
+                                    .foregroundStyle(.gray)
+                            }
                         }
                     }
                     .padding(.horizontal)
@@ -230,37 +234,27 @@ struct HomeView: View {
                     )
                 }
 
-                // Bottom right button - Sign in or User avatar
-                if !isRecording && !isTranscribing {
+                // Sign in button (bottom right) - shows when not signed in
+                if !AuthService.shared.isSignedIn && !isRecording && !isTranscribing {
                     VStack {
                         Spacer()
                         HStack {
                             Spacer()
-                            if AuthService.shared.isSignedIn {
-                                // User avatar button - opens settings
-                                Button(action: { showingSettings = true }) {
-                                    UserAvatarView(name: AuthService.shared.displayName)
+                            Button(action: { showSignIn = true }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "person.crop.circle.badge.plus")
+                                    Text("Sign In")
                                 }
-                                .padding(.trailing, 20)
-                                .padding(.bottom, 100)
-                            } else {
-                                // Sign in button
-                                Button(action: { showSignIn = true }) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "person.crop.circle.badge.plus")
-                                        Text("Sign In")
-                                    }
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color.blue)
-                                    .cornerRadius(20)
-                                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-                                }
-                                .padding(.trailing, 20)
-                                .padding(.bottom, 100)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.blue)
+                                .cornerRadius(20)
+                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
                             }
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 100)
                         }
                     }
                 }
@@ -688,6 +682,7 @@ struct HomeBottomBar: View {
 
 struct UserAvatarView: View {
     let name: String
+    var size: CGFloat = 44
 
     private var initials: String {
         let components = name.split(separator: " ")
@@ -713,13 +708,12 @@ struct UserAvatarView: View {
                         endPoint: .bottomTrailing
                     )
                 )
-                .frame(width: 44, height: 44)
+                .frame(width: size, height: size)
 
             Text(initials)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
         }
-        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 }
 
