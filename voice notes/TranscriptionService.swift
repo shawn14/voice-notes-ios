@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import AVFoundation
 
 actor TranscriptionService {
     private let apiKey: String
@@ -91,12 +92,101 @@ actor TranscriptionService {
     }
 
     private func transcribeLargeFile(audioURL: URL) async throws -> String {
-        // For files larger than 25MB, we need to split them
-        // This is a simplified version - production would use AVAssetExportSession
-        // to properly split audio files into chunks
+        // Split audio into ~10 minute chunks and transcribe each
+        let asset = AVURLAsset(url: audioURL)
 
-        // For now, throw an error suggesting the user record shorter clips
-        throw TranscriptionError.apiError("Audio file too large. Please record shorter segments (under 25MB).")
+        guard let duration = try? await asset.load(.duration) else {
+            throw TranscriptionError.invalidAudioFile
+        }
+
+        let durationSeconds = CMTimeGetSeconds(duration)
+        let chunkDuration: Double = 600 // 10 minutes per chunk
+        let numberOfChunks = Int(ceil(durationSeconds / chunkDuration))
+
+        var transcripts: [String] = []
+
+        for i in 0..<numberOfChunks {
+            let startTime = Double(i) * chunkDuration
+            let endTime = min(startTime + chunkDuration, durationSeconds)
+
+            // Export chunk
+            let chunkURL = try await exportAudioChunk(
+                from: audioURL,
+                startTime: startTime,
+                endTime: endTime,
+                chunkIndex: i
+            )
+
+            // Transcribe chunk
+            let chunkTranscript = try await transcribeChunk(audioURL: chunkURL)
+            transcripts.append(chunkTranscript)
+
+            // Clean up chunk file
+            try? FileManager.default.removeItem(at: chunkURL)
+        }
+
+        return transcripts.joined(separator: " ")
+    }
+
+    private func exportAudioChunk(from sourceURL: URL, startTime: Double, endTime: Double, chunkIndex: Int) async throws -> URL {
+        let asset = AVURLAsset(url: sourceURL)
+
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
+            throw TranscriptionError.invalidAudioFile
+        }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("chunk_\(chunkIndex)_\(UUID().uuidString).m4a")
+
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .m4a
+        exportSession.timeRange = CMTimeRange(
+            start: CMTime(seconds: startTime, preferredTimescale: 1000),
+            end: CMTime(seconds: endTime, preferredTimescale: 1000)
+        )
+
+        await exportSession.export()
+
+        guard exportSession.status == .completed else {
+            throw TranscriptionError.apiError("Failed to split audio: \(exportSession.error?.localizedDescription ?? "Unknown error")")
+        }
+
+        return outputURL
+    }
+
+    private func transcribeChunk(audioURL: URL) async throws -> String {
+        let url = URL(string: "https://api.openai.com/v1/audio/transcriptions")!
+
+        let audioData = try Data(contentsOf: audioURL)
+
+        let boundary = UUID().uuidString
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
+        body.append("whisper-1\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        request.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw TranscriptionError.apiError(errorMessage)
+        }
+
+        let result = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
+        return result.text
     }
 }
 
