@@ -15,11 +15,16 @@ struct NoteEditorView: View {
 
     @State private var isProcessingTags = false
     @State private var isGeneratingSummary = false
+    @State private var isTransforming = false
     @State private var keyPoints: [String] = []
     @State private var actionItems: [String] = []
     @State private var errorMessage: String?
     @State private var showingError = false
     @State private var showingDeleteConfirm = false
+    @State private var transformedText: String?
+    @State private var transformationType: String?
+    @State private var showingCustomPrompt = false
+    @State private var customPromptText = ""
 
     @State private var audioRecorder = AudioRecorder()
     private let isNewNote: Bool
@@ -87,9 +92,68 @@ struct NoteEditorView: View {
 
                 // Notes section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Notes")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("Notes")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        // AI Transform menu
+                        if !note.content.isEmpty {
+                            Menu {
+                                Section("Share") {
+                                    Button(action: { transformNote(to: "tweet") }) {
+                                        Label("Tweet / X Post", systemImage: "bird")
+                                    }
+                                    Button(action: { transformNote(to: "linkedin") }) {
+                                        Label("LinkedIn Post", systemImage: "person.2")
+                                    }
+                                    Button(action: { transformNote(to: "thread") }) {
+                                        Label("Twitter Thread", systemImage: "text.bubble")
+                                    }
+                                }
+                                Section("Build in Public") {
+                                    Button(action: { transformNote(to: "changelog") }) {
+                                        Label("Changelog Entry", systemImage: "list.bullet.rectangle")
+                                    }
+                                    Button(action: { transformNote(to: "update") }) {
+                                        Label("Product Update", systemImage: "megaphone")
+                                    }
+                                    Button(action: { transformNote(to: "blog") }) {
+                                        Label("Blog Post Intro", systemImage: "doc.richtext")
+                                    }
+                                }
+                                Section("Format") {
+                                    Button(action: { transformNote(to: "summary") }) {
+                                        Label("Summarize", systemImage: "text.badge.minus")
+                                    }
+                                    Button(action: { transformNote(to: "bullets") }) {
+                                        Label("Action Items", systemImage: "checklist")
+                                    }
+                                    Button(action: { transformNote(to: "cleanup") }) {
+                                        Label("Clean Up", systemImage: "wand.and.stars")
+                                    }
+                                }
+                                Section {
+                                    Button(action: { showingCustomPrompt = true }) {
+                                        Label("Custom Prompt...", systemImage: "pencil.and.outline")
+                                    }
+                                }
+                            } label: {
+                                if isTransforming {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Label("AI", systemImage: "sparkles")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .tint(.purple)
+                            .disabled(isTransforming)
+                        }
+                    }
 
                     TextEditor(text: $note.content)
                         .font(.system(.body, design: .serif))
@@ -102,6 +166,52 @@ struct NoteEditorView: View {
                             RoundedRectangle(cornerRadius: 8)
                                 .stroke(Color.black.opacity(0.1), lineWidth: 1)
                         )
+                }
+
+                // Transformed text result
+                if let transformed = transformedText, let type = transformationType {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(transformationTitle(for: type))
+                                .font(.headline)
+                                .foregroundStyle(.purple)
+
+                            Spacer()
+
+                            Button("Use This") {
+                                note.content = transformed
+                                transformedText = nil
+                                transformationType = nil
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.purple)
+                            .controlSize(.small)
+
+                            Button(action: {
+                                transformedText = nil
+                                transformationType = nil
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Text(transformed)
+                            .font(.system(.body, design: .serif))
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.purple.opacity(0.1))
+                            .cornerRadius(8)
+
+                        // Copy button
+                        Button(action: {
+                            UIPasteboard.general.string = transformed
+                        }) {
+                            Label("Copy to Clipboard", systemImage: "doc.on.doc")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 }
 
                 // Tags section
@@ -193,6 +303,15 @@ struct NoteEditorView: View {
         .onChange(of: note.content) {
             note.updatedAt = Date()
         }
+        .sheet(isPresented: $showingCustomPrompt) {
+            CustomPromptSheet(
+                promptText: $customPromptText,
+                isPresented: $showingCustomPrompt,
+                onSubmit: {
+                    transformNote(to: "custom")
+                }
+            )
+        }
     }
 
     private func removeTag(_ tag: Tag) {
@@ -282,6 +401,224 @@ struct NoteEditorView: View {
                 }
             }
         }
+    }
+
+    private func transformNote(to type: String) {
+        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
+            errorMessage = "OpenAI API key not configured"
+            showingError = true
+            return
+        }
+
+        guard !note.content.isEmpty else { return }
+
+        isTransforming = true
+        transformationType = type
+
+        Task {
+            do {
+                let result = try await transformText(note.content, to: type, apiKey: apiKey)
+                await MainActor.run {
+                    transformedText = result
+                    isTransforming = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                    isTransforming = false
+                }
+            }
+        }
+    }
+
+    private func transformText(_ text: String, to type: String, apiKey: String) async throws -> String {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let prompt = transformPrompt(for: type, text: text)
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [["role": "user", "content": prompt]],
+            "temperature": 0.7,
+            "max_tokens": 500
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        struct Response: Codable {
+            struct Choice: Codable {
+                struct Message: Codable { let content: String }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+
+        let response = try JSONDecoder().decode(Response.self, from: data)
+        return response.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? text
+    }
+
+    private func transformPrompt(for type: String, text: String) -> String {
+        switch type {
+        case "tweet":
+            return """
+            Turn this into a compelling tweet (max 280 chars). Make it punchy and engaging for the indie hacker / startup community. No hashtags unless they add value. Just return the tweet text.
+
+            Original: \(text)
+            """
+        case "linkedin":
+            return """
+            Turn this into a LinkedIn post for a solo founder / indie hacker. Make it authentic and valuable, not salesy. Include line breaks for readability. Just return the post text.
+
+            Original: \(text)
+            """
+        case "thread":
+            return """
+            Turn this into a Twitter/X thread (3-5 tweets). Number each tweet. Make it valuable for the indie hacker community. Keep each under 280 chars.
+
+            Original: \(text)
+            """
+        case "changelog":
+            return """
+            Turn this into a changelog entry for a product update. Be concise and focus on what changed and why it matters to users. Use bullet points if multiple items.
+
+            Original: \(text)
+            """
+        case "update":
+            return """
+            Turn this into a "building in public" product update. Make it authentic, share the journey including challenges. Good for sharing with your audience.
+
+            Original: \(text)
+            """
+        case "blog":
+            return """
+            Write a compelling blog post introduction (2-3 paragraphs) based on this. Hook the reader and set up the main points. Authentic indie hacker voice.
+
+            Original: \(text)
+            """
+        case "summary":
+            return """
+            Summarize this in 2-3 concise sentences. Focus on the key points.
+
+            Original: \(text)
+            """
+        case "bullets":
+            return """
+            Extract actionable items and key points as a bullet list. Focus on next steps and decisions.
+
+            Original: \(text)
+            """
+        case "cleanup":
+            return """
+            Clean up this text: fix grammar, improve clarity, but keep the same meaning and tone. Return only the cleaned text.
+
+            Original: \(text)
+            """
+        case "custom":
+            return """
+            \(customPromptText)
+
+            Text to work with:
+            \(text)
+            """
+        default:
+            return "Summarize: \(text)"
+        }
+    }
+
+    private func transformationTitle(for type: String) -> String {
+        switch type {
+        case "tweet": return "Tweet"
+        case "linkedin": return "LinkedIn Post"
+        case "thread": return "Twitter Thread"
+        case "changelog": return "Changelog"
+        case "update": return "Product Update"
+        case "blog": return "Blog Intro"
+        case "summary": return "Summary"
+        case "bullets": return "Action Items"
+        case "cleanup": return "Cleaned Up"
+        case "custom": return "Custom Result"
+        default: return "Result"
+        }
+    }
+}
+
+// Custom prompt sheet
+struct CustomPromptSheet: View {
+    @Binding var promptText: String
+    @Binding var isPresented: Bool
+    let onSubmit: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("What should AI do with your note?")
+                    .font(.headline)
+
+                TextEditor(text: $promptText)
+                    .font(.body)
+                    .frame(minHeight: 120)
+                    .padding(8)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+
+                Text("Examples:")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    PromptSuggestion(text: "Turn this into a cold email", promptText: $promptText)
+                    PromptSuggestion(text: "Make this funnier", promptText: $promptText)
+                    PromptSuggestion(text: "Translate to Spanish", promptText: $promptText)
+                    PromptSuggestion(text: "Write a landing page headline", promptText: $promptText)
+                    PromptSuggestion(text: "Create a Hacker News post", promptText: $promptText)
+                }
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Custom Prompt")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Transform") {
+                        isPresented = false
+                        onSubmit()
+                    }
+                    .disabled(promptText.isEmpty)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}
+
+struct PromptSuggestion: View {
+    let text: String
+    @Binding var promptText: String
+
+    var body: some View {
+        Button(action: { promptText = text }) {
+            Text(text)
+                .font(.subheadline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(.systemGray5))
+                .cornerRadius(8)
+        }
+        .buttonStyle(.plain)
     }
 }
 
