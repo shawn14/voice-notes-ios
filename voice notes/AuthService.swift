@@ -75,11 +75,18 @@ class AuthService {
     // MARK: - Sign Out
 
     func signOut() {
+        // Only clear userId - keep userName/userEmail so they're restored on sign back in
+        // Apple only provides name/email on FIRST sign-in, so we need to preserve them
+        userId = nil
+
+        // Note: Usage is NOT reset on sign out - user keeps their usage history
+    }
+
+    /// Clear all user data (for "Delete All Data" option)
+    func clearAllUserData() {
         userId = nil
         userEmail = nil
         userName = nil
-
-        // Reset usage
         UsageService.shared.resetAllUsage()
     }
 

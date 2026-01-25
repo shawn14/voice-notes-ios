@@ -1368,8 +1368,8 @@ struct SettingsView: View {
             modelContext.delete(project)
         }
 
-        // Sign out and reset
-        AuthService.shared.signOut()
+        // Clear all user data including name/email and usage
+        AuthService.shared.clearAllUserData()
 
         // Reset onboarding flag to show sign in screen again
         UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
