@@ -138,17 +138,15 @@ actor TranscriptionService {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("chunk_\(chunkIndex)_\(UUID().uuidString).m4a")
 
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = .m4a
         exportSession.timeRange = CMTimeRange(
             start: CMTime(seconds: startTime, preferredTimescale: 1000),
             end: CMTime(seconds: endTime, preferredTimescale: 1000)
         )
 
-        await exportSession.export()
-
-        guard exportSession.status == .completed else {
-            throw TranscriptionError.apiError("Failed to split audio: \(exportSession.error?.localizedDescription ?? "Unknown error")")
+        do {
+            try await exportSession.export(to: outputURL, as: .m4a)
+        } catch {
+            throw TranscriptionError.apiError("Failed to split audio: \(error.localizedDescription)")
         }
 
         return outputURL

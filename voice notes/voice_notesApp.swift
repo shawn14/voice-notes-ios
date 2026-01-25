@@ -13,17 +13,31 @@ struct voice_notesApp: App {
     let container: ModelContainer
 
     init() {
+        let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self])
+
         do {
-            container = try ModelContainer(for: Note.self, Tag.self)
+            // Try to create container normally first
+            container = try ModelContainer(for: schema)
             cleanupDuplicateTags(in: container.mainContext)
         } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
+            // If migration fails, delete the store and try again
+            print("Migration failed, recreating store: \(error)")
+
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            let url = config.url
+            try? FileManager.default.removeItem(at: url)
+
+            do {
+                container = try ModelContainer(for: schema)
+            } catch {
+                fatalError("Failed to create ModelContainer: \(error)")
+            }
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            NotesListView()
+            HomeView()
         }
         .modelContainer(container)
     }

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 // MARK: - Chat Message Model
 
@@ -78,6 +79,8 @@ struct AssistantView: View {
     @State private var showingNoteSelector = false
     @State private var errorMessage: String?
     @State private var showingError = false
+    @State private var savedMessageId: UUID?
+    @State private var showingSaveConfirmation = false
 
     // Use recent notes as context by default
     private var contextNotes: [Note] {
@@ -114,8 +117,12 @@ struct AssistantView: View {
 
                             // Chat messages
                             ForEach(messages) { message in
-                                MessageBubble(message: message)
-                                    .id(message.id)
+                                MessageBubble(
+                                    message: message,
+                                    isSaved: savedMessageId == message.id,
+                                    onSave: message.role == .assistant ? { saveAsNote(message) } : nil
+                                )
+                                .id(message.id)
                             }
 
                             // Loading indicator
@@ -135,7 +142,11 @@ struct AssistantView: View {
                     }
                     .onChange(of: messages.count) {
                         withAnimation {
-                            proxy.scrollTo(messages.last?.id ?? "loading", anchor: .bottom)
+                            if let lastId = messages.last?.id {
+                                proxy.scrollTo(lastId, anchor: .bottom)
+                            } else {
+                                proxy.scrollTo("loading", anchor: .bottom)
+                            }
                         }
                     }
                 }
@@ -148,7 +159,7 @@ struct AssistantView: View {
                     Button(action: { showingNoteSelector = true }) {
                         Image(systemName: selectedNotes.isEmpty ? "doc.text" : "doc.text.fill")
                             .font(.title3)
-                            .foregroundStyle(selectedNotes.isEmpty ? .secondary : .blue)
+                            .foregroundColor(selectedNotes.isEmpty ? .gray : .blue)
                     }
 
                     // Text input
@@ -164,7 +175,7 @@ struct AssistantView: View {
                     Button(action: { sendMessage(inputText) }) {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.title)
-                            .foregroundStyle(inputText.isEmpty ? .gray : .blue)
+                            .foregroundColor(inputText.isEmpty ? .gray : .blue)
                     }
                     .disabled(inputText.isEmpty || isLoading)
                 }
@@ -194,6 +205,24 @@ struct AssistantView: View {
                 Button("OK") { }
             } message: {
                 Text(errorMessage ?? "Something went wrong")
+            }
+            .overlay(alignment: .top) {
+                if showingSaveConfirmation {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Saved to Notes")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.regularMaterial)
+                    .cornerRadius(20)
+                    .shadow(radius: 4)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.easeInOut, value: showingSaveConfirmation)
+                }
             }
         }
     }
@@ -299,6 +328,43 @@ struct AssistantView: View {
     private func clearChat() {
         messages = []
         selectedNotes = []
+    }
+
+    private func saveAsNote(_ message: ChatMessage) {
+        // Find the user's question that prompted this response
+        var userPrompt = "Assistant Response"
+        if let messageIndex = messages.firstIndex(where: { $0.id == message.id }),
+           messageIndex > 0 {
+            let previousMessage = messages[messageIndex - 1]
+            if previousMessage.role == .user {
+                // Use first 50 chars of user prompt as title
+                userPrompt = String(previousMessage.content.prefix(50))
+                if previousMessage.content.count > 50 {
+                    userPrompt += "..."
+                }
+            }
+        }
+
+        let note = Note(
+            title: userPrompt,
+            content: message.content
+        )
+        note.intent = .idea  // Default to "Idea" for AI-generated content
+
+        modelContext.insert(note)
+
+        // Mark as saved and show confirmation
+        savedMessageId = message.id
+        withAnimation {
+            showingSaveConfirmation = true
+        }
+
+        // Hide confirmation after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation {
+                showingSaveConfirmation = false
+            }
+        }
     }
 }
 
@@ -417,6 +483,8 @@ struct ExamplePrompt: View {
 
 struct MessageBubble: View {
     let message: ChatMessage
+    var isSaved: Bool = false
+    var onSave: (() -> Void)?
 
     var body: some View {
         HStack {
@@ -430,9 +498,25 @@ struct MessageBubble: View {
                     .foregroundStyle(message.role == .user ? .white : .primary)
                     .cornerRadius(16)
 
-                Text(message.timestamp.formatted(date: .omitted, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 12) {
+                    Text(message.timestamp.formatted(date: .omitted, time: .shortened))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+
+                    // Save as Note button (only for assistant messages)
+                    if let onSave = onSave {
+                        Button(action: onSave) {
+                            HStack(spacing: 4) {
+                                Image(systemName: isSaved ? "checkmark.circle.fill" : "square.and.arrow.down")
+                                    .font(.caption)
+                                Text(isSaved ? "Saved" : "Save as Note")
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(isSaved ? .green : .blue)
+                        }
+                        .disabled(isSaved)
+                    }
+                }
             }
             .frame(maxWidth: 300, alignment: message.role == .user ? .trailing : .leading)
 

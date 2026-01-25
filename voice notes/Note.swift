@@ -45,11 +45,33 @@ enum NoteIntent: String, CaseIterable, Codable {
 struct ExtractedSubject: Codable, Sendable {
     let topic: String
     let action: String?
+
+    static func fromJSON(_ json: String?) -> ExtractedSubject? {
+        guard let json = json,
+              let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(ExtractedSubject.self, from: data)
+    }
+
+    func toJSON() -> String? {
+        guard let data = try? JSONEncoder().encode(self) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 }
 
 struct MissingInfoItem: Codable, Sendable {
     let field: String
     let description: String
+
+    static func fromJSON(_ json: String?) -> [MissingInfoItem] {
+        guard let json = json,
+              let data = json.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([MissingInfoItem].self, from: data)) ?? []
+    }
+
+    static func toJSON(_ items: [MissingInfoItem]) -> String? {
+        guard let data = try? JSONEncoder().encode(items) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 }
 
 // MARK: - Next Step Types
@@ -162,33 +184,20 @@ final class Note {
 
     var extractedSubject: ExtractedSubject? {
         get {
-            guard let json = extractedSubjectJSON,
-                  let data = json.data(using: .utf8) else { return nil }
-            return try? JSONDecoder().decode(ExtractedSubject.self, from: data)
+            ExtractedSubject.fromJSON(extractedSubjectJSON)
         }
         set {
-            if let value = newValue,
-               let data = try? JSONEncoder().encode(value) {
-                extractedSubjectJSON = String(data: data, encoding: .utf8)
-            } else {
-                extractedSubjectJSON = nil
-            }
+            extractedSubjectJSON = newValue?.toJSON()
             updatedAt = Date()
         }
     }
 
     var missingInfo: [MissingInfoItem] {
         get {
-            guard let json = missingInfoJSON,
-                  let data = json.data(using: .utf8) else { return [] }
-            return (try? JSONDecoder().decode([MissingInfoItem].self, from: data)) ?? []
+            MissingInfoItem.fromJSON(missingInfoJSON)
         }
         set {
-            if let data = try? JSONEncoder().encode(newValue) {
-                missingInfoJSON = String(data: data, encoding: .utf8)
-            } else {
-                missingInfoJSON = nil
-            }
+            missingInfoJSON = MissingInfoItem.toJSON(newValue)
             updatedAt = Date()
         }
     }
