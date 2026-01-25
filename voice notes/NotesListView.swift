@@ -113,7 +113,8 @@ struct NotesListView: View {
                                     NavigationLink(destination: NoteEditorView(note: note)) {
                                         StickyNoteCard(
                                             note: note,
-                                            color: noteColors[index % noteColors.count]
+                                            color: noteColors[index % noteColors.count],
+                                            onDelete: { deleteNote(note) }
                                         )
                                     }
                                     .buttonStyle(.plain)
@@ -440,8 +441,11 @@ struct RecordingOverlay: View {
 struct StickyNoteCard: View {
     let note: Note
     let color: Color
+    var onDelete: (() -> Void)? = nil
 
     @State private var rotation: Double = Double.random(in: -2...2)
+    @State private var offset: CGFloat = 0
+    @State private var showingDeleteConfirm = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -503,6 +507,31 @@ struct StickyNoteCard: View {
         .cornerRadius(4)
         .shadow(color: .black.opacity(0.1), radius: 2, x: 1, y: 2)
         .rotationEffect(.degrees(rotation))
+        .offset(x: offset)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if value.translation.width < 0 {
+                        offset = value.translation.width
+                    }
+                }
+                .onEnded { value in
+                    if value.translation.width < -100 {
+                        showingDeleteConfirm = true
+                    }
+                    withAnimation(.spring()) {
+                        offset = 0
+                    }
+                }
+        )
+        .confirmationDialog("Delete Note?", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                onDelete?()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This cannot be undone.")
+        }
     }
 }
 

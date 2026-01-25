@@ -19,6 +19,7 @@ struct NoteEditorView: View {
     @State private var actionItems: [String] = []
     @State private var errorMessage: String?
     @State private var showingError = false
+    @State private var showingDeleteConfirm = false
 
     @State private var audioRecorder = AudioRecorder()
     private let isNewNote: Bool
@@ -202,7 +203,24 @@ struct NoteEditorView: View {
                     }
                     .fontWeight(.semibold)
                 }
+            } else {
+                ToolbarItem(placement: .destructiveAction) {
+                    Button(role: .destructive) {
+                        showingDeleteConfirm = true
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                    }
+                }
             }
+        }
+        .confirmationDialog("Delete Note?", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                deleteNote()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This cannot be undone.")
         }
         .alert("Error", isPresented: $showingError) {
             Button("OK") { }
@@ -228,6 +246,16 @@ struct NoteEditorView: View {
 
     private func saveNote() {
         modelContext.insert(note)
+        dismiss()
+    }
+
+    private func deleteNote() {
+        if let fileName = note.audioFileName {
+            let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(fileName)
+            try? FileManager.default.removeItem(at: url)
+        }
+        modelContext.delete(note)
         dismiss()
     }
 
