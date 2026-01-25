@@ -44,39 +44,23 @@ struct NoteEditorView: View {
 
                 // Audio playback bar (if has audio)
                 if let url = note.audioURL {
-                    AudioPlayerBar(url: url, audioRecorder: audioRecorder)
-                }
+                    HStack {
+                        AudioPlayerBar(url: url, audioRecorder: audioRecorder)
 
-                // Transcript section (if has transcript)
-                if let transcript = note.transcript, !transcript.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Label("Transcript", systemImage: "waveform")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-
-                            Spacer()
-
+                        // Summarize button for voice notes
+                        if note.transcript != nil && !note.transcript!.isEmpty {
                             Button(action: generateSummary) {
                                 if isGeneratingSummary {
                                     ProgressView()
                                         .scaleEffect(0.8)
                                 } else {
-                                    Label("Summarize", systemImage: "sparkles")
+                                    Image(systemName: "sparkles")
                                 }
                             }
                             .buttonStyle(.bordered)
-                            .controlSize(.small)
                             .tint(.red)
                             .disabled(isGeneratingSummary)
                         }
-
-                        Text(transcript)
-                            .font(.system(.body, design: .serif))
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(12)
                     }
                 }
 

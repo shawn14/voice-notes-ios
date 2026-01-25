@@ -287,8 +287,8 @@ struct NotesListView: View {
 
     private func saveNote(transcript: String?) {
         let note = Note(
-            title: "",  // Will be set by AI
-            content: "",  // Empty - user adds their own notes
+            title: "",  // Will be set by AI summary
+            content: transcript ?? "",  // Full transcript in Notes field
             transcript: transcript,
             audioFileName: currentAudioFileName
         )
