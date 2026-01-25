@@ -13,10 +13,13 @@ struct NoteEditorView: View {
     @Bindable var note: Note
     @Query private var allTags: [Tag]
 
+    @Query private var allProjects: [Project]
+
     @State private var isProcessingTags = false
     @State private var isAnalyzing = false
     @State private var isTransforming = false
-    @State private var analysis: ChiefOfStaffAnalysis?
+    @State private var analysis: NoteAnalysis?
+    @State private var intentAnalysis: IntentAnalysis?
     @State private var errorMessage: String?
     @State private var showingError = false
     @State private var showingDeleteConfirm = false
@@ -24,9 +27,45 @@ struct NoteEditorView: View {
     @State private var transformationType: String?
     @State private var showingCustomPrompt = false
     @State private var customPromptText = ""
+    @State private var showingShareSheet = false
+    @State private var showingProjectPicker = false
 
     @State private var audioRecorder = AudioRecorder()
     private let isNewNote: Bool
+
+    /// Content formatted for sharing
+    private var shareableContent: String {
+        var parts: [String] = []
+
+        if !note.title.isEmpty {
+            parts.append(note.title)
+            parts.append("")  // blank line
+        }
+
+        if !note.content.isEmpty {
+            parts.append(note.content)
+        }
+
+        // Add tags if any
+        if !note.tags.isEmpty {
+            parts.append("")
+            parts.append("Tags: " + note.tags.map { $0.name }.joined(separator: ", "))
+        }
+
+        return parts.joined(separator: "\n")
+    }
+
+    /// Items to share (text + audio if available)
+    private var shareItems: [Any] {
+        var items: [Any] = [shareableContent]
+
+        // Include audio file if available
+        if let audioURL = note.audioURL {
+            items.append(audioURL)
+        }
+
+        return items
+    }
 
     init(note: Note?) {
         if let note = note {
@@ -52,14 +91,14 @@ struct NoteEditorView: View {
                     HStack {
                         AudioPlayerBar(url: url, audioRecorder: audioRecorder)
 
-                        // Analyze button for voice notes
+                        // Extract button for voice notes
                         if note.transcript != nil && !note.transcript!.isEmpty {
-                            Button(action: analyzeNote) {
+                            Button(action: extractIntent) {
                                 if isAnalyzing {
                                     ProgressView()
                                         .scaleEffect(0.8)
                                 } else {
-                                    Label("Analyze", systemImage: "brain.head.profile")
+                                    Label("Extract", systemImage: "brain.head.profile")
                                 }
                             }
                             .buttonStyle(.bordered)
@@ -69,9 +108,45 @@ struct NoteEditorView: View {
                     }
                 }
 
-                // Chief of Staff Analysis
+                // Intent Strip (after audio player)
+                if intentAnalysis != nil || note.intentType != "Unknown" {
+                    IntentStripView(
+                        selectedIntent: Binding(
+                            get: { note.intent },
+                            set: { note.intent = $0 }
+                        ),
+                        aiConfidence: intentAnalysis?.intentConfidence
+                    )
+                }
+
+                // Structured Extraction (subject + missing info)
+                if let subject = note.extractedSubject {
+                    StructuredExtractionView(
+                        subject: subject,
+                        missingInfo: note.missingInfo
+                    )
+                }
+
+                // Next Step (prominent, actionable)
+                if let nextStep = note.suggestedNextStep, !nextStep.isEmpty {
+                    NextStepView(note: note)
+                }
+
+                // Project Association
+                ProjectAssociationView(
+                    inferredProjectName: note.inferredProjectName,
+                    assignedProjectId: $note.projectId,
+                    allProjects: allProjects,
+                    showingPicker: $showingProjectPicker
+                )
+
+                // Note Analysis
                 if let analysis = analysis {
-                    ChiefOfStaffView(analysis: analysis, onDismiss: { self.analysis = nil })
+                    NoteAnalysisView(
+                        analysis: analysis,
+                        onDismiss: { self.analysis = nil },
+                        hasNextStep: note.suggestedNextStep != nil && !note.suggestedNextStep!.isEmpty
+                    )
                 }
 
                 // Notes section
@@ -141,6 +216,7 @@ struct NoteEditorView: View {
 
                     TextEditor(text: $note.content)
                         .font(.system(.body, design: .serif))
+                        .foregroundStyle(.black)
                         .frame(minHeight: 150)
                         .scrollContentBackground(.hidden)
                         .padding(12)
@@ -261,6 +337,13 @@ struct NoteEditorView: View {
                     .fontWeight(.semibold)
                 }
             } else {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingShareSheet = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
                 ToolbarItem(placement: .destructiveAction) {
                     Button(role: .destructive) {
                         showingDeleteConfirm = true
@@ -295,6 +378,9 @@ struct NoteEditorView: View {
                     transformNote(to: "custom")
                 }
             )
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            ShareNoteView(note: note)
         }
     }
 
@@ -358,7 +444,7 @@ struct NoteEditorView: View {
         }
     }
 
-    private func analyzeNote() {
+    private func extractIntent() {
         guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
             errorMessage = "OpenAI API key not configured"
             showingError = true
@@ -373,9 +459,79 @@ struct NoteEditorView: View {
 
         Task {
             do {
-                let result = try await SummaryService.analyzeAsChiefOfStaff(text: textToAnalyze, apiKey: apiKey)
+                let result = try await SummaryService.extractIntent(text: textToAnalyze, apiKey: apiKey)
                 await MainActor.run {
-                    analysis = result
+                    intentAnalysis = result
+
+                    // Update note with intent data
+                    note.intentType = result.intent
+                    note.intentConfidence = result.intentConfidence
+
+                    if let subject = result.subject {
+                        note.extractedSubject = ExtractedSubject(
+                            topic: subject.topic,
+                            action: subject.action
+                        )
+                    }
+
+                    note.suggestedNextStep = result.nextStep
+                    note.nextStepTypeRaw = result.nextStepType
+                    note.missingInfo = result.missingInfo.map {
+                        MissingInfoItem(field: $0.field, description: $0.description)
+                    }
+                    note.inferredProjectName = result.inferredProject
+
+                    // Also populate the legacy analysis for backward compatibility
+                    analysis = NoteAnalysis(
+                        summary: result.summary,
+                        keyPoints: result.keyPoints,
+                        extractedDecisions: result.decisions,
+                        extractedActions: result.actions,
+                        extractedCommitments: result.commitments,
+                        unresolvedItems: result.unresolved
+                    )
+
+                    // Save extracted items to database (separate from note)
+                    for decision in result.decisions {
+                        let extracted = ExtractedDecision(
+                            content: decision.content,
+                            affects: decision.affects,
+                            confidence: decision.confidence,
+                            status: "Active",
+                            sourceNoteId: note.id
+                        )
+                        modelContext.insert(extracted)
+                    }
+
+                    for action in result.actions {
+                        let extracted = ExtractedAction(
+                            content: action.content,
+                            owner: action.owner,
+                            deadline: action.deadline,
+                            priority: "Normal",
+                            sourceNoteId: note.id
+                        )
+                        modelContext.insert(extracted)
+                    }
+
+                    for commitment in result.commitments {
+                        let extracted = ExtractedCommitment(
+                            who: commitment.who,
+                            what: commitment.what,
+                            sourceNoteId: note.id
+                        )
+                        modelContext.insert(extracted)
+                    }
+
+                    for unresolved in result.unresolved {
+                        let extracted = UnresolvedItem(
+                            content: unresolved.content,
+                            reason: unresolved.reason,
+                            sourceNoteId: note.id
+                        )
+                        modelContext.insert(extracted)
+                    }
+
                     isAnalyzing = false
                 }
             } catch {
@@ -646,148 +802,176 @@ struct AudioPlayerBar: View {
     }
 }
 
-// Chief of Staff Analysis View
-struct ChiefOfStaffView: View {
-    let analysis: ChiefOfStaffAnalysis
+// Note Analysis View - Collapsed by default, shows "Why we think this"
+struct NoteAnalysisView: View {
+    let analysis: NoteAnalysis
     let onDismiss: () -> Void
+    let hasNextStep: Bool  // If true, hide single action (it's already shown as Next Step)
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header
-            HStack {
-                Label("Analysis", systemImage: "brain.head.profile")
-                    .font(.headline)
-                    .foregroundStyle(.red)
+    @State private var isExpanded = false
 
-                Spacer()
-
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            // Classification tags
-            FlowLayout(spacing: 6) {
-                ForEach(analysis.classification, id: \.self) { tag in
-                    Text(tag)
-                        .font(.caption.bold())
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(classificationColor(for: tag))
-                        .foregroundStyle(.white)
-                        .cornerRadius(4)
-                }
-            }
-
-            // Decisions
-            if !analysis.decisions.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Decisions", systemImage: "checkmark.seal")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.green)
-
-                    ForEach(analysis.decisions, id: \.self) { decision in
-                        Text("• \(decision)")
-                            .font(.subheadline)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.green.opacity(0.1))
-                .cornerRadius(8)
-            }
-
-            // Action Items
-            if !analysis.actionItems.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Action Items", systemImage: "checklist")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.orange)
-
-                    ForEach(analysis.actionItems, id: \.action) { item in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.action)
-                                .font(.subheadline)
-
-                            HStack(spacing: 12) {
-                                Label(item.owner, systemImage: "person")
-                                Label(item.deadline, systemImage: "calendar")
-                                Text(item.confidence)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(confidenceColor(for: item.confidence))
-                                    .foregroundStyle(.white)
-                                    .cornerRadius(4)
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.orange.opacity(0.08))
-                        .cornerRadius(6)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.orange.opacity(0.05))
-                .cornerRadius(8)
-            }
-
-            // Open Questions
-            if !analysis.openQuestions.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Open Questions", systemImage: "questionmark.circle")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.purple)
-
-                    ForEach(analysis.openQuestions, id: \.self) { question in
-                        Text("• \(question)")
-                            .font(.subheadline)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.purple.opacity(0.1))
-                .cornerRadius(8)
-            }
-
-            // Suggested Automations
-            if !analysis.suggestedAutomations.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Suggested Actions", systemImage: "wand.and.stars")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.blue)
-
-                    ForEach(analysis.suggestedAutomations, id: \.self) { suggestion in
-                        HStack {
-                            Text(suggestion)
-                                .font(.subheadline)
-                            Spacer()
-                        }
-                        .padding(8)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(6)
-                    }
-                }
-            }
+    // Only show actions if there are multiple, or if they're delegated (not "Me")
+    private var actionsToShow: [NoteAnalysis.ActionExtract] {
+        let actions = analysis.extractedActions
+        // If there's a next step and only one action owned by "Me", hide it (redundant)
+        if hasNextStep && actions.count == 1 && actions.first?.owner.lowercased() == "me" {
+            return []
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        return actions
     }
 
-    private func classificationColor(for type: String) -> Color {
-        switch type.lowercased() {
-        case "decision": return .green
-        case "commitment": return .orange
-        case "delegation": return .blue
-        case "idea": return .purple
-        case "risk/concern", "risk", "concern": return .red
-        case "fyi": return .gray
-        default: return .secondary
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Collapsed header - always visible
+            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
+                HStack {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+
+                    Text("Why we think this")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+            }
+            .buttonStyle(.plain)
+
+            // Expanded content
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Summary
+                    Text(analysis.summary)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.systemGray5))
+                        .cornerRadius(8)
+
+                    // Key Points
+                    if !analysis.keyPoints.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Key Points")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.secondary)
+
+                            ForEach(analysis.keyPoints, id: \.self) { point in
+                                Text("• \(point)")
+                                    .font(.subheadline)
+                            }
+                        }
+                    }
+
+                    // Extracted Decisions
+                    if !analysis.extractedDecisions.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Decisions", systemImage: "checkmark.seal")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.green)
+
+                            ForEach(analysis.extractedDecisions, id: \.content) { decision in
+                                HStack {
+                                    Text(decision.content)
+                                        .font(.subheadline)
+                                    Spacer()
+                                    Text(decision.confidence)
+                                        .font(.caption)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(confidenceColor(for: decision.confidence))
+                                        .foregroundStyle(.white)
+                                        .cornerRadius(4)
+                                }
+                                .padding(8)
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(6)
+                            }
+                        }
+                    }
+
+                    // Extracted Actions (only if multiple or delegated)
+                    if !actionsToShow.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Actions", systemImage: "checklist")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.orange)
+
+                            ForEach(actionsToShow, id: \.content) { action in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(action.content)
+                                        .font(.subheadline)
+                                    HStack(spacing: 12) {
+                                        Label(action.owner, systemImage: "person")
+                                        Label(action.deadline, systemImage: "calendar")
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                }
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(6)
+                            }
+                        }
+                    }
+
+                    // Commitments
+                    if !analysis.extractedCommitments.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Commitments", systemImage: "person.badge.clock")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.blue)
+
+                            ForEach(analysis.extractedCommitments, id: \.what) { commitment in
+                                Text("\(commitment.who): \(commitment.what)")
+                                    .font(.subheadline)
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(6)
+                            }
+                        }
+                    }
+
+                    // Unresolved
+                    if !analysis.unresolvedItems.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Needs Resolution", systemImage: "questionmark.circle")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.purple)
+
+                            ForEach(analysis.unresolvedItems, id: \.content) { item in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.content)
+                                        .font(.subheadline)
+                                    Text(item.reason)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.purple.opacity(0.1))
+                                .cornerRadius(6)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+            }
         }
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
     }
 
     private func confidenceColor(for level: String) -> Color {
@@ -797,6 +981,467 @@ struct ChiefOfStaffView: View {
         case "low": return .red
         default: return .gray
         }
+    }
+}
+
+// MARK: - Intent Strip View
+
+struct IntentStripView: View {
+    @Binding var selectedIntent: NoteIntent
+    let aiConfidence: Double?
+    @State private var showConfidence = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Intent")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .onTapGesture {
+                        if aiConfidence != nil {
+                            withAnimation { showConfidence.toggle() }
+                        }
+                    }
+
+                Spacer()
+
+                if showConfidence, let confidence = aiConfidence {
+                    Text("\(Int(confidence * 100))% confident")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .transition(.opacity)
+                }
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(NoteIntent.allCases, id: \.self) { intent in
+                        IntentPill(
+                            intent: intent,
+                            isSelected: selectedIntent == intent,
+                            onTap: { selectedIntent = intent }
+                        )
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct IntentPill: View {
+    let intent: NoteIntent
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 4) {
+                Image(systemName: intent.icon)
+                    .font(.caption)
+                Text(intent.rawValue)
+                    .font(.subheadline)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(isSelected ? intent.color : Color(.systemGray5))
+            .foregroundStyle(isSelected ? .white : .primary)
+            .cornerRadius(20)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Structured Extraction View
+
+struct StructuredExtractionView: View {
+    let subject: ExtractedSubject
+    let missingInfo: [MissingInfoItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Subject card
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(.blue)
+                    Text(subject.topic)
+                        .font(.headline)
+                }
+
+                if let action = subject.action, !action.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.right")
+                            .foregroundStyle(.secondary)
+                        Text(action)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+
+            // Missing info warnings
+            if !missingInfo.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(missingInfo, id: \.field) { item in
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .font(.caption)
+                            Text(item.description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Next Step View (Interactive Resolution)
+
+struct NextStepView: View {
+    @Bindable var note: Note
+    @State private var isExpanded = false
+    @State private var selectedDate = Date()
+
+    private var isResolved: Bool { note.isNextStepResolved }
+    private var nextStep: String { note.suggestedNextStep ?? "" }
+    private var stepType: NextStepType { note.nextStepType }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Main card - tap to expand
+            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
+                HStack(spacing: 12) {
+                    Image(systemName: isResolved ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(isResolved ? .green : .blue)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Next step")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if isResolved, let resolution = note.nextStepResolution {
+                            Text("✓ \(resolution)")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.green)
+                        } else {
+                            Text(nextStep)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.primary)
+                        }
+                    }
+
+                    Spacer()
+
+                    if isResolved {
+                        Button(action: { note.unresolveNextStep() }) {
+                            Text("Undo")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(12)
+            }
+            .buttonStyle(.plain)
+
+            // Expanded resolution UI
+            if isExpanded && !isResolved {
+                VStack(spacing: 12) {
+                    Divider()
+
+                    switch stepType {
+                    case .date:
+                        DateResolutionView(
+                            selectedDate: $selectedDate,
+                            onResolve: { dateString in
+                                note.resolveNextStep(with: dateString)
+                                withAnimation { isExpanded = false }
+                            }
+                        )
+
+                    case .contact:
+                        ContactResolutionView(
+                            onResolve: { contactString in
+                                note.resolveNextStep(with: contactString)
+                                withAnimation { isExpanded = false }
+                            }
+                        )
+
+                    case .decision:
+                        DecisionResolutionView(
+                            onResolve: { decision in
+                                note.resolveNextStep(with: decision)
+                                withAnimation { isExpanded = false }
+                            }
+                        )
+
+                    case .simple:
+                        SimpleResolutionView(
+                            onResolve: {
+                                note.resolveNextStep(with: "Done")
+                                withAnimation { isExpanded = false }
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+            }
+        }
+        .background(isResolved ? Color.green.opacity(0.1) : Color.blue.opacity(0.1))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isResolved ? Color.green.opacity(0.3) : Color.blue.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Date Resolution View
+
+struct DateResolutionView: View {
+    @Binding var selectedDate: Date
+    let onResolve: (String) -> Void
+    @State private var showFullPicker = false
+
+    private var quickDates: [(String, Date)] {
+        let calendar = Calendar.current
+        let today = Date()
+        return [
+            ("Today", today),
+            ("Tomorrow", calendar.date(byAdding: .day, value: 1, to: today)!),
+            ("Next Week", calendar.date(byAdding: .weekOfYear, value: 1, to: today)!)
+        ]
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            // Quick date options
+            HStack(spacing: 8) {
+                ForEach(quickDates, id: \.0) { label, date in
+                    Button(action: {
+                        let formatter = DateFormatter()
+                        formatter.dateStyle = .medium
+                        onResolve(formatter.string(from: date))
+                    }) {
+                        Text(label)
+                            .font(.subheadline)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.blue.opacity(0.2))
+                            .foregroundStyle(.blue)
+                            .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button(action: { showFullPicker.toggle() }) {
+                    Image(systemName: "calendar")
+                        .font(.subheadline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray5))
+                        .foregroundStyle(.primary)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Full date picker (when expanded)
+            if showFullPicker {
+                DatePicker("Pick a date", selection: $selectedDate, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .padding(8)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(8)
+
+                Button(action: {
+                    let formatter = DateFormatter()
+                    formatter.dateStyle = .medium
+                    onResolve(formatter.string(from: selectedDate))
+                }) {
+                    Text("Confirm Date")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.blue)
+                        .foregroundStyle(.white)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+// MARK: - Contact Resolution View
+
+struct ContactResolutionView: View {
+    let onResolve: (String) -> Void
+    @State private var contactName = ""
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                TextField("Who did you contact?", text: $contactName)
+                    .textFieldStyle(.roundedBorder)
+
+                Button(action: {
+                    let resolution = contactName.isEmpty ? "Contacted" : "Sent to \(contactName)"
+                    onResolve(resolution)
+                }) {
+                    Text("Done")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.blue)
+                        .foregroundStyle(.white)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+// MARK: - Decision Resolution View
+
+struct DecisionResolutionView: View {
+    let onResolve: (String) -> Void
+    @State private var decision = ""
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                TextField("What did you decide?", text: $decision)
+                    .textFieldStyle(.roundedBorder)
+
+                Button(action: {
+                    let resolution = decision.isEmpty ? "Decided" : "Decided: \(decision)"
+                    onResolve(resolution)
+                }) {
+                    Text("Done")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.blue)
+                        .foregroundStyle(.white)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+// MARK: - Simple Resolution View
+
+struct SimpleResolutionView: View {
+    let onResolve: () -> Void
+
+    var body: some View {
+        HStack {
+            Spacer()
+
+            Button(action: onResolve) {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark")
+                    Text("Mark Done")
+                }
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color.green)
+                .foregroundStyle(.white)
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Project Association View
+
+struct ProjectAssociationView: View {
+    let inferredProjectName: String?
+    @Binding var assignedProjectId: UUID?
+    let allProjects: [Project]
+    @Binding var showingPicker: Bool
+
+    private var assignedProject: Project? {
+        guard let id = assignedProjectId else { return nil }
+        return allProjects.first { $0.id == id }
+    }
+
+    private var displayText: String {
+        if let project = assignedProject {
+            return project.name
+        } else if let inferred = inferredProjectName, !inferred.isEmpty {
+            return "\(inferred) (suggested)"
+        }
+        return "No project"
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: assignedProject?.icon ?? "folder")
+                .foregroundStyle(assignedProject != nil ? .blue : .secondary)
+
+            Text(displayText)
+                .font(.subheadline)
+                .foregroundStyle(assignedProject != nil ? .primary : .secondary)
+
+            if inferredProjectName != nil && assignedProject == nil {
+                Text("(suggested)")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
+            Menu {
+                Button("None") {
+                    assignedProjectId = nil
+                }
+
+                Divider()
+
+                ForEach(allProjects.filter { !$0.isArchived }) { project in
+                    Button(project.name) {
+                        assignedProjectId = project.id
+                    }
+                }
+            } label: {
+                Text("Change")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+            }
+        }
+        .padding(12)
+        .background(Color(.systemGray6))
+        .cornerRadius(8)
     }
 }
 
@@ -850,5 +1495,5 @@ struct FlowLayout: Layout {
     NavigationStack {
         NoteEditorView(note: nil)
     }
-    .modelContainer(for: [Note.self, Tag.self], inMemory: true)
+    .modelContainer(for: [Note.self, Tag.self, Project.self], inMemory: true)
 }

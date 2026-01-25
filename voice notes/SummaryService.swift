@@ -10,19 +10,64 @@ struct NoteSummary: Sendable {
     let actionItems: [String]
 }
 
-struct ChiefOfStaffAnalysis: Sendable {
-    let title: String
-    let classification: [String]
-    let decisions: [String]
-    let actionItems: [ActionItem]
-    let openQuestions: [String]
-    let suggestedAutomations: [String]
+struct NoteAnalysis: Sendable {
+    let summary: String
+    let keyPoints: [String]
+    let extractedDecisions: [DecisionExtract]
+    let extractedActions: [ActionExtract]
+    let extractedCommitments: [CommitmentExtract]
+    let unresolvedItems: [UnresolvedExtract]
 
-    struct ActionItem: Sendable {
-        let action: String
+    struct DecisionExtract: Sendable {
+        let content: String
+        let affects: String
+        let confidence: String
+    }
+
+    struct ActionExtract: Sendable {
+        let content: String
         let owner: String
         let deadline: String
-        let confidence: String  // High, Medium, Low
+    }
+
+    struct CommitmentExtract: Sendable {
+        let who: String
+        let what: String
+    }
+
+    struct UnresolvedExtract: Sendable {
+        let content: String
+        let reason: String  // "No decision", "No owner", "Ambiguous"
+    }
+}
+
+// MARK: - Intent Analysis
+
+struct IntentAnalysis: Sendable {
+    let intent: String              // Action, Decision, Idea, Update, Reminder
+    let intentConfidence: Double    // 0.0 - 1.0
+    let subject: SubjectExtract?
+    let nextStep: String?
+    let nextStepType: String        // date, contact, decision, simple
+    let missingInfo: [MissingInfoExtract]
+    let inferredProject: String?
+
+    // Include existing analysis fields for combined extraction
+    let summary: String
+    let keyPoints: [String]
+    let decisions: [NoteAnalysis.DecisionExtract]
+    let actions: [NoteAnalysis.ActionExtract]
+    let commitments: [NoteAnalysis.CommitmentExtract]
+    let unresolved: [NoteAnalysis.UnresolvedExtract]
+
+    struct SubjectExtract: Sendable {
+        let topic: String
+        let action: String?
+    }
+
+    struct MissingInfoExtract: Sendable {
+        let field: String
+        let description: String
     }
 }
 
@@ -178,58 +223,64 @@ enum SummaryService {
         return NoteSummary(keyPoints: keyPoints, actionItems: actionItems)
     }
 
-    // MARK: - Chief of Staff Analysis
+    // MARK: - Note Analysis (Notes ≠ Decisions)
 
-    static let chiefOfStaffPrompt = """
-    You are an elite Chief of Staff for founders and senior executives.
+    static let analysisPrompt = """
+    You are an AI assistant in a founder-focused voice note app.
 
-    Your job is NOT to summarize notes.
-    Your job is to reduce cognitive load, enforce follow-through, and surface what actually matters.
+    CORE RULE: Notes are events. Decisions, actions, and commitments are separate objects.
+    A note may produce decisions or actions, but it does not own them.
 
-    Assume the user is:
-    - Busy
-    - Context-switching constantly
-    - Speaking casually and imprecisely
-    - Expecting you to infer intent and fill gaps
-
-    For every voice note:
-    1. Extract what was decided
-    2. Identify what must happen next
-    3. Determine who owns it
-    4. Clarify by when
-    5. Detect risk, ambiguity, or missing info
-
-    CLASSIFY the note as one or more of:
-    - Decision – something is agreed or changed
-    - Commitment – the user promised something
-    - Delegation – someone else owns it
-    - Idea – explore later
-    - Risk/Concern – potential issue or blocker
-    - FYI – informational only
-    - Unresolved – needs clarification
+    For this note, provide:
+    1. A brief summary (1-2 sentences)
+    2. Key factual points (not actions or decisions)
+    3. Extract any decisions, actions, or commitments as SEPARATE items
+    4. Flag anything unresolved or ambiguous
 
     Return a JSON object with this EXACT structure:
     {
-        "title": "Short executive summary (max 8 words)",
-        "classification": ["Decision", "Commitment"],
-        "decisions": ["Decision 1", "Decision 2"],
-        "actionItems": [
+        "summary": "Brief description of what this note is about",
+        "keyPoints": ["Factual takeaway 1", "Factual takeaway 2"],
+        "decisions": [
             {
-                "action": "What needs to be done",
-                "owner": "Who owns it (default: me)",
-                "deadline": "By when (infer or say 'TBD')",
+                "content": "What was decided",
+                "affects": "What this impacts",
                 "confidence": "High/Medium/Low"
             }
         ],
-        "openQuestions": ["Question that blocks execution"],
-        "suggestedAutomations": ["Set reminder for Friday", "Draft follow-up email"]
+        "actions": [
+            {
+                "content": "What must be done",
+                "owner": "Who owns it (default: Me)",
+                "deadline": "By when (infer or TBD)"
+            }
+        ],
+        "commitments": [
+            {
+                "who": "Who promised (use 'Me' if the speaker)",
+                "what": "What was promised"
+            }
+        ],
+        "unresolved": [
+            {
+                "content": "What was mentioned but not resolved",
+                "reason": "No decision / No owner / Ambiguous"
+            }
+        ]
     }
 
-    Be direct. Be precise. Push back if something is vague.
-    Return ONLY the JSON, no other text.
+    Rules:
+    - Keep the note summary lightweight
+    - Do NOT track status or completion in the note
+    - Decisions and actions are READ-ONLY references in the note
+    - They will be stored and managed separately
+    - Flag items where no clear decision was made (e.g., "we should revisit pricing")
+    - Flag items with no owner or ambiguous responsibility
+    - Be precise, minimal, no fluff
+    - Return ONLY JSON, no other text
     """
 
-    static func analyzeAsChiefOfStaff(text: String, apiKey: String) async throws -> ChiefOfStaffAnalysis {
+    static func analyzeNote(text: String, apiKey: String) async throws -> NoteAnalysis {
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
 
         var request = URLRequest(url: url)
@@ -240,7 +291,7 @@ enum SummaryService {
         let body: [String: Any] = [
             "model": "gpt-4o-mini",
             "messages": [
-                ["role": "system", "content": chiefOfStaffPrompt],
+                ["role": "system", "content": analysisPrompt],
                 ["role": "user", "content": text]
             ],
             "temperature": 0.3,
@@ -263,39 +314,258 @@ enum SummaryService {
             throw SummaryError.parsingError
         }
 
-        let parsed = try JSONDecoder().decode(ChiefOfStaffResponse.self, from: jsonData)
+        let parsed = try JSONDecoder().decode(NoteAnalysisResponse.self, from: jsonData)
 
-        return ChiefOfStaffAnalysis(
-            title: parsed.title,
-            classification: parsed.classification,
-            decisions: parsed.decisions,
-            actionItems: parsed.actionItems.map {
-                ChiefOfStaffAnalysis.ActionItem(
-                    action: $0.action,
-                    owner: $0.owner,
-                    deadline: $0.deadline,
-                    confidence: $0.confidence
-                )
+        return NoteAnalysis(
+            summary: parsed.summary,
+            keyPoints: parsed.keyPoints,
+            extractedDecisions: parsed.decisions.map {
+                NoteAnalysis.DecisionExtract(content: $0.content, affects: $0.affects, confidence: $0.confidence)
             },
-            openQuestions: parsed.openQuestions,
-            suggestedAutomations: parsed.suggestedAutomations
+            extractedActions: parsed.actions.map {
+                NoteAnalysis.ActionExtract(content: $0.content, owner: $0.owner, deadline: $0.deadline)
+            },
+            extractedCommitments: parsed.commitments.map {
+                NoteAnalysis.CommitmentExtract(who: $0.who, what: $0.what)
+            },
+            unresolvedItems: parsed.unresolved.map {
+                NoteAnalysis.UnresolvedExtract(content: $0.content, reason: $0.reason)
+            }
+        )
+    }
+
+    // MARK: - Intent Extraction (Enhanced Analysis)
+
+    static let intentPrompt = """
+    You are an AI assistant in a founder-focused voice note app that turns notes into actionable items.
+
+    CORE RULES:
+    1. Be DECISIVE - pick ONE intent, don't hedge
+    2. Be ACTIONABLE - next step should be imperative ("Pick...", "Send...", "Schedule...")
+    3. Be HONEST - surface what's missing, don't hide gaps
+    4. Notes are events. Decisions, actions, and commitments are separate objects.
+
+    INTENT TYPES:
+    - Action: Something that needs to be done (task, to-do, next step)
+    - Decision: A choice that was made or needs to be made
+    - Idea: A concept, thought, or potential opportunity
+    - Update: Status information or progress report
+    - Reminder: Something to remember or not forget
+
+    For this note, provide:
+    1. The PRIMARY intent (pick one, be decisive)
+    2. The subject: what's this about? (topic + action)
+    3. The next step: what should happen next? (imperative verb)
+    4. Missing info: what's incomplete or unclear?
+    5. Project inference: what project does this belong to?
+    6. Standard analysis: summary, key points, decisions, actions, commitments, unresolved
+
+    NEXT STEP TYPES (classify based on what resolution requires):
+    - date: Involves picking a date/time ("Pick a date", "Schedule", "Set deadline", "When should we...")
+    - contact: Involves reaching out to someone ("Send to", "Email", "Call", "Message", "Tell...")
+    - decision: Involves choosing between options ("Decide on", "Choose between", "Pick one...")
+    - simple: Everything else - just needs to be done ("Review", "Check", "Confirm", "Update...")
+
+    Return a JSON object with this EXACT structure:
+    {
+        "intent": "Action",
+        "intentConfidence": 0.9,
+        "subject": {
+            "topic": "Board Meeting",
+            "action": "Reschedule to next week"
+        },
+        "nextStep": "Pick a date for the board meeting",
+        "nextStepType": "date",
+        "missingInfo": [
+            {"field": "date", "description": "Needs a specific date"}
+        ],
+        "inferredProject": "StockAlarm",
+        "summary": "Brief description of what this note is about",
+        "keyPoints": ["Factual takeaway 1", "Factual takeaway 2"],
+        "decisions": [
+            {
+                "content": "What was decided",
+                "affects": "What this impacts",
+                "confidence": "High/Medium/Low"
+            }
+        ],
+        "actions": [
+            {
+                "content": "What must be done",
+                "owner": "Who owns it (default: Me)",
+                "deadline": "By when (infer or TBD)"
+            }
+        ],
+        "commitments": [
+            {
+                "who": "Who promised (use 'Me' if the speaker)",
+                "what": "What was promised"
+            }
+        ],
+        "unresolved": [
+            {
+                "content": "What was mentioned but not resolved",
+                "reason": "No decision / No owner / Ambiguous"
+            }
+        ]
+    }
+
+    Rules:
+    - intent: Pick ONE from Action, Decision, Idea, Update, Reminder
+    - intentConfidence: Your confidence 0.0-1.0 (be honest)
+    - subject.topic: The main subject/entity being discussed
+    - subject.action: What's happening with it (can be null for pure updates)
+    - nextStep: Always imperative verb, specific and actionable. Null if truly complete.
+    - nextStepType: Pick ONE from date, contact, decision, simple based on what resolution requires
+    - missingInfo: Array of gaps. Empty array if nothing missing.
+    - inferredProject: Best guess at project name. Null if unclear.
+    - Return ONLY JSON, no other text
+    """
+
+    static func extractIntent(text: String, apiKey: String) async throws -> IntentAnalysis {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": intentPrompt],
+                ["role": "user", "content": text]
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1500
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SummaryError.apiError(errorMessage)
+        }
+
+        let result = try JSONDecoder().decode(SummaryChatResponse.self, from: data)
+
+        guard let content = result.choices.first?.message.content,
+              let jsonData = content.data(using: .utf8) else {
+            throw SummaryError.parsingError
+        }
+
+        let parsed = try JSONDecoder().decode(IntentAnalysisResponse.self, from: jsonData)
+
+        return IntentAnalysis(
+            intent: parsed.intent,
+            intentConfidence: parsed.intentConfidence,
+            subject: parsed.subject.map {
+                IntentAnalysis.SubjectExtract(topic: $0.topic, action: $0.action)
+            },
+            nextStep: parsed.nextStep,
+            nextStepType: parsed.nextStepType ?? "simple",
+            missingInfo: parsed.missingInfo.map {
+                IntentAnalysis.MissingInfoExtract(field: $0.field, description: $0.description)
+            },
+            inferredProject: parsed.inferredProject,
+            summary: parsed.summary,
+            keyPoints: parsed.keyPoints,
+            decisions: parsed.decisions.map {
+                NoteAnalysis.DecisionExtract(content: $0.content, affects: $0.affects, confidence: $0.confidence)
+            },
+            actions: parsed.actions.map {
+                NoteAnalysis.ActionExtract(content: $0.content, owner: $0.owner, deadline: $0.deadline)
+            },
+            commitments: parsed.commitments.map {
+                NoteAnalysis.CommitmentExtract(who: $0.who, what: $0.what)
+            },
+            unresolved: parsed.unresolved.map {
+                NoteAnalysis.UnresolvedExtract(content: $0.content, reason: $0.reason)
+            }
         )
     }
 }
 
-nonisolated struct ChiefOfStaffResponse: Codable, Sendable {
-    let title: String
-    let classification: [String]
-    let decisions: [String]
-    let actionItems: [ActionItemResponse]
-    let openQuestions: [String]
-    let suggestedAutomations: [String]
+// MARK: - Intent Analysis Response
 
-    struct ActionItemResponse: Codable, Sendable {
-        let action: String
+nonisolated struct IntentAnalysisResponse: Codable, Sendable {
+    let intent: String
+    let intentConfidence: Double
+    let subject: SubjectResponse?
+    let nextStep: String?
+    let nextStepType: String?
+    let missingInfo: [MissingInfoResponse]
+    let inferredProject: String?
+    let summary: String
+    let keyPoints: [String]
+    let decisions: [DecisionResponse]
+    let actions: [ActionResponse]
+    let commitments: [CommitmentResponse]
+    let unresolved: [UnresolvedResponse]
+
+    struct SubjectResponse: Codable, Sendable {
+        let topic: String
+        let action: String?
+    }
+
+    struct MissingInfoResponse: Codable, Sendable {
+        let field: String
+        let description: String
+    }
+
+    struct DecisionResponse: Codable, Sendable {
+        let content: String
+        let affects: String
+        let confidence: String
+    }
+
+    struct ActionResponse: Codable, Sendable {
+        let content: String
         let owner: String
         let deadline: String
+    }
+
+    struct CommitmentResponse: Codable, Sendable {
+        let who: String
+        let what: String
+    }
+
+    struct UnresolvedResponse: Codable, Sendable {
+        let content: String
+        let reason: String
+    }
+}
+
+nonisolated struct NoteAnalysisResponse: Codable, Sendable {
+    let summary: String
+    let keyPoints: [String]
+    let decisions: [DecisionResponse]
+    let actions: [ActionResponse]
+    let commitments: [CommitmentResponse]
+    let unresolved: [UnresolvedResponse]
+
+    struct DecisionResponse: Codable, Sendable {
+        let content: String
+        let affects: String
         let confidence: String
+    }
+
+    struct ActionResponse: Codable, Sendable {
+        let content: String
+        let owner: String
+        let deadline: String
+    }
+
+    struct CommitmentResponse: Codable, Sendable {
+        let who: String
+        let what: String
+    }
+
+    struct UnresolvedResponse: Codable, Sendable {
+        let content: String
+        let reason: String
     }
 }
 
