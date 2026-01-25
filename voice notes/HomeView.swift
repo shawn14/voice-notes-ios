@@ -37,6 +37,7 @@ struct HomeView: View {
     @State private var searchText = ""
     @State private var selectedFilter: NoteFilter = .all
     @State private var showingSettings = false
+    @State private var showingAssistant = false
     @State private var selectedProject: Project?
 
     // Recording state
@@ -84,8 +85,16 @@ struct HomeView: View {
                 Color.black.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Header with settings
+                    // Header with assistant and settings
                     HStack {
+                        Button {
+                            showingAssistant = true
+                        } label: {
+                            Image(systemName: "sparkles")
+                                .font(.title2)
+                                .foregroundStyle(.purple)
+                        }
+
                         Spacer()
 
                         Button {
@@ -214,6 +223,9 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showingAssistant) {
+                AssistantView()
             }
             .navigationDestination(for: Project.self) { project in
                 ProjectDetailView(project: project)
