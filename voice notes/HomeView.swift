@@ -37,6 +37,7 @@ struct HomeView: View {
     @State private var searchText = ""
     @State private var selectedFilter: NoteFilter = .all
     @State private var showingSettings = false
+    @State private var selectedProject: Project?
 
     // Recording state
     @State private var audioRecorder = AudioRecorder()
@@ -136,12 +137,15 @@ struct HomeView: View {
                             }
 
                             // Projects quick access
-                            ForEach(projects.prefix(3)) { project in
-                                FilterTab(
-                                    title: project.name,
-                                    isSelected: false
-                                ) {
-                                    // Navigate to project
+                            ForEach(projects.filter { !$0.isArchived }.prefix(3)) { project in
+                                NavigationLink(value: project) {
+                                    Text(project.name)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(Color(.systemGray5).opacity(0.3))
+                                        .cornerRadius(20)
                                 }
                             }
                         }
@@ -210,6 +214,9 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
+            }
+            .navigationDestination(for: Project.self) { project in
+                ProjectDetailView(project: project)
             }
         }
         .preferredColorScheme(.dark)
