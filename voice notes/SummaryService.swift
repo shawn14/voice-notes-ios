@@ -10,6 +10,22 @@ struct NoteSummary: Sendable {
     let actionItems: [String]
 }
 
+struct ChiefOfStaffAnalysis: Sendable {
+    let title: String
+    let classification: [String]
+    let decisions: [String]
+    let actionItems: [ActionItem]
+    let openQuestions: [String]
+    let suggestedAutomations: [String]
+
+    struct ActionItem: Sendable {
+        let action: String
+        let owner: String
+        let deadline: String
+        let confidence: String  // High, Medium, Low
+    }
+}
+
 enum SummaryService {
     enum SummaryError: LocalizedError {
         case apiError(String)
@@ -160,6 +176,126 @@ enum SummaryService {
         }
 
         return NoteSummary(keyPoints: keyPoints, actionItems: actionItems)
+    }
+
+    // MARK: - Chief of Staff Analysis
+
+    static let chiefOfStaffPrompt = """
+    You are an elite Chief of Staff for founders and senior executives.
+
+    Your job is NOT to summarize notes.
+    Your job is to reduce cognitive load, enforce follow-through, and surface what actually matters.
+
+    Assume the user is:
+    - Busy
+    - Context-switching constantly
+    - Speaking casually and imprecisely
+    - Expecting you to infer intent and fill gaps
+
+    For every voice note:
+    1. Extract what was decided
+    2. Identify what must happen next
+    3. Determine who owns it
+    4. Clarify by when
+    5. Detect risk, ambiguity, or missing info
+
+    CLASSIFY the note as one or more of:
+    - Decision – something is agreed or changed
+    - Commitment – the user promised something
+    - Delegation – someone else owns it
+    - Idea – explore later
+    - Risk/Concern – potential issue or blocker
+    - FYI – informational only
+    - Unresolved – needs clarification
+
+    Return a JSON object with this EXACT structure:
+    {
+        "title": "Short executive summary (max 8 words)",
+        "classification": ["Decision", "Commitment"],
+        "decisions": ["Decision 1", "Decision 2"],
+        "actionItems": [
+            {
+                "action": "What needs to be done",
+                "owner": "Who owns it (default: me)",
+                "deadline": "By when (infer or say 'TBD')",
+                "confidence": "High/Medium/Low"
+            }
+        ],
+        "openQuestions": ["Question that blocks execution"],
+        "suggestedAutomations": ["Set reminder for Friday", "Draft follow-up email"]
+    }
+
+    Be direct. Be precise. Push back if something is vague.
+    Return ONLY the JSON, no other text.
+    """
+
+    static func analyzeAsChiefOfStaff(text: String, apiKey: String) async throws -> ChiefOfStaffAnalysis {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": chiefOfStaffPrompt],
+                ["role": "user", "content": text]
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1000
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SummaryError.apiError(errorMessage)
+        }
+
+        let result = try JSONDecoder().decode(SummaryChatResponse.self, from: data)
+
+        guard let content = result.choices.first?.message.content,
+              let jsonData = content.data(using: .utf8) else {
+            throw SummaryError.parsingError
+        }
+
+        let parsed = try JSONDecoder().decode(ChiefOfStaffResponse.self, from: jsonData)
+
+        return ChiefOfStaffAnalysis(
+            title: parsed.title,
+            classification: parsed.classification,
+            decisions: parsed.decisions,
+            actionItems: parsed.actionItems.map {
+                ChiefOfStaffAnalysis.ActionItem(
+                    action: $0.action,
+                    owner: $0.owner,
+                    deadline: $0.deadline,
+                    confidence: $0.confidence
+                )
+            },
+            openQuestions: parsed.openQuestions,
+            suggestedAutomations: parsed.suggestedAutomations
+        )
+    }
+}
+
+nonisolated struct ChiefOfStaffResponse: Codable, Sendable {
+    let title: String
+    let classification: [String]
+    let decisions: [String]
+    let actionItems: [ActionItemResponse]
+    let openQuestions: [String]
+    let suggestedAutomations: [String]
+
+    struct ActionItemResponse: Codable, Sendable {
+        let action: String
+        let owner: String
+        let deadline: String
+        let confidence: String
     }
 }
 

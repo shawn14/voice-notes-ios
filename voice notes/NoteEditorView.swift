@@ -14,10 +14,9 @@ struct NoteEditorView: View {
     @Query private var allTags: [Tag]
 
     @State private var isProcessingTags = false
-    @State private var isGeneratingSummary = false
+    @State private var isAnalyzing = false
     @State private var isTransforming = false
-    @State private var keyPoints: [String] = []
-    @State private var actionItems: [String] = []
+    @State private var analysis: ChiefOfStaffAnalysis?
     @State private var errorMessage: String?
     @State private var showingError = false
     @State private var showingDeleteConfirm = false
@@ -53,41 +52,26 @@ struct NoteEditorView: View {
                     HStack {
                         AudioPlayerBar(url: url, audioRecorder: audioRecorder)
 
-                        // Summarize button for voice notes
+                        // Analyze button for voice notes
                         if note.transcript != nil && !note.transcript!.isEmpty {
-                            Button(action: generateSummary) {
-                                if isGeneratingSummary {
+                            Button(action: analyzeNote) {
+                                if isAnalyzing {
                                     ProgressView()
                                         .scaleEffect(0.8)
                                 } else {
-                                    Image(systemName: "sparkles")
+                                    Label("Analyze", systemImage: "brain.head.profile")
                                 }
                             }
                             .buttonStyle(.bordered)
                             .tint(.red)
-                            .disabled(isGeneratingSummary)
+                            .disabled(isAnalyzing)
                         }
                     }
                 }
 
-                // Key Points section
-                if !keyPoints.isEmpty {
-                    SummarySection(
-                        title: "Key Points",
-                        icon: "sparkles",
-                        items: keyPoints,
-                        color: Color.blue.opacity(0.1)
-                    )
-                }
-
-                // Action Items section
-                if !actionItems.isEmpty {
-                    SummarySection(
-                        title: "Action Items",
-                        icon: "checkmark.circle",
-                        items: actionItems,
-                        color: Color.orange.opacity(0.1)
-                    )
+                // Chief of Staff Analysis
+                if let analysis = analysis {
+                    ChiefOfStaffView(analysis: analysis, onDismiss: { self.analysis = nil })
                 }
 
                 // Notes section
@@ -374,30 +358,31 @@ struct NoteEditorView: View {
         }
     }
 
-    private func generateSummary() {
+    private func analyzeNote() {
         guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
             errorMessage = "OpenAI API key not configured"
             showingError = true
             return
         }
 
-        guard let transcript = note.transcript, !transcript.isEmpty else { return }
+        // Use content (which contains transcript) or fall back to transcript
+        let textToAnalyze = !note.content.isEmpty ? note.content : (note.transcript ?? "")
+        guard !textToAnalyze.isEmpty else { return }
 
-        isGeneratingSummary = true
+        isAnalyzing = true
 
         Task {
             do {
-                let summary = try await SummaryService.generateSummary(for: transcript, apiKey: apiKey)
+                let result = try await SummaryService.analyzeAsChiefOfStaff(text: textToAnalyze, apiKey: apiKey)
                 await MainActor.run {
-                    keyPoints = summary.keyPoints
-                    actionItems = summary.actionItems
-                    isGeneratingSummary = false
+                    analysis = result
+                    isAnalyzing = false
                 }
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
                     showingError = true
-                    isGeneratingSummary = false
+                    isAnalyzing = false
                 }
             }
         }
@@ -661,30 +646,156 @@ struct AudioPlayerBar: View {
     }
 }
 
-// Summary section component
-struct SummarySection: View {
-    let title: String
-    let icon: String
-    let items: [String]
-    let color: Color
+// Chief of Staff Analysis View
+struct ChiefOfStaffView: View {
+    let analysis: ChiefOfStaffAnalysis
+    let onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: icon)
-                .font(.headline)
-                .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
+                Label("Analysis", systemImage: "brain.head.profile")
+                    .font(.headline)
+                    .foregroundStyle(.red)
 
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(items, id: \.self) { item in
-                    Text(item)
-                        .font(.subheadline)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(color)
-                        .cornerRadius(8)
+                Spacer()
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
                 }
             }
+
+            // Classification tags
+            FlowLayout(spacing: 6) {
+                ForEach(analysis.classification, id: \.self) { tag in
+                    Text(tag)
+                        .font(.caption.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(classificationColor(for: tag))
+                        .foregroundStyle(.white)
+                        .cornerRadius(4)
+                }
+            }
+
+            // Decisions
+            if !analysis.decisions.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Decisions", systemImage: "checkmark.seal")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.green)
+
+                    ForEach(analysis.decisions, id: \.self) { decision in
+                        Text("• \(decision)")
+                            .font(.subheadline)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(8)
+            }
+
+            // Action Items
+            if !analysis.actionItems.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Action Items", systemImage: "checklist")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.orange)
+
+                    ForEach(analysis.actionItems, id: \.action) { item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.action)
+                                .font(.subheadline)
+
+                            HStack(spacing: 12) {
+                                Label(item.owner, systemImage: "person")
+                                Label(item.deadline, systemImage: "calendar")
+                                Text(item.confidence)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(confidenceColor(for: item.confidence))
+                                    .foregroundStyle(.white)
+                                    .cornerRadius(4)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.orange.opacity(0.08))
+                        .cornerRadius(6)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.05))
+                .cornerRadius(8)
+            }
+
+            // Open Questions
+            if !analysis.openQuestions.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Open Questions", systemImage: "questionmark.circle")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.purple)
+
+                    ForEach(analysis.openQuestions, id: \.self) { question in
+                        Text("• \(question)")
+                            .font(.subheadline)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.purple.opacity(0.1))
+                .cornerRadius(8)
+            }
+
+            // Suggested Automations
+            if !analysis.suggestedAutomations.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Suggested Actions", systemImage: "wand.and.stars")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.blue)
+
+                    ForEach(analysis.suggestedAutomations, id: \.self) { suggestion in
+                        HStack {
+                            Text(suggestion)
+                                .font(.subheadline)
+                            Spacer()
+                        }
+                        .padding(8)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(6)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+
+    private func classificationColor(for type: String) -> Color {
+        switch type.lowercased() {
+        case "decision": return .green
+        case "commitment": return .orange
+        case "delegation": return .blue
+        case "idea": return .purple
+        case "risk/concern", "risk", "concern": return .red
+        case "fyi": return .gray
+        default: return .secondary
+        }
+    }
+
+    private func confidenceColor(for level: String) -> Color {
+        switch level.lowercased() {
+        case "high": return .green
+        case "medium": return .orange
+        case "low": return .red
+        default: return .gray
         }
     }
 }
