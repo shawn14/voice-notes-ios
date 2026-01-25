@@ -56,6 +56,8 @@ struct HomeView: View {
     @State private var newlyCreatedNote: Note?
     @State private var showPaywall = false
     @State private var showSignIn = false
+    @State private var showingAddProjectFromMain = false
+    @State private var newProjectName = ""
 
     // Filtered notes based on search and filter
     private var filteredNotes: [Note] {
@@ -155,15 +157,32 @@ struct HomeView: View {
                             }
 
                             // Projects quick access
-                            ForEach(projects.filter { !$0.isArchived }.prefix(3)) { project in
-                                NavigationLink(value: project) {
-                                    Text(project.name)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 10)
-                                        .background(Color(.systemGray5).opacity(0.3))
-                                        .cornerRadius(20)
+                            if projects.filter({ !$0.isArchived }).isEmpty {
+                                // Prompt to create first project
+                                Button(action: { showingAddProjectFromMain = true }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus")
+                                            .font(.caption.weight(.semibold))
+                                        Text("Add Project")
+                                            .font(.subheadline)
+                                    }
+                                    .foregroundStyle(.white.opacity(0.8))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color.blue.opacity(0.4))
+                                    .cornerRadius(20)
+                                }
+                            } else {
+                                ForEach(projects.filter { !$0.isArchived }.prefix(3)) { project in
+                                    NavigationLink(value: project) {
+                                        Text(project.name)
+                                            .font(.subheadline)
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 10)
+                                            .background(Color(.systemGray5).opacity(0.3))
+                                            .cornerRadius(20)
+                                    }
                                 }
                             }
                         }
@@ -291,6 +310,21 @@ struct HomeView: View {
                 }
             } message: {
                 Text("Tap Extract to turn this thought into action.")
+            }
+            .alert("New Project", isPresented: $showingAddProjectFromMain) {
+                TextField("Project name", text: $newProjectName)
+                Button("Create") {
+                    if !newProjectName.trimmingCharacters(in: .whitespaces).isEmpty {
+                        let project = Project(name: newProjectName.trimmingCharacters(in: .whitespaces))
+                        modelContext.insert(project)
+                        newProjectName = ""
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    newProjectName = ""
+                }
+            } message: {
+                Text("Projects help organize related notes together.")
             }
             .navigationDestination(for: Project.self) { project in
                 ProjectDetailView(project: project)
@@ -1090,48 +1124,76 @@ struct SettingsView: View {
 
                 // MARK: - Projects Section
                 Section {
-                    ForEach(projects) { project in
-                        NavigationLink(destination: ProjectEditView(project: project)) {
-                            HStack(spacing: 16) {
-                                ZStack {
-                                    Circle()
-                                        .fill(projectColor(project.colorName).opacity(0.15))
-                                        .frame(width: 44, height: 44)
-                                    Image(systemName: project.icon)
-                                        .foregroundStyle(projectColor(project.colorName))
-                                }
+                    if projects.isEmpty {
+                        // Empty state for no projects
+                        VStack(spacing: 12) {
+                            Image(systemName: "folder.badge.plus")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.blue.opacity(0.7))
 
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(project.name)
-                                        .font(.body)
-                                    if !project.aliases.isEmpty {
-                                        Text("\(project.aliases.count) aliases")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                            Text("Organize your notes")
+                                .font(.headline)
+
+                            Text("Projects help group related notes together. AI can auto-assign notes to projects based on content.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+
+                            Button(action: { showingAddProject = true }) {
+                                Label("Create Your First Project", systemImage: "plus.circle.fill")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+                            .padding(.top, 8)
+                        }
+                        .padding(.vertical, 16)
+                    } else {
+                        ForEach(projects) { project in
+                            NavigationLink(destination: ProjectEditView(project: project)) {
+                                HStack(spacing: 16) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(projectColor(project.colorName).opacity(0.15))
+                                            .frame(width: 44, height: 44)
+                                        Image(systemName: project.icon)
+                                            .foregroundStyle(projectColor(project.colorName))
                                     }
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(project.name)
+                                            .font(.body)
+                                        if !project.aliases.isEmpty {
+                                            Text("\(project.aliases.count) aliases")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+
+                                    Spacer()
                                 }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .onDelete(perform: deleteProjects)
+
+                        Button(action: { showingAddProject = true }) {
+                            HStack(spacing: 16) {
+                                Image(systemName: "plus.circle")
+                                    .foregroundStyle(.blue)
+                                    .frame(width: 44)
+
+                                Text("Add Project")
+                                    .font(.body)
+                                    .foregroundStyle(.blue)
 
                                 Spacer()
                             }
                         }
                         .padding(.vertical, 4)
                     }
-                    .onDelete(perform: deleteProjects)
-
-                    Button(action: { showingAddProject = true }) {
-                        HStack(spacing: 16) {
-                            Image(systemName: "plus.circle")
-                                .foregroundStyle(.blue)
-                                .frame(width: 44)
-
-                            Text("Add Project")
-                                .font(.body)
-                                .foregroundStyle(.blue)
-
-                            Spacer()
-                        }
-                    }
-                    .padding(.vertical, 4)
                 } header: {
                     Text("Projects")
                 }
