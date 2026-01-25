@@ -418,7 +418,7 @@ struct ColumnTab: View {
 
     var columnColor: Color {
         switch column {
-        case .thinking: return .purple
+        case .thinking: return .blue
         case .decided: return .green
         case .doing: return .blue
         case .waiting: return .orange
@@ -461,7 +461,7 @@ struct KanbanCard: View {
 
     var itemColor: Color {
         switch item.kanbanColumn {
-        case .thinking: return .purple
+        case .thinking: return .blue
         case .decided: return .green
         case .doing: return .blue
         case .waiting: return .orange

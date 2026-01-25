@@ -161,7 +161,7 @@ struct DroppedBallRow: View {
 
     var reasonColor: Color {
         switch ball.reason {
-        case .decisionWithoutAction: return .purple
+        case .decisionWithoutAction: return .blue
         case .stuckInColumn: return .orange
         case .openCommitment: return .blue
         }

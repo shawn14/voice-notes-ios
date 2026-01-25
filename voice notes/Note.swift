@@ -32,7 +32,7 @@ enum NoteIntent: String, CaseIterable, Codable {
         switch self {
         case .action: return .orange
         case .decision: return .green
-        case .idea: return .purple
+        case .idea: return .blue
         case .update: return .blue
         case .reminder: return .red
         case .unknown: return .gray
@@ -94,13 +94,13 @@ enum NextStepType: String, Codable, CaseIterable {
 
 @Model
 final class Note {
-    var id: UUID
-    var title: String
-    var content: String
+    var id: UUID = UUID()
+    var title: String = ""
+    var content: String = ""
     var transcript: String?
     var audioFileName: String?
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
     var projectId: UUID?
     var column: String = "Thinking"  // KanbanColumn raw value
     var aiInsight: String?  // AI-generated summary or next step
@@ -123,7 +123,13 @@ final class Note {
     var inferredProjectName: String?    // AI-suggested project name
 
     @Relationship(deleteRule: .nullify, inverse: \Tag.notes)
-    var tags: [Tag]
+    var tagsOptional: [Tag]?
+
+    // CloudKit requires optional relationships, but we provide non-optional accessor
+    var tags: [Tag] {
+        get { tagsOptional ?? [] }
+        set { tagsOptional = newValue }
+    }
 
     init(
         title: String = "",
@@ -142,7 +148,7 @@ final class Note {
         self.updatedAt = Date()
         self.projectId = projectId
         self.column = column
-        self.tags = []
+        self.tagsOptional = nil
     }
 
     var kanbanColumn: KanbanColumn {

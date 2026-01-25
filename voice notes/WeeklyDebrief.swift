@@ -11,7 +11,7 @@ import SwiftData
 @Model
 final class WeeklyDebrief {
     var id: UUID = UUID()
-    var weekStartDate: Date
+    var weekStartDate: Date = Date()
     var generatedAt: Date = Date()
     var summary: String = ""
     var momentumScore: String = ""  // "up", "down", "flat"

@@ -28,7 +28,7 @@ enum KanbanColumn: String, Codable, CaseIterable {
 
     var color: Color {
         switch self {
-        case .thinking: return .purple
+        case .thinking: return .blue
         case .decided: return .green
         case .doing: return .blue
         case .waiting: return .orange

@@ -50,6 +50,13 @@ struct HomeView: View {
     @State private var errorMessage: String?
     @State private var showingError = false
 
+    // First-run clarity flow
+    @State private var showFirstClarity = false
+    @State private var showExtractFallback = false
+    @State private var newlyCreatedNote: Note?
+    @State private var showPaywall = false
+    @State private var showSignIn = false
+
     // Filtered notes based on search and filter
     private var filteredNotes: [Note] {
         var result = notes
@@ -94,7 +101,7 @@ struct HomeView: View {
                         } label: {
                             Image(systemName: "sparkles")
                                 .font(.title2)
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(.blue)
                         }
 
                         Spacer()
@@ -204,6 +211,31 @@ struct HomeView: View {
                     )
                 }
 
+                // Sign in button (bottom right) - shows when not signed in
+                if !AuthService.shared.isSignedIn && !isRecording && !isTranscribing {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Button(action: { showSignIn = true }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "person.crop.circle.badge.plus")
+                                    Text("Sign In")
+                                }
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.blue)
+                                .cornerRadius(20)
+                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                            }
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 100)
+                        }
+                    }
+                }
+
                 // Recording overlay
                 if isRecording {
                     HomeRecordingOverlay(
@@ -228,6 +260,37 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingAssistant) {
                 AssistantView()
+            }
+            .sheet(isPresented: $showSignIn) {
+                SignInView(onSignedIn: {
+                    showSignIn = false
+                })
+            }
+            .sheet(isPresented: $showFirstClarity) {
+                if let note = newlyCreatedNote {
+                    FirstClarityView(note: note, onComplete: {
+                        showFirstClarity = false
+                        newlyCreatedNote = nil
+                    })
+                }
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView(onDismiss: {
+                    showPaywall = false
+                })
+            }
+            .alert("Ready to understand", isPresented: $showExtractFallback) {
+                Button("See what I can do") {
+                    // Navigate to NoteEditorView with the note
+                    // The user can tap Extract there
+                    showExtractFallback = false
+                }
+                Button("Later", role: .cancel) {
+                    showExtractFallback = false
+                    newlyCreatedNote = nil
+                }
+            } message: {
+                Text("Tap Extract to turn this thought into action.")
             }
             .navigationDestination(for: Project.self) { project in
                 ProjectDetailView(project: project)
@@ -320,6 +383,16 @@ struct HomeView: View {
         // Force save to persist immediately
         try? modelContext.save()
 
+        // Check if this is the first note with transcript -> auto-extract
+        let isFirstNote = UsageService.shared.isFirstNote
+        if isFirstNote && transcript != nil && !transcript!.isEmpty {
+            UsageService.shared.isFirstNote = false
+
+            if UsageService.shared.canExtract {
+                autoExtractAndShowClarity(note: note, transcript: transcript!)
+            }
+        }
+
         // AI processing for title and tags
         if let transcript = transcript, !transcript.isEmpty,
            let apiKey = APIKeys.openAI, !apiKey.isEmpty {
@@ -365,15 +438,79 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Auto-Extract for First Note
+
+    private func autoExtractAndShowClarity(note: Note, transcript: String) {
+        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
+            // No API key - show fallback
+            newlyCreatedNote = note
+            showExtractFallback = true
+            return
+        }
+
+        Task {
+            do {
+                let result = try await SummaryService.extractIntent(text: transcript, apiKey: apiKey)
+
+                await MainActor.run {
+                    // Apply extraction to note
+                    note.intentType = result.intent
+                    note.intentConfidence = result.intentConfidence
+
+                    if let subject = result.subject {
+                        note.extractedSubject = ExtractedSubject(
+                            topic: subject.topic,
+                            action: subject.action
+                        )
+                    }
+
+                    note.suggestedNextStep = result.nextStep
+                    note.nextStepTypeRaw = result.nextStepType
+                    note.missingInfo = result.missingInfo.map {
+                        MissingInfoItem(field: $0.field, description: $0.description)
+                    }
+                    note.inferredProjectName = result.inferredProject
+
+                    // Auto-match inferred project to existing projects
+                    if let inferredName = result.inferredProject, !inferredName.isEmpty {
+                        let textToMatch = "\(inferredName) \(note.content)"
+                        if let match = ProjectMatcher.findMatch(for: textToMatch, in: projects) {
+                            note.projectId = match.project.id
+                        }
+                    }
+
+                    // Track usage
+                    UsageService.shared.useExtraction()
+
+                    // Show FirstClarityView
+                    newlyCreatedNote = note
+                    showFirstClarity = true
+                }
+            } catch {
+                // FAILURE GUARDRAIL: Don't silently fail
+                await MainActor.run {
+                    newlyCreatedNote = note
+                    showExtractFallback = true
+                }
+            }
+        }
+    }
+
     private func trackRecordingUsage(fileName: String) {
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let audioURL = documentsURL.appendingPathComponent(fileName)
 
         let asset = AVURLAsset(url: audioURL)
-        let duration = CMTimeGetSeconds(asset.duration)
-
-        if duration.isFinite && duration > 0 {
-            UsageService.shared.addRecordingTime(seconds: Int(duration))
+        Task {
+            do {
+                let duration = try await asset.load(.duration)
+                let seconds = CMTimeGetSeconds(duration)
+                if seconds.isFinite && seconds > 0 {
+                    UsageService.shared.addRecordingTime(seconds: Int(seconds))
+                }
+            } catch {
+                print("Failed to load audio duration: \(error)")
+            }
         }
     }
 
@@ -422,7 +559,7 @@ struct FilterTab: View {
                 .foregroundStyle(isSelected ? .white : .gray)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(isSelected ? Color.purple : Color(.systemGray5).opacity(0.3))
+                .background(isSelected ? Color.blue : Color(.systemGray5).opacity(0.3))
                 .cornerRadius(20)
         }
         .buttonStyle(.plain)
@@ -602,7 +739,7 @@ struct ProjectsListView: View {
         case "red": return .red
         case "green": return .green
         case "orange": return .orange
-        case "purple": return .purple
+        case "purple": return .blue
         case "pink": return .pink
         case "yellow": return .yellow
         default: return .blue
@@ -634,6 +771,9 @@ struct SettingsView: View {
     @State private var showingAddProject = false
     @State private var newProjectName = ""
     @State private var showingShareSheet = false
+    @State private var showingPaywall = false
+    @State private var showingResetConfirm = false
+    @State private var showingResetUsageConfirm = false
 
     private let usage = UsageService.shared
 
@@ -642,40 +782,79 @@ struct SettingsView: View {
             List {
                 // MARK: - Usage Section
                 Section {
-                    // Usage meter
+                    // AI Extractions remaining
                     HStack(spacing: 16) {
-                        UsageRingView(progress: usage.usagePercentage)
-                            .frame(width: 56, height: 56)
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "brain.head.profile")
+                                .foregroundStyle(.blue)
+                        }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Usage: \(usage.usageDisplayString)")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("AI Extractions")
                                 .font(.body.weight(.medium))
-
-                            if usage.isOverLimit {
-                                Text("Upgrade to continue recording!")
+                            if usage.isPro {
+                                Text("Unlimited")
                                     .font(.caption)
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(.green)
                             } else {
-                                Text("Upgrade to continue using Voice Notes!")
+                                Text("\(usage.freeExtractionsRemaining) of 5 remaining")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundColor(usage.freeExtractionsRemaining > 0 ? .secondary : .red)
                             }
                         }
+
+                        Spacer()
                     }
                     .padding(.vertical, 4)
 
-                    // Total recording time
+                    // Resolutions remaining
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.green.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "checkmark.circle")
+                                .foregroundStyle(.green)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Actions Resolved")
+                                .font(.body.weight(.medium))
+                            if usage.isPro {
+                                Text("Unlimited")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            } else {
+                                Text("\(usage.freeResolutionsRemaining) of 3 remaining")
+                                    .font(.caption)
+                                    .foregroundColor(usage.freeResolutionsRemaining > 0 ? .secondary : .red)
+                            }
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+
+                    // Recording (unlimited)
                     HStack(spacing: 16) {
                         ZStack {
                             Circle()
                                 .fill(Color.red.opacity(0.15))
                                 .frame(width: 44, height: 44)
-                            Image(systemName: "waveform")
+                            Image(systemName: "mic.fill")
                                 .foregroundStyle(.red)
                         }
 
-                        Text("Total Recording Time: \(usage.totalRecordingTimeString)")
-                            .font(.body)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Recording")
+                                .font(.body.weight(.medium))
+                            Text("Unlimited (\(usage.totalRecordingTimeString) recorded)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
                         Spacer()
                     }
@@ -697,60 +876,119 @@ struct SettingsView: View {
                         Spacer()
                     }
                     .padding(.vertical, 4)
+
+                    // Stats
+                    if usage.totalExtractionsUsed > 0 || usage.totalResolutionsUsed > 0 {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Total extractions: \(usage.totalExtractionsUsed)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("Total resolutions: \(usage.totalResolutionsUsed)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
                 } header: {
                     Text("Usage")
                 }
 
-                // MARK: - Subscription Section
+                // MARK: - Account Section
                 Section {
-                    // Current level
+                    // Account info
                     HStack(spacing: 16) {
                         ZStack {
                             Circle()
                                 .fill(Color.blue.opacity(0.15))
                                 .frame(width: 44, height: 44)
-                            Image(systemName: "person.crop.circle.badge.checkmark")
+                            Image(systemName: AuthService.shared.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle")
                                 .foregroundStyle(.blue)
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Level: Free")
+                            if AuthService.shared.isSignedIn {
+                                Text(AuthService.shared.displayName)
+                                    .font(.body.weight(.medium))
+                                if let email = AuthService.shared.userEmail {
+                                    Text(email)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else {
+                                Text("Not signed in")
+                                    .font(.body.weight(.medium))
+                                Text("Local data only")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+
+                    // Current level
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .fill(usage.isPro ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: usage.isPro ? "sparkles" : "star.fill")
+                                .foregroundStyle(usage.isPro ? .blue : .orange)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Plan: \(usage.isPro ? "Pro" : "Free")")
                                 .font(.body.weight(.medium))
-                            Text("Expires on: Never")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            if usage.isPro {
+                                Text("All features unlocked")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            } else {
+                                Text("Upgrade for unlimited AI")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
 
                         Spacer()
 
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(.vertical, 4)
-
-                    // Upgrade option
-                    Button {
-                        // TODO: Show subscription options
-                    } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "square.and.arrow.up")
-                                .foregroundStyle(.blue)
-                                .frame(width: 44)
-
-                            Text("Subscribe to new option")
-                                .font(.body)
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
+                        if !usage.isPro {
                             Image(systemName: "chevron.right")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
                     }
-                    .buttonStyle(.plain)
                     .padding(.vertical, 4)
+
+                    // Upgrade option (only show if not Pro)
+                    if !usage.isPro {
+                        Button {
+                            showingPaywall = true
+                        } label: {
+                            HStack(spacing: 16) {
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(.blue)
+                                    .frame(width: 44)
+
+                                Text("Upgrade to Pro")
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+
+                                Spacer()
+
+                                Text("$9.99/mo")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
+                    }
 
                     // Version
                     HStack(spacing: 16) {
@@ -787,8 +1025,48 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.vertical, 4)
+
+                    // Reset to Free (for Pro users or testing)
+                    if usage.isPro {
+                        Button {
+                            showingResetConfirm = true
+                        } label: {
+                            HStack(spacing: 16) {
+                                Image(systemName: "arrow.uturn.backward.circle")
+                                    .foregroundStyle(.orange)
+                                    .frame(width: 44)
+
+                                Text("Downgrade to Free")
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
+                    }
+
+                    // Sign Out / Reset
+                    Button {
+                        showingResetUsageConfirm = true
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .foregroundStyle(.red)
+                                .frame(width: 44)
+
+                            Text("Sign Out")
+                                .font(.body)
+                                .foregroundStyle(.red)
+
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
                 } header: {
-                    Text("Manage Subscription")
+                    Text("Account")
                 }
 
                 // MARK: - Projects Section
@@ -846,7 +1124,7 @@ struct SettingsView: View {
                     } label: {
                         HStack(spacing: 16) {
                             Image(systemName: "waveform.circle")
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(.blue)
                                 .frame(width: 44)
 
                             Text("Audio Quality")
@@ -958,6 +1236,27 @@ struct SettingsView: View {
             .sheet(isPresented: $showingShareSheet) {
                 ShareSheet(items: [URL(string: "https://apps.apple.com/app/voice-notes")!])
             }
+            .sheet(isPresented: $showingPaywall) {
+                PaywallView(onDismiss: {
+                    showingPaywall = false
+                })
+            }
+            .confirmationDialog("Downgrade to Free?", isPresented: $showingResetConfirm, titleVisibility: .visible) {
+                Button("Downgrade", role: .destructive) {
+                    UsageService.shared.downgradeToFree()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("You will lose access to unlimited extractions and resolutions.")
+            }
+            .confirmationDialog("Sign Out?", isPresented: $showingResetUsageConfirm, titleVisibility: .visible) {
+                Button("Sign Out", role: .destructive) {
+                    signOutAndClearData()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This will delete all your notes and reset the app. You'll start fresh as a new user.")
+            }
         }
     }
 
@@ -974,10 +1273,31 @@ struct SettingsView: View {
         case "yellow": return .yellow
         case "green": return .green
         case "blue": return .blue
-        case "purple": return .purple
+        case "purple": return .blue
         case "pink": return .pink
         default: return .blue
         }
+    }
+
+    private func signOutAndClearData() {
+        // Delete all notes
+        for note in notes {
+            modelContext.delete(note)
+        }
+
+        // Delete all projects
+        for project in projects {
+            modelContext.delete(project)
+        }
+
+        // Sign out and reset
+        AuthService.shared.signOut()
+
+        // Reset onboarding flag to show sign in screen again
+        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+
+        // Dismiss settings
+        dismiss()
     }
 }
 
@@ -1028,7 +1348,7 @@ struct ProjectEditView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var newAlias = ""
 
-    private let availableColors = ["blue", "red", "orange", "green", "purple", "pink", "yellow"]
+    private let availableColors = ["blue", "red", "orange", "green", "pink", "yellow"]
     private let availableIcons = ["folder", "star", "bolt", "flame", "leaf", "briefcase", "cart", "airplane", "gamecontroller", "heart"]
 
     var body: some View {
@@ -1106,7 +1426,7 @@ struct ProjectEditView: View {
         case "yellow": return .yellow
         case "green": return .green
         case "blue": return .blue
-        case "purple": return .purple
+        case "purple": return .blue
         case "pink": return .pink
         default: return .blue
         }

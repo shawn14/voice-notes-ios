@@ -178,7 +178,7 @@ struct ItemLogRow: View {
         switch item.kanbanItemType {
         case .decision: return .green
         case .action: return .blue
-        case .commitment: return .purple
+        case .commitment: return .blue
         case .idea: return .orange
         case .note: return .gray
         }
@@ -277,7 +277,7 @@ struct MovementLogRow: View {
 
     private func columnColor(_ column: KanbanColumn) -> Color {
         switch column {
-        case .thinking: return .purple
+        case .thinking: return .blue
         case .decided: return .green
         case .doing: return .blue
         case .waiting: return .orange

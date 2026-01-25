@@ -6,8 +6,26 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		F5C09500AAAAAA01007AAAAA /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C09500AAAAAA02007AAAAA /* SnapshotHelper.swift */; };
+		F5C09500AAAAAA03007AAAAA /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C09500AAAAAA04007AAAAA /* ScreenshotTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F5C09500AAAAAA05007AAAAA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F5C094BC2F25871F0079962E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F5C094C32F25871F0079962E;
+			remoteInfo = "voice notes";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		F5C094C42F25871F0079962E /* voice notes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "voice notes.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F5C09500AAAAAA02007AAAAA /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
+		F5C09500AAAAAA04007AAAAA /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
+		F5C09500AAAAAA06007AAAAA /* voice notes UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "voice notes UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -26,6 +44,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F5C09500AAAAAA07007AAAAA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -33,6 +58,7 @@
 			isa = PBXGroup;
 			children = (
 				F5C094C62F25871F0079962E /* voice notes */,
+				F5C09500AAAAAA08007AAAAA /* voice notes UITests */,
 				F5C094C52F25871F0079962E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,8 +67,18 @@
 			isa = PBXGroup;
 			children = (
 				F5C094C42F25871F0079962E /* voice notes.app */,
+				F5C09500AAAAAA06007AAAAA /* voice notes UITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		F5C09500AAAAAA08007AAAAA /* voice notes UITests */ = {
+			isa = PBXGroup;
+			children = (
+				F5C09500AAAAAA02007AAAAA /* SnapshotHelper.swift */,
+				F5C09500AAAAAA04007AAAAA /* ScreenshotTests.swift */,
+			);
+			path = "voice notes UITests";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -70,6 +106,24 @@
 			productReference = F5C094C42F25871F0079962E /* voice notes.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F5C09500AAAAAA09007AAAAA /* voice notes UITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F5C09500AAAAAA0A007AAAAA /* Build configuration list for PBXNativeTarget "voice notes UITests" */;
+			buildPhases = (
+				F5C09500AAAAAA0B007AAAAA /* Sources */,
+				F5C09500AAAAAA07007AAAAA /* Frameworks */,
+				F5C09500AAAAAA0C007AAAAA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F5C09500AAAAAA0D007AAAAA /* PBXTargetDependency */,
+			);
+			name = "voice notes UITests";
+			productName = "voice notes UITests";
+			productReference = F5C09500AAAAAA06007AAAAA /* voice notes UITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +136,10 @@
 				TargetAttributes = {
 					F5C094C32F25871F0079962E = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					F5C09500AAAAAA09007AAAAA = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = F5C094C32F25871F0079962E;
 					};
 				};
 			};
@@ -100,12 +158,20 @@
 			projectRoot = "";
 			targets = (
 				F5C094C32F25871F0079962E /* voice notes */,
+				F5C09500AAAAAA09007AAAAA /* voice notes UITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		F5C094C22F25871F0079962E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F5C09500AAAAAA0C007AAAAA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +188,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F5C09500AAAAAA0B007AAAAA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F5C09500AAAAAA01007AAAAA /* SnapshotHelper.swift in Sources */,
+				F5C09500AAAAAA03007AAAAA /* ScreenshotTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F5C09500AAAAAA0D007AAAAA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F5C094C32F25871F0079962E /* voice notes */;
+			targetProxy = F5C09500AAAAAA05007AAAAA /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F5C094CD2F2587200079962E /* Debug */ = {
@@ -251,14 +334,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "voice notes/voice notes.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Voice Notes needs microphone access to record audio notes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -284,15 +371,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "voice notes/voice notesRelease.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Voice Notes needs microphone access to record audio notes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -313,6 +403,40 @@
 			};
 			name = Release;
 		};
+		F5C09500AAAAAA0E007AAAAA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BYRK5RUS4U;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.UITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = "voice notes";
+			};
+			name = Debug;
+		};
+		F5C09500AAAAAA0F007AAAAA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BYRK5RUS4U;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.UITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = "voice notes";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -330,6 +454,15 @@
 			buildConfigurations = (
 				F5C094D02F2587200079962E /* Debug */,
 				F5C094D12F2587200079962E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F5C09500AAAAAA0A007AAAAA /* Build configuration list for PBXNativeTarget "voice notes UITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F5C09500AAAAAA0E007AAAAA /* Debug */,
+				F5C09500AAAAAA0F007AAAAA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -29,6 +29,10 @@ struct NoteEditorView: View {
     @State private var customPromptText = ""
     @State private var showingShareSheet = false
     @State private var showingProjectPicker = false
+    @State private var showPaywall = false
+    @State private var showUsageExplainer = false
+    @State private var extractionFeedback: String?
+    @State private var showExtractionFeedback = false
 
     @State private var audioRecorder = AudioRecorder()
     private let isNewNote: Bool
@@ -93,16 +97,24 @@ struct NoteEditorView: View {
 
                         // Extract button for voice notes
                         if note.transcript != nil && !note.transcript!.isEmpty {
-                            Button(action: extractIntent) {
+                            Button(action: {
+                                if UsageService.shared.canExtract {
+                                    extractIntent()
+                                } else {
+                                    showPaywall = true
+                                }
+                            }) {
                                 if isAnalyzing {
                                     ProgressView()
                                         .scaleEffect(0.8)
+                                } else if !UsageService.shared.canExtract {
+                                    Label("Upgrade to Extract", systemImage: "lock.fill")
                                 } else {
                                     Label("Extract", systemImage: "brain.head.profile")
                                 }
                             }
                             .buttonStyle(.bordered)
-                            .tint(.red)
+                            .tint(UsageService.shared.canExtract ? .red : .secondary)
                             .disabled(isAnalyzing)
                         }
                     }
@@ -209,7 +221,7 @@ struct NoteEditorView: View {
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
-                            .tint(.purple)
+                            .tint(.blue)
                             .disabled(isTransforming)
                         }
                     }
@@ -234,7 +246,7 @@ struct NoteEditorView: View {
                         HStack {
                             Text(transformationTitle(for: type))
                                 .font(.headline)
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(.blue)
 
                             Spacer()
 
@@ -244,7 +256,7 @@ struct NoteEditorView: View {
                                 transformationType = nil
                             }
                             .buttonStyle(.borderedProminent)
-                            .tint(.purple)
+                            .tint(.blue)
                             .controlSize(.small)
 
                             Button(action: {
@@ -260,7 +272,7 @@ struct NoteEditorView: View {
                             .font(.system(.body, design: .serif))
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.purple.opacity(0.1))
+                            .background(Color.blue.opacity(0.1))
                             .cornerRadius(8)
 
                         // Copy button
@@ -381,6 +393,22 @@ struct NoteEditorView: View {
         }
         .sheet(isPresented: $showingShareSheet) {
             ShareNoteView(note: note)
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(onDismiss: {
+                showPaywall = false
+            })
+        }
+        .sheet(isPresented: $showUsageExplainer) {
+            UsageExplainerView()
+        }
+        .alert("Extraction Complete", isPresented: $showExtractionFeedback) {
+            Button("OK") { }
+            Button("What's this?") {
+                showUsageExplainer = true
+            }
+        } message: {
+            Text(extractionFeedback ?? "")
         }
     }
 
@@ -539,6 +567,16 @@ struct NoteEditorView: View {
                             sourceNoteId: note.id
                         )
                         modelContext.insert(extracted)
+                    }
+
+                    // Track usage
+                    UsageService.shared.useExtraction()
+
+                    // Show feedback (only for free users)
+                    if !UsageService.shared.isPro {
+                        let remaining = UsageService.shared.freeExtractionsRemaining
+                        extractionFeedback = "\(5 - remaining) of 5 free extractions used"
+                        showExtractionFeedback = true
                     }
 
                     isAnalyzing = false
@@ -957,7 +995,7 @@ struct NoteAnalysisView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Label("Needs Resolution", systemImage: "questionmark.circle")
                                 .font(.subheadline.bold())
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(.blue)
 
                             ForEach(analysis.unresolvedItems, id: \.content) { item in
                                 VStack(alignment: .leading, spacing: 4) {
@@ -969,7 +1007,7 @@ struct NoteAnalysisView: View {
                                 }
                                 .padding(8)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.purple.opacity(0.1))
+                                .background(Color.blue.opacity(0.1))
                                 .cornerRadius(6)
                             }
                         }
@@ -1118,10 +1156,12 @@ struct NextStepView: View {
     @Bindable var note: Note
     @State private var isExpanded = false
     @State private var selectedDate = Date()
+    @State private var showPaywall = false
 
     private var isResolved: Bool { note.isNextStepResolved }
     private var nextStep: String { note.suggestedNextStep ?? "" }
     private var stepType: NextStepType { note.nextStepType }
+    private var canResolve: Bool { UsageService.shared.canResolve }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1179,32 +1219,52 @@ struct NextStepView: View {
                         DateResolutionView(
                             selectedDate: $selectedDate,
                             onResolve: { dateString in
-                                note.resolveNextStep(with: dateString)
-                                withAnimation { isExpanded = false }
+                                if canResolve {
+                                    note.resolveNextStep(with: dateString)
+                                    UsageService.shared.useResolution()
+                                    withAnimation { isExpanded = false }
+                                } else {
+                                    showPaywall = true
+                                }
                             }
                         )
 
                     case .contact:
                         ContactResolutionView(
                             onResolve: { contactString in
-                                note.resolveNextStep(with: contactString)
-                                withAnimation { isExpanded = false }
+                                if canResolve {
+                                    note.resolveNextStep(with: contactString)
+                                    UsageService.shared.useResolution()
+                                    withAnimation { isExpanded = false }
+                                } else {
+                                    showPaywall = true
+                                }
                             }
                         )
 
                     case .decision:
                         DecisionResolutionView(
                             onResolve: { decision in
-                                note.resolveNextStep(with: decision)
-                                withAnimation { isExpanded = false }
+                                if canResolve {
+                                    note.resolveNextStep(with: decision)
+                                    UsageService.shared.useResolution()
+                                    withAnimation { isExpanded = false }
+                                } else {
+                                    showPaywall = true
+                                }
                             }
                         )
 
                     case .simple:
                         SimpleResolutionView(
                             onResolve: {
-                                note.resolveNextStep(with: "Done")
-                                withAnimation { isExpanded = false }
+                                if canResolve {
+                                    note.resolveNextStep(with: "Done")
+                                    UsageService.shared.useResolution()
+                                    withAnimation { isExpanded = false }
+                                } else {
+                                    showPaywall = true
+                                }
                             }
                         )
                     }
@@ -1219,6 +1279,11 @@ struct NextStepView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isResolved ? Color.green.opacity(0.3) : Color.blue.opacity(0.3), lineWidth: 1)
         )
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(onDismiss: {
+                showPaywall = false
+            })
+        }
     }
 }
 

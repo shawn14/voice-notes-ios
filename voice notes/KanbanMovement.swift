@@ -11,9 +11,9 @@ import SwiftData
 @Model
 final class KanbanMovement {
     var id: UUID = UUID()
-    var itemId: UUID              // References KanbanItem.id
-    var fromColumn: String
-    var toColumn: String
+    var itemId: UUID = UUID()     // References KanbanItem.id
+    var fromColumn: String = "Thinking"
+    var toColumn: String = "Thinking"
     var movedAt: Date = Date()
 
     init(itemId: UUID, fromColumn: KanbanColumn, toColumn: KanbanColumn) {

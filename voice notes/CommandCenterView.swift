@@ -160,7 +160,7 @@ struct CommandCenterView: View {
 
                     // Unresolved items (need clarity)
                     if !allUnresolved.isEmpty {
-                        CommandSection(title: "Needs Clarity", icon: "questionmark.circle", tint: .purple) {
+                        CommandSection(title: "Needs Clarity", icon: "questionmark.circle", tint: .blue) {
                             ForEach(allUnresolved.prefix(3)) { item in
                                 UnresolvedRow(item: item)
                             }
@@ -518,7 +518,7 @@ struct AttentionSection: View {
         case .overdue: return .red
         case .dueSoon: return .orange
         case .commitment: return .blue
-        case .blocked: return .purple
+        case .blocked: return .blue
         }
     }
 }
@@ -727,7 +727,7 @@ struct UnresolvedRow: View {
                     .font(.caption)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.purple.opacity(0.2))
+                    .background(Color.blue.opacity(0.2))
                     .cornerRadius(4)
 
                 Spacer()
@@ -738,7 +738,7 @@ struct UnresolvedRow: View {
             }
         }
         .padding(12)
-        .background(Color.purple.opacity(0.1))
+        .background(Color.blue.opacity(0.1))
         .cornerRadius(8)
     }
 }

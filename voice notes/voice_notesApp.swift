@@ -11,33 +11,61 @@ import SwiftData
 @main
 struct voice_notesApp: App {
     let container: ModelContainer
+    @State private var authService = AuthService.shared
+    @State private var hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
 
     init() {
         let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self])
 
         do {
-            // Try to create container normally first
-            container = try ModelContainer(for: schema)
+            // Configure for CloudKit sync
+            let config = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                cloudKitDatabase: .private("iCloud.aivoiceeeon")
+            )
+
+            container = try ModelContainer(for: schema, configurations: [config])
             cleanupDuplicateTags(in: container.mainContext)
         } catch {
-            // If migration fails, delete the store and try again
-            print("Migration failed, recreating store: \(error)")
-
-            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-            let url = config.url
-            try? FileManager.default.removeItem(at: url)
+            // If CloudKit fails, try without CloudKit
+            print("CloudKit container failed, trying local: \(error)")
 
             do {
-                container = try ModelContainer(for: schema)
+                let localConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+                container = try ModelContainer(for: schema, configurations: [localConfig])
+                cleanupDuplicateTags(in: container.mainContext)
             } catch {
-                fatalError("Failed to create ModelContainer: \(error)")
+                // Last resort - delete store and recreate
+                print("Migration failed, recreating store: \(error)")
+
+                let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+                let url = config.url
+                try? FileManager.default.removeItem(at: url)
+
+                do {
+                    container = try ModelContainer(for: schema)
+                } catch {
+                    fatalError("Failed to create ModelContainer: \(error)")
+                }
             }
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            HomeView()
+            if hasCompletedOnboarding {
+                HomeView()
+                    .task {
+                        // Check if Apple ID credential is still valid
+                        await authService.checkCredentialState()
+                    }
+            } else {
+                SignInView {
+                    UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+                    hasCompletedOnboarding = true
+                }
+            }
         }
         .modelContainer(container)
     }
@@ -61,9 +89,11 @@ struct voice_notesApp: App {
 
                 for duplicate in duplicates {
                     // Move all notes from duplicate to the kept tag
-                    for note in duplicate.notes {
-                        if !tagToKeep.notes.contains(where: { $0.id == note.id }) {
-                            tagToKeep.notes.append(note)
+                    for note in duplicate.notes ?? [] {
+                        if !(tagToKeep.notes ?? []).contains(where: { $0.id == note.id }) {
+                            var keepNotes = tagToKeep.notes ?? []
+                            keepNotes.append(note)
+                            tagToKeep.notes = keepNotes
                         }
                         note.tags.removeAll { $0.id == duplicate.id }
                         if !note.tags.contains(where: { $0.id == tagToKeep.id }) {

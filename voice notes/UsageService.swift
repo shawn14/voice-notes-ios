@@ -2,11 +2,23 @@
 //  UsageService.swift
 //  voice notes
 //
-//  Tracks user recording usage and stats
+//  Tracks user usage: extractions, resolutions, and recording stats
 //
 
 import Foundation
 import SwiftUI
+
+// MARK: - Usage Quota
+
+struct UsageQuota: Codable {
+    var extractionsRemaining: Int = 5
+    var resolutionsRemaining: Int = 3
+    var totalExtractionsUsed: Int = 0
+    var totalResolutionsUsed: Int = 0
+    var hasCompletedFirstExtraction: Bool = false  // "free-free" flag
+    var hasCompletedFirstResolution: Bool = false  // "free-free" flag
+    var lastResetDate: Date? = nil  // For future monthly reset
+}
 
 // MARK: - Usage Service
 
@@ -17,104 +29,128 @@ class UsageService {
     private let defaults = UserDefaults.standard
 
     // Keys
+    private let quotaKey = "usageQuota"
     private let totalRecordingSecondsKey = "totalRecordingSeconds"
-    private let monthlyRecordingSecondsKey = "monthlyRecordingSeconds"
-    private let monthStartKey = "monthStart"
     private let noteCountKey = "totalNoteCount"
-    private let aiCallsKey = "aiCallsThisMonth"
+    private let isFirstNoteKey = "isFirstNote"
+    private let hasShownPaywallKey = "hasShownPaywall"
+    private let subscriptionStatusKey = "subscriptionStatus"
 
-    // MARK: - Recording Time
+    // MARK: - Quota State
+
+    var quota: UsageQuota {
+        get {
+            guard let data = defaults.data(forKey: quotaKey),
+                  let decoded = try? JSONDecoder().decode(UsageQuota.self, from: data) else {
+                return UsageQuota()
+            }
+            return decoded
+        }
+        set {
+            if let encoded = try? JSONEncoder().encode(newValue) {
+                defaults.set(encoded, forKey: quotaKey)
+            }
+        }
+    }
+
+    var isFirstNote: Bool {
+        get {
+            // If key doesn't exist, it's the first note
+            if defaults.object(forKey: isFirstNoteKey) == nil {
+                return true
+            }
+            return defaults.bool(forKey: isFirstNoteKey)
+        }
+        set { defaults.set(newValue, forKey: isFirstNoteKey) }
+    }
+
+    var hasShownPaywall: Bool {
+        get { defaults.bool(forKey: hasShownPaywallKey) }
+        set { defaults.set(newValue, forKey: hasShownPaywallKey) }
+    }
+
+    var subscriptionStatus: String {
+        get { defaults.string(forKey: subscriptionStatusKey) ?? "free" }
+        set { defaults.set(newValue, forKey: subscriptionStatusKey) }
+    }
+
+    // MARK: - Computed Properties
+
+    var isPro: Bool { subscriptionStatus == "pro" }
+
+    var canExtract: Bool {
+        isPro || quota.extractionsRemaining > 0
+    }
+
+    var canResolve: Bool {
+        isPro || quota.resolutionsRemaining > 0
+    }
+
+    // "Free-free" display (shows 1 used, but didn't actually decrement)
+    var displayExtractionsUsed: Int {
+        quota.hasCompletedFirstExtraction ? max(1, 5 - quota.extractionsRemaining) : 0
+    }
+
+    var freeExtractionsRemaining: Int {
+        quota.extractionsRemaining
+    }
+
+    var freeResolutionsRemaining: Int {
+        quota.resolutionsRemaining
+    }
+
+    var totalExtractionsUsed: Int {
+        quota.totalExtractionsUsed
+    }
+
+    var totalResolutionsUsed: Int {
+        quota.totalResolutionsUsed
+    }
+
+    // MARK: - Usage Methods
+
+    func useExtraction() {
+        var currentQuota = quota
+
+        // First extraction is "free-free" - don't decrement, just mark as completed
+        if !isPro && currentQuota.hasCompletedFirstExtraction {
+            currentQuota.extractionsRemaining = max(0, currentQuota.extractionsRemaining - 1)
+        }
+
+        currentQuota.hasCompletedFirstExtraction = true
+        currentQuota.totalExtractionsUsed += 1
+
+        quota = currentQuota
+    }
+
+    func useResolution() {
+        var currentQuota = quota
+
+        // First resolution is "free-free" - don't decrement, just mark as completed
+        if !isPro && currentQuota.hasCompletedFirstResolution {
+            currentQuota.resolutionsRemaining = max(0, currentQuota.resolutionsRemaining - 1)
+        }
+
+        currentQuota.hasCompletedFirstResolution = true
+        currentQuota.totalResolutionsUsed += 1
+
+        quota = currentQuota
+    }
+
+    func shouldShowPaywall() -> Bool {
+        // Show after first successful resolution, only once
+        quota.totalResolutionsUsed == 1 && !hasShownPaywall
+    }
+
+    // MARK: - Recording Time (kept for stats display)
 
     var totalRecordingSeconds: Int {
         get { defaults.integer(forKey: totalRecordingSecondsKey) }
         set { defaults.set(newValue, forKey: totalRecordingSecondsKey) }
     }
 
-    var monthlyRecordingSeconds: Int {
-        get {
-            resetMonthlyIfNeeded()
-            return defaults.integer(forKey: monthlyRecordingSecondsKey)
-        }
-        set { defaults.set(newValue, forKey: monthlyRecordingSecondsKey) }
-    }
-
-    // Free tier limit: 30 minutes per month
-    var monthlyLimitSeconds: Int { 30 * 60 }
-
-    var remainingMinutesThisMonth: Int {
-        max(0, (monthlyLimitSeconds - monthlyRecordingSeconds) / 60)
-    }
-
-    var usedMinutesThisMonth: Int {
-        monthlyRecordingSeconds / 60
-    }
-
     var totalMinutes: Int {
         totalRecordingSeconds / 60
-    }
-
-    var usagePercentage: Double {
-        Double(monthlyRecordingSeconds) / Double(monthlyLimitSeconds)
-    }
-
-    var isOverLimit: Bool {
-        monthlyRecordingSeconds >= monthlyLimitSeconds
-    }
-
-    // MARK: - Note Count
-
-    var totalNoteCount: Int {
-        get { defaults.integer(forKey: noteCountKey) }
-        set { defaults.set(newValue, forKey: noteCountKey) }
-    }
-
-    // MARK: - AI Calls
-
-    var aiCallsThisMonth: Int {
-        get {
-            resetMonthlyIfNeeded()
-            return defaults.integer(forKey: aiCallsKey)
-        }
-        set { defaults.set(newValue, forKey: aiCallsKey) }
-    }
-
-    // MARK: - Methods
-
-    func addRecordingTime(seconds: Int) {
-        totalRecordingSeconds += seconds
-        monthlyRecordingSeconds += seconds
-    }
-
-    func incrementNoteCount() {
-        totalNoteCount += 1
-    }
-
-    func incrementAICalls() {
-        aiCallsThisMonth += 1
-    }
-
-    private func resetMonthlyIfNeeded() {
-        let calendar = Calendar.current
-        let now = Date()
-
-        if let monthStart = defaults.object(forKey: monthStartKey) as? Date {
-            // Check if we're in a new month
-            if !calendar.isDate(monthStart, equalTo: now, toGranularity: .month) {
-                // Reset monthly counters
-                defaults.set(0, forKey: monthlyRecordingSecondsKey)
-                defaults.set(0, forKey: aiCallsKey)
-                defaults.set(now, forKey: monthStartKey)
-            }
-        } else {
-            // First run - set month start
-            defaults.set(now, forKey: monthStartKey)
-        }
-    }
-
-    // MARK: - Formatted Strings
-
-    var usageDisplayString: String {
-        "\(usedMinutesThisMonth) of \(monthlyLimitSeconds / 60) mins"
     }
 
     var totalRecordingTimeString: String {
@@ -126,6 +162,42 @@ class UsageService {
         } else {
             return "\(minutes) minutes"
         }
+    }
+
+    // MARK: - Note Count
+
+    var totalNoteCount: Int {
+        get { defaults.integer(forKey: noteCountKey) }
+        set { defaults.set(newValue, forKey: noteCountKey) }
+    }
+
+    // MARK: - Methods
+
+    func addRecordingTime(seconds: Int) {
+        totalRecordingSeconds += seconds
+    }
+
+    func incrementNoteCount() {
+        totalNoteCount += 1
+    }
+
+    // MARK: - Pro Upgrade
+
+    func upgradeToPro() {
+        subscriptionStatus = "pro"
+    }
+
+    func downgradeToFree() {
+        subscriptionStatus = "free"
+    }
+
+    // MARK: - Reset (for testing)
+
+    func resetAllUsage() {
+        quota = UsageQuota()
+        isFirstNote = true
+        hasShownPaywall = false
+        subscriptionStatus = "free"
     }
 }
 

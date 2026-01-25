@@ -400,7 +400,7 @@ struct NoteCard: View {
                                 .font(.caption)
                                 .lineLimit(1)
                         }
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(.blue)
                     }
                 }
 
