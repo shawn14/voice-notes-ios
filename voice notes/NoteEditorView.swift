@@ -37,10 +37,11 @@ struct NoteEditorView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Title field
-                TextField("Title", text: $note.title)
-                    .font(.system(.title, design: .serif, weight: .bold))
+                // Title field - wraps to multiple lines
+                TextField("Title", text: $note.title, axis: .vertical)
+                    .font(.system(.title2, design: .serif, weight: .bold))
                     .textFieldStyle(.plain)
+                    .lineLimit(1...4)
 
                 // Audio playback bar (if has audio)
                 if let url = note.audioURL {
@@ -125,7 +126,7 @@ struct NoteEditorView: View {
                         .controlSize(.small)
                     }
 
-                    // Current tags
+                    // Current tags (auto-tagged in red)
                     if !note.tags.isEmpty {
                         FlowLayout(spacing: 8) {
                             ForEach(note.tags) { tag in
@@ -142,28 +143,6 @@ struct NoteEditorView: View {
                                 .background(Color.red.opacity(0.15))
                                 .foregroundStyle(.red)
                                 .cornerRadius(16)
-                            }
-                        }
-                    }
-
-                    // Available tags
-                    if !availableTags.isEmpty {
-                        Divider()
-                        Text("Tap to add")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-
-                        FlowLayout(spacing: 8) {
-                            ForEach(availableTags) { tag in
-                                Button(action: { addTag(tag) }) {
-                                    Text(tag.name)
-                                        .font(.subheadline)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color(.systemGray5))
-                                        .cornerRadius(16)
-                                }
-                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -214,14 +193,6 @@ struct NoteEditorView: View {
         .onChange(of: note.content) {
             note.updatedAt = Date()
         }
-    }
-
-    private var availableTags: [Tag] {
-        allTags.filter { !note.tags.contains($0) }
-    }
-
-    private func addTag(_ tag: Tag) {
-        note.tags.append(tag)
     }
 
     private func removeTag(_ tag: Tag) {
