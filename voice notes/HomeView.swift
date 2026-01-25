@@ -8,6 +8,8 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
+import AVFoundation
 
 // MARK: - Filter Options
 
@@ -309,6 +311,12 @@ struct HomeView: View {
         )
         modelContext.insert(note)
 
+        // Track usage
+        if let fileName = currentAudioFileName {
+            trackRecordingUsage(fileName: fileName)
+        }
+        UsageService.shared.incrementNoteCount()
+
         // Force save to persist immediately
         try? modelContext.save()
 
@@ -354,6 +362,18 @@ struct HomeView: View {
         } else {
             isTranscribing = false
             currentAudioFileName = nil
+        }
+    }
+
+    private func trackRecordingUsage(fileName: String) {
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let audioURL = documentsURL.appendingPathComponent(fileName)
+
+        let asset = AVURLAsset(url: audioURL)
+        let duration = CMTimeGetSeconds(asset.duration)
+
+        if duration.isFinite && duration > 0 {
+            UsageService.shared.addRecordingTime(seconds: Int(duration))
         }
     }
 
@@ -607,45 +627,323 @@ struct ProjectsListView: View {
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \Project.sortOrder) private var projects: [Project]
+    @Query private var notes: [Note]
+
     @State private var showingAddProject = false
     @State private var newProjectName = ""
+    @State private var showingShareSheet = false
+
+    private let usage = UsageService.shared
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Projects") {
-                    ForEach(projects) { project in
-                        NavigationLink(destination: ProjectEditView(project: project)) {
-                            HStack {
-                                Image(systemName: project.icon)
-                                    .foregroundStyle(projectColor(project.colorName))
-                                Text(project.name)
-                                Spacer()
-                                Text("\(project.aliases.count) aliases")
+                // MARK: - Usage Section
+                Section {
+                    // Usage meter
+                    HStack(spacing: 16) {
+                        UsageRingView(progress: usage.usagePercentage)
+                            .frame(width: 56, height: 56)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Usage: \(usage.usageDisplayString)")
+                                .font(.body.weight(.medium))
+
+                            if usage.isOverLimit {
+                                Text("Upgrade to continue recording!")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            } else {
+                                Text("Upgrade to continue using Voice Notes!")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
                     }
+                    .padding(.vertical, 4)
+
+                    // Total recording time
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.red.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "waveform")
+                                .foregroundStyle(.red)
+                        }
+
+                        Text("Total Recording Time: \(usage.totalRecordingTimeString)")
+                            .font(.body)
+
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+
+                    // Notes count
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "note.text")
+                                .foregroundStyle(.blue)
+                        }
+
+                        Text("Total Notes: \(notes.count)")
+                            .font(.body)
+
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Usage")
+                }
+
+                // MARK: - Subscription Section
+                Section {
+                    // Current level
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "person.crop.circle.badge.checkmark")
+                                .foregroundStyle(.blue)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Level: Free")
+                                .font(.body.weight(.medium))
+                            Text("Expires on: Never")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 4)
+
+                    // Upgrade option
+                    Button {
+                        // TODO: Show subscription options
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundStyle(.blue)
+                                .frame(width: 44)
+
+                            Text("Subscribe to new option")
+                                .font(.body)
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+
+                    // Version
+                    HStack(spacing: 16) {
+                        Image(systemName: "globe")
+                            .foregroundStyle(.blue)
+                            .frame(width: 44)
+
+                        Text(AppInfo.versionString)
+                            .font(.body)
+
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+
+                    // Share
+                    Button {
+                        showingShareSheet = true
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundStyle(.blue)
+                                .frame(width: 44)
+
+                            Text("Share Voice Notes")
+                                .font(.body)
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Manage Subscription")
+                }
+
+                // MARK: - Projects Section
+                Section {
+                    ForEach(projects) { project in
+                        NavigationLink(destination: ProjectEditView(project: project)) {
+                            HStack(spacing: 16) {
+                                ZStack {
+                                    Circle()
+                                        .fill(projectColor(project.colorName).opacity(0.15))
+                                        .frame(width: 44, height: 44)
+                                    Image(systemName: project.icon)
+                                        .foregroundStyle(projectColor(project.colorName))
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(project.name)
+                                        .font(.body)
+                                    if !project.aliases.isEmpty {
+                                        Text("\(project.aliases.count) aliases")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                Spacer()
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
                     .onDelete(perform: deleteProjects)
 
                     Button(action: { showingAddProject = true }) {
-                        Label("Add Project", systemImage: "plus.circle")
+                        HStack(spacing: 16) {
+                            Image(systemName: "plus.circle")
+                                .foregroundStyle(.blue)
+                                .frame(width: 44)
+
+                            Text("Add Project")
+                                .font(.body)
+                                .foregroundStyle(.blue)
+
+                            Spacer()
+                        }
                     }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Projects")
                 }
 
-                Section("Preferences") {
-                    Text("Audio Quality")
-                    Text("Transcription Language")
+                // MARK: - Preferences Section
+                Section {
+                    NavigationLink {
+                        Text("Audio Quality Settings")
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "waveform.circle")
+                                .foregroundStyle(.purple)
+                                .frame(width: 44)
+
+                            Text("Audio Quality")
+                                .font(.body)
+
+                            Spacer()
+
+                            Text("High")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+
+                    NavigationLink {
+                        Text("Language Settings")
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "globe")
+                                .foregroundStyle(.green)
+                                .frame(width: 44)
+
+                            Text("Transcription Language")
+                                .font(.body)
+
+                            Spacer()
+
+                            Text("English")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Preferences")
                 }
 
-                Section("About") {
-                    Text("Version 1.0")
+                // MARK: - Support Section
+                Section {
+                    Button {
+                        if let url = URL(string: "mailto:support@voicenotes.app") {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "envelope")
+                                .foregroundStyle(.blue)
+                                .frame(width: 44)
+
+                            Text("Contact Support")
+                                .font(.body)
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+
+                    Button {
+                        if let url = URL(string: "https://voicenotes.app/privacy") {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "hand.raised")
+                                .foregroundStyle(.orange)
+                                .frame(width: 44)
+
+                            Text("Privacy Policy")
+                                .font(.body)
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Support")
                 }
             }
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
             .alert("New Project", isPresented: $showingAddProject) {
                 TextField("Project name", text: $newProjectName)
                 Button("Cancel", role: .cancel) { newProjectName = "" }
@@ -656,6 +954,9 @@ struct SettingsView: View {
                         newProjectName = ""
                     }
                 }
+            }
+            .sheet(isPresented: $showingShareSheet) {
+                ShareSheet(items: [URL(string: "https://apps.apple.com/app/voice-notes")!])
             }
         }
     }
@@ -678,6 +979,46 @@ struct SettingsView: View {
         default: return .blue
         }
     }
+}
+
+// MARK: - Usage Ring View
+
+struct UsageRingView: View {
+    let progress: Double
+
+    var body: some View {
+        ZStack {
+            // Background ring
+            Circle()
+                .stroke(Color(.systemGray5), lineWidth: 6)
+
+            // Progress ring
+            Circle()
+                .trim(from: 0, to: min(progress, 1.0))
+                .stroke(
+                    progress >= 1.0 ? Color.red : Color.orange,
+                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+
+            // Center icon
+            Image(systemName: "waveform")
+                .font(.title3)
+                .foregroundStyle(progress >= 1.0 ? .red : .orange)
+        }
+    }
+}
+
+// MARK: - Share Sheet
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Project Edit View
