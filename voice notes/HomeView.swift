@@ -343,6 +343,11 @@ struct HomeView: View {
         if isRecording {
             stopRecording()
         } else {
+            // Check if user can create more notes
+            if !UsageService.shared.canCreateNote {
+                showPaywall = true
+                return
+            }
             startRecording()
         }
     }
@@ -860,113 +865,7 @@ struct SettingsView: View {
             List {
                 // MARK: - Usage Section
                 Section {
-                    // AI Extractions remaining
-                    HStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.blue.opacity(0.15))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "brain.head.profile")
-                                .foregroundStyle(.blue)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("AI Extractions")
-                                .font(.body.weight(.medium))
-                            if usage.isPro {
-                                Text("Unlimited")
-                                    .font(.caption)
-                                    .foregroundStyle(.green)
-                            } else {
-                                Text("\(usage.freeExtractionsRemaining) of 5 remaining")
-                                    .font(.caption)
-                                    .foregroundColor(usage.freeExtractionsRemaining > 0 ? .secondary : .red)
-                            }
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.vertical, 4)
-
-                    // Resolutions remaining
-                    HStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.green.opacity(0.15))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "checkmark.circle")
-                                .foregroundStyle(.green)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Actions Resolved")
-                                .font(.body.weight(.medium))
-                            if usage.isPro {
-                                Text("Unlimited")
-                                    .font(.caption)
-                                    .foregroundStyle(.green)
-                            } else {
-                                Text("\(usage.freeResolutionsRemaining) of 3 remaining")
-                                    .font(.caption)
-                                    .foregroundColor(usage.freeResolutionsRemaining > 0 ? .secondary : .red)
-                            }
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.vertical, 4)
-
-                    // Recording (unlimited)
-                    HStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.red.opacity(0.15))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "mic.fill")
-                                .foregroundStyle(.red)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Recording")
-                                .font(.body.weight(.medium))
-                            Text("Unlimited (\(usage.totalRecordingTimeString) recorded)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.vertical, 4)
-
-                    // Notes count
-                    HStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.blue.opacity(0.15))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "note.text")
-                                .foregroundStyle(.blue)
-                        }
-
-                        Text("Total Notes: \(notes.count)")
-                            .font(.body)
-
-                        Spacer()
-                    }
-                    .padding(.vertical, 4)
-
-                    // Stats
-                    if usage.totalExtractionsUsed > 0 || usage.totalResolutionsUsed > 0 {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Total extractions: \(usage.totalExtractionsUsed)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("Total resolutions: \(usage.totalResolutionsUsed)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                    }
+                    UsageSectionContent(usage: usage, noteCount: notes.count)
                 } header: {
                     Text("Usage")
                 }
@@ -1441,6 +1340,82 @@ struct SettingsView: View {
 
         // Dismiss settings
         dismiss()
+    }
+}
+
+// MARK: - Usage Section Content
+
+struct UsageSectionContent: View {
+    let usage: UsageService
+    let noteCount: Int
+
+    var body: some View {
+        // Notes usage
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                Image(systemName: "note.text")
+                    .foregroundStyle(.blue)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Notes")
+                    .font(.body.weight(.medium))
+
+                if usage.isPro {
+                    Text("Unlimited")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                } else {
+                    // Progress bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color(.systemGray5))
+                                .frame(height: 4)
+
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(usage.freeNotesRemaining == 0 ? Color.red : Color.orange)
+                                .frame(width: geometry.size.width * CGFloat(usage.freeNotesUsed) / CGFloat(UsageService.freeNoteLimit), height: 4)
+                        }
+                    }
+                    .frame(height: 4)
+                }
+            }
+
+            Spacer()
+
+            if !usage.isPro {
+                Text("\(usage.freeNotesUsed) of \(UsageService.freeNoteLimit)")
+                    .font(.subheadline)
+                    .foregroundStyle(usage.freeNotesRemaining == 0 ? .red : .secondary)
+            }
+        }
+        .padding(.vertical, 4)
+
+        // Total stats
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.green.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                Image(systemName: "chart.bar")
+                    .foregroundStyle(.green)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Total Stats")
+                    .font(.body.weight(.medium))
+                Text("\(noteCount) notes • \(usage.totalRecordingTimeString) recorded")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 4)
     }
 }
 

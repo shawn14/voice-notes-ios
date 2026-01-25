@@ -92,7 +92,7 @@ struct FirstClarityView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "info.circle")
                                 .font(.caption)
-                            Text("\(UsageService.shared.displayExtractionsUsed) of 5 free extractions used")
+                            Text("\(UsageService.shared.freeNotesUsed) of \(UsageService.freeNoteLimit) free notes used")
                                 .font(.caption)
                         }
                         .foregroundStyle(.secondary)

@@ -52,29 +52,29 @@ struct PaywallView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Sparkles icon
-                Image(systemName: "sparkles")
+                // Icon
+                Image(systemName: "note.text.badge.plus")
                     .font(.system(size: 48))
                     .foregroundStyle(.blue)
                     .padding(.top, 32)
 
-                // Headline - emotional
-                Text("You just cleared mental clutter.")
+                // Headline
+                Text("You've used your 5 free notes")
                     .font(.title2.weight(.bold))
                     .multilineTextAlignment(.center)
 
-                // Subhead - continuation framing
-                Text("Keep turning thoughts into actions?")
+                // Subhead
+                Text("Upgrade to keep capturing your thoughts")
                     .font(.headline)
                     .foregroundStyle(.secondary)
 
                 // Value props
                 VStack(alignment: .leading, spacing: 14) {
-                    FeatureRow(icon: "brain.head.profile", text: "Unlimited AI extractions")
-                    FeatureRow(icon: "checkmark.circle.fill", text: "Unlimited action resolutions")
-                    FeatureRow(icon: "folder.fill", text: "Project auto-assignment")
-                    FeatureRow(icon: "calendar", text: "Weekly summaries")
-                    FeatureRow(icon: "bell.fill", text: "Smart reminders")
+                    FeatureRow(icon: "infinity", text: "Unlimited notes")
+                    FeatureRow(icon: "brain.head.profile", text: "AI-powered extraction")
+                    FeatureRow(icon: "folder.fill", text: "Project organization")
+                    FeatureRow(icon: "icloud.fill", text: "Sync across devices")
+                    FeatureRow(icon: "waveform", text: "Unlimited recording time")
                 }
                 .padding()
                 .background(Color(.secondarySystemBackground))

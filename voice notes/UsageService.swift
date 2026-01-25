@@ -2,23 +2,11 @@
 //  UsageService.swift
 //  voice notes
 //
-//  Tracks user usage: extractions, resolutions, and recording stats
+//  Simple monetization: 5 free notes, then pay
 //
 
 import Foundation
 import SwiftUI
-
-// MARK: - Usage Quota
-
-struct UsageQuota: Codable {
-    var extractionsRemaining: Int = 5
-    var resolutionsRemaining: Int = 3
-    var totalExtractionsUsed: Int = 0
-    var totalResolutionsUsed: Int = 0
-    var hasCompletedFirstExtraction: Bool = false  // "free-free" flag
-    var hasCompletedFirstResolution: Bool = false  // "free-free" flag
-    var lastResetDate: Date? = nil  // For future monthly reset
-}
 
 // MARK: - Usage Service
 
@@ -29,39 +17,20 @@ class UsageService {
     private let defaults = UserDefaults.standard
 
     // Keys
-    private let quotaKey = "usageQuota"
-    private let totalRecordingSecondsKey = "totalRecordingSeconds"
     private let noteCountKey = "totalNoteCount"
-    private let isFirstNoteKey = "isFirstNote"
+    private let totalRecordingSecondsKey = "totalRecordingSeconds"
     private let hasShownPaywallKey = "hasShownPaywall"
     private let subscriptionStatusKey = "subscriptionStatus"
 
-    // MARK: - Quota State
+    // MARK: - Constants
 
-    var quota: UsageQuota {
-        get {
-            guard let data = defaults.data(forKey: quotaKey),
-                  let decoded = try? JSONDecoder().decode(UsageQuota.self, from: data) else {
-                return UsageQuota()
-            }
-            return decoded
-        }
-        set {
-            if let encoded = try? JSONEncoder().encode(newValue) {
-                defaults.set(encoded, forKey: quotaKey)
-            }
-        }
-    }
+    static let freeNoteLimit = 5
 
-    var isFirstNote: Bool {
-        get {
-            // If key doesn't exist, it's the first note
-            if defaults.object(forKey: isFirstNoteKey) == nil {
-                return true
-            }
-            return defaults.bool(forKey: isFirstNoteKey)
-        }
-        set { defaults.set(newValue, forKey: isFirstNoteKey) }
+    // MARK: - Core State
+
+    var noteCount: Int {
+        get { defaults.integer(forKey: noteCountKey) }
+        set { defaults.set(newValue, forKey: noteCountKey) }
     }
 
     var hasShownPaywall: Bool {
@@ -78,68 +47,37 @@ class UsageService {
 
     var isPro: Bool { subscriptionStatus == "pro" }
 
-    var canExtract: Bool {
-        isPro || quota.extractionsRemaining > 0
+    var canCreateNote: Bool {
+        isPro || noteCount < UsageService.freeNoteLimit
     }
 
-    var canResolve: Bool {
-        isPro || quota.resolutionsRemaining > 0
+    var freeNotesRemaining: Int {
+        max(0, UsageService.freeNoteLimit - noteCount)
     }
 
-    // "Free-free" display (shows 1 used, but didn't actually decrement)
-    var displayExtractionsUsed: Int {
-        quota.hasCompletedFirstExtraction ? max(1, 5 - quota.extractionsRemaining) : 0
+    var freeNotesUsed: Int {
+        min(noteCount, UsageService.freeNoteLimit)
     }
 
-    var freeExtractionsRemaining: Int {
-        quota.extractionsRemaining
+    // MARK: - Methods
+
+    func incrementNoteCount() {
+        noteCount += 1
     }
 
-    var freeResolutionsRemaining: Int {
-        quota.resolutionsRemaining
+    /// Call this when a note is deleted to give back a free slot
+    func decrementNoteCount() {
+        noteCount = max(0, noteCount - 1)
     }
 
-    var totalExtractionsUsed: Int {
-        quota.totalExtractionsUsed
-    }
-
-    var totalResolutionsUsed: Int {
-        quota.totalResolutionsUsed
-    }
-
-    // MARK: - Usage Methods
-
-    func useExtraction() {
-        var currentQuota = quota
-
-        // First extraction is "free-free" - don't decrement, just mark as completed
-        if !isPro && currentQuota.hasCompletedFirstExtraction {
-            currentQuota.extractionsRemaining = max(0, currentQuota.extractionsRemaining - 1)
-        }
-
-        currentQuota.hasCompletedFirstExtraction = true
-        currentQuota.totalExtractionsUsed += 1
-
-        quota = currentQuota
-    }
-
-    func useResolution() {
-        var currentQuota = quota
-
-        // First resolution is "free-free" - don't decrement, just mark as completed
-        if !isPro && currentQuota.hasCompletedFirstResolution {
-            currentQuota.resolutionsRemaining = max(0, currentQuota.resolutionsRemaining - 1)
-        }
-
-        currentQuota.hasCompletedFirstResolution = true
-        currentQuota.totalResolutionsUsed += 1
-
-        quota = currentQuota
+    /// Sync note count with actual database count
+    func syncNoteCount(actualCount: Int) {
+        noteCount = actualCount
     }
 
     func shouldShowPaywall() -> Bool {
-        // Show after first successful resolution, only once
-        quota.totalResolutionsUsed == 1 && !hasShownPaywall
+        // Show when they hit the limit
+        !isPro && noteCount >= UsageService.freeNoteLimit && !hasShownPaywall
     }
 
     // MARK: - Recording Time (kept for stats display)
@@ -160,25 +98,12 @@ class UsageService {
         if hours > 0 {
             return "\(hours) hr \(minutes) min"
         } else {
-            return "\(minutes) minutes"
+            return "\(minutes) min"
         }
     }
 
-    // MARK: - Note Count
-
-    var totalNoteCount: Int {
-        get { defaults.integer(forKey: noteCountKey) }
-        set { defaults.set(newValue, forKey: noteCountKey) }
-    }
-
-    // MARK: - Methods
-
     func addRecordingTime(seconds: Int) {
         totalRecordingSeconds += seconds
-    }
-
-    func incrementNoteCount() {
-        totalNoteCount += 1
     }
 
     // MARK: - Pro Upgrade
@@ -191,37 +116,27 @@ class UsageService {
         subscriptionStatus = "free"
     }
 
-    // MARK: - Reset (for testing)
+    // MARK: - Reset (for testing/sign out)
 
     func resetAllUsage() {
-        quota = UsageQuota()
-        isFirstNote = true
+        noteCount = 0
+        totalRecordingSeconds = 0
         hasShownPaywall = false
         subscriptionStatus = "free"
     }
-}
 
-// MARK: - Subscription Tier
-
-enum SubscriptionTier: String {
-    case free = "Free"
-    case pro = "Pro"
-    case team = "Team"
-
-    var monthlyMinutes: Int {
-        switch self {
-        case .free: return 30
-        case .pro: return 300  // 5 hours
-        case .team: return 1000
-        }
-    }
-
-    var price: String {
-        switch self {
-        case .free: return "Free"
-        case .pro: return "$9.99/mo"
-        case .team: return "$24.99/mo"
-        }
+    // Legacy compatibility - these can be removed later
+    var canExtract: Bool { true }  // Always allow extraction now
+    var canResolve: Bool { true }  // Always allow resolution now
+    func useExtraction() { }  // No-op
+    func useResolution() { }  // No-op
+    var freeExtractionsRemaining: Int { 999 }
+    var freeResolutionsRemaining: Int { 999 }
+    var totalExtractionsUsed: Int { 0 }
+    var totalResolutionsUsed: Int { 0 }
+    var isFirstNote: Bool {
+        get { noteCount == 0 }
+        set { }  // No-op
     }
 }
 

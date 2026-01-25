@@ -12,31 +12,45 @@ struct UsageExplainerView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            // Brain icon
-            Image(systemName: "brain.head.profile")
+            // Icon
+            Image(systemName: "note.text")
                 .font(.system(size: 48))
                 .foregroundStyle(.blue)
                 .padding(.top, 8)
 
             // Headline
-            Text("Why am I seeing this?")
+            Text("Free Tier")
                 .font(.title3.weight(.bold))
 
             // Explanation
             VStack(spacing: 12) {
-                Text("Recording is free and unlimited.")
+                Text("You get 5 free notes to try the app.")
                     .font(.body)
                     .foregroundStyle(.primary)
 
-                Text("AI understanding costs compute, so we limit free extractions to help keep the lights on.")
+                Text("After that, upgrade to Pro for unlimited notes with all the AI features.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal)
 
-            // Current limits
+            // What you get
             VStack(spacing: 8) {
+                LimitRow(
+                    icon: "note.text",
+                    label: "Notes",
+                    value: "5 free",
+                    valueColor: .orange
+                )
+
+                LimitRow(
+                    icon: "brain.head.profile",
+                    label: "AI Extraction",
+                    value: "Included",
+                    valueColor: .green
+                )
+
                 LimitRow(
                     icon: "mic.fill",
                     label: "Recording",
@@ -45,17 +59,10 @@ struct UsageExplainerView: View {
                 )
 
                 LimitRow(
-                    icon: "brain.head.profile",
-                    label: "AI Extractions",
-                    value: "5 free",
-                    valueColor: .orange
-                )
-
-                LimitRow(
-                    icon: "checkmark.circle.fill",
-                    label: "Resolutions",
-                    value: "3 free",
-                    valueColor: .orange
+                    icon: "icloud.fill",
+                    label: "iCloud Sync",
+                    value: "Included",
+                    valueColor: .green
                 )
             }
             .padding()
@@ -66,7 +73,7 @@ struct UsageExplainerView: View {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
                     .foregroundStyle(.blue)
-                Text("Pro removes all limits")
+                Text("Pro = Unlimited notes")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.blue)
             }
