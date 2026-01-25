@@ -36,6 +36,9 @@ struct HomeView: View {
     @Query(sort: \Project.sortOrder) private var projects: [Project]
     @Query private var tags: [Tag]
 
+    // Observe AuthService for name changes
+    private var authService = AuthService.shared
+
     @State private var searchText = ""
     @State private var selectedFilter: NoteFilter = .all
     @State private var showingSettings = false
@@ -62,7 +65,7 @@ struct HomeView: View {
     // Filtered notes based on search and filter
     private var filteredNotes: [Note] {
         // Don't show notes when signed out - they'll reappear on sign in
-        guard AuthService.shared.isSignedIn else {
+        guard authService.isSignedIn else {
             return []
         }
 
@@ -116,8 +119,8 @@ struct HomeView: View {
                         Button {
                             showingSettings = true
                         } label: {
-                            if AuthService.shared.isSignedIn {
-                                UserAvatarView(name: AuthService.shared.displayName, size: 36)
+                            if authService.isSignedIn {
+                                UserAvatarView(name: authService.displayName, size: 36)
                             } else {
                                 Image(systemName: "person.circle")
                                     .font(.title2)
@@ -202,7 +205,7 @@ struct HomeView: View {
                     // Notes list
                     if filteredNotes.isEmpty {
                         Spacer()
-                        if !AuthService.shared.isSignedIn {
+                        if !authService.isSignedIn {
                             // Signed out - prompt to sign in
                             VStack(spacing: 16) {
                                 Image(systemName: "person.crop.circle.badge.plus")
@@ -266,7 +269,7 @@ struct HomeView: View {
                 }
 
                 // Sign in button (bottom right) - shows when not signed in
-                if !AuthService.shared.isSignedIn && !isRecording && !isTranscribing {
+                if !authService.isSignedIn && !isRecording && !isTranscribing {
                     VStack {
                         Spacer()
                         HStack {
@@ -375,7 +378,7 @@ struct HomeView: View {
             stopRecording()
         } else {
             // Must be signed in to record
-            if !AuthService.shared.isSignedIn {
+            if !authService.isSignedIn {
                 showSignIn = true
                 return
             }
@@ -886,6 +889,9 @@ struct SettingsView: View {
     @Query(sort: \Project.sortOrder) private var projects: [Project]
     @Query private var notes: [Note]
 
+    // Observe AuthService for reactive updates
+    private var authService = AuthService.shared
+
     @State private var showingAddProject = false
     @State private var newProjectName = ""
     @State private var showingShareSheet = false
@@ -912,7 +918,7 @@ struct SettingsView: View {
                 Section {
                     // Account info with edit button
                     Button {
-                        editedName = AuthService.shared.userName ?? ""
+                        editedName = authService.userName ?? ""
                         showingEditName = true
                     } label: {
                         HStack(spacing: 16) {
@@ -920,16 +926,16 @@ struct SettingsView: View {
                                 Circle()
                                     .fill(Color.blue.opacity(0.15))
                                     .frame(width: 44, height: 44)
-                                Image(systemName: AuthService.shared.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle")
+                                Image(systemName: authService.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle")
                                     .foregroundStyle(.blue)
                             }
 
                             VStack(alignment: .leading, spacing: 2) {
-                                if AuthService.shared.isSignedIn {
-                                    Text(AuthService.shared.displayName)
+                                if authService.isSignedIn {
+                                    Text(authService.displayName)
                                         .font(.body.weight(.medium))
                                         .foregroundStyle(.primary)
-                                    if let email = AuthService.shared.userEmail {
+                                    if let email = authService.userEmail {
                                         Text(email)
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
@@ -946,7 +952,7 @@ struct SettingsView: View {
 
                             Spacer()
 
-                            if AuthService.shared.isSignedIn {
+                            if authService.isSignedIn {
                                 Text("Edit")
                                     .font(.subheadline)
                                     .foregroundStyle(.blue)
@@ -1314,7 +1320,7 @@ struct SettingsView: View {
                 Button("Save") {
                     let trimmed = editedName.trimmingCharacters(in: .whitespaces)
                     if !trimmed.isEmpty {
-                        AuthService.shared.userName = trimmed
+                        authService.userName = trimmed
                     }
                     editedName = ""
                 }
