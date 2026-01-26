@@ -947,6 +947,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Project.sortOrder) private var projects: [Project]
     @Query private var notes: [Note]
+    @Query private var dailyBriefs: [DailyBrief]
+    @Query private var kanbanItems: [KanbanItem]
 
     // Observe AuthService for reactive updates
     private var authService = AuthService.shared
