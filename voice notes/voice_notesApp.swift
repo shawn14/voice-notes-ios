@@ -14,9 +14,10 @@ struct voice_notesApp: App {
     @State private var authService = AuthService.shared
     @State private var subscriptionManager = SubscriptionManager.shared
     @State private var hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self])
+        let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self, DailyBrief.self])
 
         do {
             // Configure for CloudKit sync
@@ -63,6 +64,13 @@ struct voice_notesApp: App {
                         // Check subscription status
                         await subscriptionManager.updateSubscriptionStatus()
                     }
+                    .onChange(of: scenePhase) { _, newPhase in
+                        if newPhase == .active {
+                            Task {
+                                await triggerAppActiveRefresh()
+                            }
+                        }
+                    }
             } else {
                 SignInView {
                     UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
@@ -71,6 +79,44 @@ struct voice_notesApp: App {
             }
         }
         .modelContainer(container)
+    }
+
+    /// Trigger intelligence refresh on app becoming active
+    @MainActor
+    private func triggerAppActiveRefresh() async {
+        let context = container.mainContext
+
+        // Fetch all required data
+        let notes = (try? context.fetch(FetchDescriptor<Note>())) ?? []
+        let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+        let items = (try? context.fetch(FetchDescriptor<KanbanItem>())) ?? []
+        let movements = (try? context.fetch(FetchDescriptor<KanbanMovement>())) ?? []
+        let actions = (try? context.fetch(FetchDescriptor<ExtractedAction>())) ?? []
+        let commitments = (try? context.fetch(FetchDescriptor<ExtractedCommitment>())) ?? []
+        let unresolved = (try? context.fetch(FetchDescriptor<UnresolvedItem>())) ?? []
+
+        // Tier 2: Refresh session brief (local computation, no AI)
+        await IntelligenceService.shared.refreshSessionBriefIfNeeded(
+            notes: notes,
+            projects: projects,
+            items: items,
+            movements: movements,
+            actions: actions,
+            commitments: commitments,
+            unresolved: unresolved
+        )
+
+        // Tier 3: Check and generate daily brief if needed (one AI call per day)
+        await IntelligenceService.shared.checkAndGenerateDailyBrief(
+            context: context,
+            notes: notes,
+            projects: projects,
+            items: items,
+            movements: movements,
+            actions: actions,
+            commitments: commitments,
+            unresolved: unresolved
+        )
     }
 
     /// Removes duplicate tags, keeping one of each name and updating note references

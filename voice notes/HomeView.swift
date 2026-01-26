@@ -35,9 +35,18 @@ struct HomeView: View {
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Query(sort: \Project.sortOrder) private var projects: [Project]
     @Query private var tags: [Tag]
+    @Query(sort: \KanbanItem.createdAt, order: .reverse) private var kanbanItems: [KanbanItem]
+    @Query private var kanbanMovements: [KanbanMovement]
+    @Query private var extractedActions: [ExtractedAction]
+    @Query private var extractedCommitments: [ExtractedCommitment]
+    @Query private var unresolvedItems: [UnresolvedItem]
+    @Query(sort: \DailyBrief.briefDate, order: .reverse) private var dailyBriefs: [DailyBrief]
 
     // Observe AuthService for name changes
     private var authService = AuthService.shared
+
+    // Intelligence service
+    private var intelligenceService = IntelligenceService.shared
 
     @State private var searchText = ""
     @State private var selectedFilter: NoteFilter = .all
@@ -97,6 +106,28 @@ struct HomeView: View {
         return result
     }
 
+    // Today's daily brief (if available)
+    private var todaysBrief: DailyBrief? {
+        let today = Calendar.current.startOfDay(for: Date())
+        return dailyBriefs.first { $0.briefDate >= today }
+    }
+
+    // Retry daily brief generation
+    private func retryDailyBrief() {
+        Task {
+            await intelligenceService.regenerateDailyBrief(
+                context: modelContext,
+                notes: notes,
+                projects: projects,
+                items: kanbanItems,
+                movements: kanbanMovements,
+                actions: extractedActions,
+                commitments: extractedCommitments,
+                unresolved: unresolvedItems
+            )
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -138,6 +169,17 @@ struct HomeView: View {
                             .foregroundStyle(.white)
                         Spacer()
                     }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
+                    // Daily Brief Header
+                    DailyBriefHeader(
+                        brief: todaysBrief,
+                        sessionBrief: intelligenceService.sessionBrief,
+                        isGenerating: intelligenceService.isRefreshingDaily,
+                        error: intelligenceService.dailyBriefError,
+                        onRetry: retryDailyBrief
+                    )
                     .padding(.horizontal)
                     .padding(.top, 8)
 
@@ -475,11 +517,12 @@ struct HomeView: View {
             }
         }
 
-        // AI processing for title and tags
+        // AI processing for title, tags, and Tier 1 intelligence
         if let transcript = transcript, !transcript.isEmpty,
            let apiKey = APIKeys.openAI, !apiKey.isEmpty {
             let existingTags = tags
             let context = modelContext
+            let allProjects = projects
 
             Task {
                 do {
@@ -507,6 +550,15 @@ struct HomeView: View {
                         isTranscribing = false
                         currentAudioFileName = nil
                     }
+
+                    // Tier 1: Process note with IntelligenceService
+                    await intelligenceService.processNoteSave(
+                        note: note,
+                        transcript: transcript,
+                        projects: allProjects,
+                        tags: existingTags,
+                        context: context
+                    )
                 } catch {
                     await MainActor.run {
                         isTranscribing = false
@@ -517,6 +569,10 @@ struct HomeView: View {
         } else {
             isTranscribing = false
             currentAudioFileName = nil
+
+            // Still update status counters for notes without transcripts
+            StatusCounters.shared.incrementNotesToday()
+            StatusCounters.shared.markSessionStale()
         }
     }
 

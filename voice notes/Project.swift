@@ -23,6 +23,20 @@ final class Project {
     // Aliases for matching (stored as JSON array)
     var aliasesData: Data = Data()
 
+    // Activity tracking (Tier 1 - Instant)
+    var noteCount: Int = 0
+    var openActionCount: Int = 0
+    var lastActivityAt: Date?
+
+    var daysSinceActivity: Int {
+        guard let last = lastActivityAt else { return Int.max }
+        return Calendar.current.dateComponents([.day], from: last, to: Date()).day ?? 0
+    }
+
+    var isStalled: Bool {
+        daysSinceActivity >= 7 && !isArchived
+    }
+
     init(name: String, icon: String = "folder", colorName: String = "blue") {
         self.id = UUID()
         self.name = name
