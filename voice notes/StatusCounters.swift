@@ -156,4 +156,20 @@ final class StatusCounters {
         defaults.set(stalledItemCount, forKey: Keys.stalledItemCount)
         defaults.set(Date(), forKey: Keys.lastComputeDate)
     }
+
+    /// Reset all counters to zero (used when deleting all data)
+    func reset() {
+        openTodoCount = 0
+        attentionCount = 0
+        unresolvedCount = 0
+        notesToday = 0
+        notesThisWeek = 0
+        activeProjectCount = 0
+        stalledItemCount = 0
+        persistToDefaults()
+
+        // Also clear the daily brief date
+        UserDefaults.standard.removeObject(forKey: "intelligence.lastDailyBriefDate")
+        UserDefaults.standard.removeObject(forKey: "sessionBrief.needsRefresh")
+    }
 }

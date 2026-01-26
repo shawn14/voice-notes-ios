@@ -172,16 +172,18 @@ struct HomeView: View {
                     .padding(.horizontal)
                     .padding(.top, 8)
 
-                    // Daily Brief Header
-                    DailyBriefHeader(
-                        brief: todaysBrief,
-                        sessionBrief: intelligenceService.sessionBrief,
-                        isGenerating: intelligenceService.isRefreshingDaily,
-                        error: intelligenceService.dailyBriefError,
-                        onRetry: retryDailyBrief
-                    )
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                    // Daily Brief Header (only show when signed in)
+                    if authService.isSignedIn {
+                        DailyBriefHeader(
+                            brief: todaysBrief,
+                            sessionBrief: intelligenceService.sessionBrief,
+                            isGenerating: intelligenceService.isRefreshingDaily,
+                            error: intelligenceService.dailyBriefError,
+                            onRetry: retryDailyBrief
+                        )
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    }
 
                     // Search bar
                     HStack {
@@ -310,8 +312,9 @@ struct HomeView: View {
                     )
                 }
 
-                // Sign in button (bottom right) - shows when not signed in
-                if !authService.isSignedIn && !isRecording && !isTranscribing {
+                // Sign in button (bottom right) - shows when not signed in and notes exist
+                // (Don't show when empty state sign-in prompt is visible)
+                if !authService.isSignedIn && !isRecording && !isTranscribing && !filteredNotes.isEmpty {
                     VStack {
                         Spacer()
                         HStack {
@@ -1458,6 +1461,20 @@ struct SettingsView: View {
         for project in projects {
             modelContext.delete(project)
         }
+
+        // Delete all daily briefs
+        for brief in dailyBriefs {
+            modelContext.delete(brief)
+        }
+
+        // Delete all kanban items
+        for item in kanbanItems {
+            modelContext.delete(item)
+        }
+
+        // Clear intelligence caches
+        SessionBrief.clearCache()
+        StatusCounters.shared.reset()
 
         // Clear all user data including name/email and usage
         AuthService.shared.clearAllUserData()
