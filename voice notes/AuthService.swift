@@ -18,25 +18,29 @@ class AuthService {
     private let userEmailKey = "appleUserEmail"
     private let userNameKey = "appleUserName"
 
-    // MARK: - Auth State
+    // MARK: - Stored Properties (observable)
+
+    private(set) var userId: String?
+    private(set) var userEmail: String?
+    var userName: String? {
+        didSet {
+            UserDefaults.standard.set(userName, forKey: userNameKey)
+        }
+    }
+
+    // MARK: - Init (load from UserDefaults)
+
+    init() {
+        // Load persisted values
+        self.userId = UserDefaults.standard.string(forKey: userIdKey)
+        self.userEmail = UserDefaults.standard.string(forKey: userEmailKey)
+        self.userName = UserDefaults.standard.string(forKey: userNameKey)
+    }
+
+    // MARK: - Computed Properties
 
     var isSignedIn: Bool {
         userId != nil
-    }
-
-    var userId: String? {
-        get { UserDefaults.standard.string(forKey: userIdKey) }
-        set { UserDefaults.standard.set(newValue, forKey: userIdKey) }
-    }
-
-    var userEmail: String? {
-        get { UserDefaults.standard.string(forKey: userEmailKey) }
-        set { UserDefaults.standard.set(newValue, forKey: userEmailKey) }
-    }
-
-    var userName: String? {
-        get { UserDefaults.standard.string(forKey: userNameKey) }
-        set { UserDefaults.standard.set(newValue, forKey: userNameKey) }
     }
 
     var displayName: String {
@@ -50,11 +54,11 @@ class AuthService {
         case .success(let authorization):
             if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
                 // Store user ID (always provided)
-                userId = appleIDCredential.user
+                setUserId(appleIDCredential.user)
 
                 // Email and name are only provided on first sign-in
                 if let email = appleIDCredential.email {
-                    userEmail = email
+                    setUserEmail(email)
                 }
 
                 if let fullName = appleIDCredential.fullName {
@@ -65,6 +69,8 @@ class AuthService {
                         userName = name
                     }
                 }
+
+                print("Sign in successful. userId: \(userId ?? "nil"), isSignedIn: \(isSignedIn)")
             }
 
         case .failure(let error):
@@ -72,23 +78,45 @@ class AuthService {
         }
     }
 
+    // MARK: - Private Setters (update both stored property and UserDefaults)
+
+    private func setUserId(_ value: String?) {
+        userId = value
+        UserDefaults.standard.set(value, forKey: userIdKey)
+    }
+
+    private func setUserEmail(_ value: String?) {
+        userEmail = value
+        UserDefaults.standard.set(value, forKey: userEmailKey)
+    }
+
     // MARK: - Sign Out
 
     func signOut() {
         // Only clear userId - keep userName/userEmail so they're restored on sign back in
         // Apple only provides name/email on FIRST sign-in, so we need to preserve them
-        userId = nil
+        setUserId(nil)
 
         // Note: Usage is NOT reset on sign out - user keeps their usage history
+        print("Signed out. isSignedIn: \(isSignedIn)")
     }
 
     /// Clear all user data (for "Delete All Data" option)
     func clearAllUserData() {
-        userId = nil
-        userEmail = nil
+        setUserId(nil)
+        setUserEmail(nil)
         userName = nil
         UsageService.shared.resetAllUsage()
     }
+
+    #if DEBUG
+    /// Debug-only method to simulate sign-in for testing
+    func debugSignIn() {
+        setUserId("debug-user")
+        userName = "Test User"
+        print("Debug sign in. userId: \(userId ?? "nil"), isSignedIn: \(isSignedIn)")
+    }
+    #endif
 
     // MARK: - Credential State Check
 
@@ -103,12 +131,15 @@ class AuthService {
                 switch state {
                 case .authorized:
                     // Still valid
+                    print("Credential state: authorized")
                     break
                 case .revoked, .notFound:
                     // User revoked access or account not found - sign out
+                    print("Credential state: revoked or not found - signing out")
                     self.signOut()
                 case .transferred:
                     // Account was transferred to a different team
+                    print("Credential state: transferred")
                     break
                 @unknown default:
                     break
@@ -120,14 +151,14 @@ class AuthService {
     }
 }
 
-// MARK: - Sign In With Apple Button (using SwiftUI native)
-
 // MARK: - Sign In View
 
 struct SignInView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     let onSignedIn: () -> Void
+
+    private var authService: AuthService { AuthService.shared }
 
     @State private var showingError = false
     @State private var errorMessage = ""
@@ -169,8 +200,8 @@ struct SignInView: View {
             } onCompletion: { result in
                 switch result {
                 case .success(let authorization):
-                    AuthService.shared.handleSignInResult(.success(authorization))
-                    if AuthService.shared.isSignedIn {
+                    authService.handleSignInResult(.success(authorization))
+                    if authService.isSignedIn {
                         onSignedIn()
                     }
                 case .failure(let error):
@@ -194,9 +225,7 @@ struct SignInView: View {
             // Debug: Skip sign-in for simulator testing
             #if DEBUG
             Button("Debug: Skip to signed in") {
-                // Simulate sign-in for testing
-                AuthService.shared.userId = "debug-user"
-                AuthService.shared.userName = "Test User"
+                authService.debugSignIn()
                 onSignedIn()
             }
             .font(.caption)
