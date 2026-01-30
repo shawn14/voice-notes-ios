@@ -185,18 +185,20 @@ struct HomeView: View {
                         .padding(.top, 8)
                     }
 
-                    // Search bar
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.gray)
-                        TextField("Search", text: $searchText)
-                            .foregroundStyle(.white)
+                    // Search bar (only show when signed in)
+                    if authService.isSignedIn {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.gray)
+                            TextField("Search", text: $searchText)
+                                .foregroundStyle(.white)
+                        }
+                        .padding(12)
+                        .background(Color(.systemGray6).opacity(0.3))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        .padding(.top, 12)
                     }
-                    .padding(12)
-                    .background(Color(.systemGray6).opacity(0.3))
-                    .cornerRadius(10)
-                    .padding(.horizontal)
-                    .padding(.top, 12)
 
                     // Filter tabs
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -291,7 +293,7 @@ struct HomeView: View {
                         ScrollView {
                             LazyVStack(spacing: 2) {
                                 ForEach(filteredNotes) { note in
-                                    NavigationLink(destination: NoteEditorView(note: note)) {
+                                    NavigationLink(destination: NoteDetailView(note: note)) {
                                         HomeNoteRow(note: note)
                                     }
                                     .buttonStyle(.plain)
@@ -476,7 +478,7 @@ struct HomeView: View {
 
         Task {
             do {
-                let service = TranscriptionService(apiKey: apiKey)
+                let service = TranscriptionService(apiKey: apiKey, language: LanguageSettings.shared.selectedLanguage)
                 let transcript = try await service.transcribe(audioURL: url)
 
                 await MainActor.run {
@@ -501,9 +503,9 @@ struct HomeView: View {
         )
         modelContext.insert(note)
 
-        // Track usage
+        // Track usage and store duration
         if let fileName = currentAudioFileName {
-            trackRecordingUsage(fileName: fileName)
+            trackRecordingUsage(fileName: fileName, for: note)
         }
         UsageService.shared.incrementNoteCount()
 
@@ -637,7 +639,7 @@ struct HomeView: View {
         }
     }
 
-    private func trackRecordingUsage(fileName: String) {
+    private func trackRecordingUsage(fileName: String, for note: Note? = nil) {
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let audioURL = documentsURL.appendingPathComponent(fileName)
 
@@ -648,6 +650,12 @@ struct HomeView: View {
                 let seconds = CMTimeGetSeconds(duration)
                 if seconds.isFinite && seconds > 0 {
                     UsageService.shared.addRecordingTime(seconds: Int(seconds))
+                    // Store duration on note
+                    if let note = note {
+                        await MainActor.run {
+                            note.audioDuration = seconds
+                        }
+                    }
                 }
             } catch {
                 print("Failed to load audio duration: \(error)")
@@ -962,6 +970,7 @@ struct SettingsView: View {
     @State private var showingDeleteAllDataConfirm = false
     @State private var showingEditName = false
     @State private var editedName = ""
+    @State private var showSignIn = false
 
     private let usage = UsageService.shared
 
@@ -1143,42 +1152,43 @@ struct SettingsView: View {
                         .padding(.vertical, 4)
                     }
 
-                    // Sign Out (keeps data)
-                    Button {
-                        showingSignOutConfirm = true
-                    } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "rectangle.portrait.and.arrow.right")
-                                .foregroundStyle(.primary)
-                                .frame(width: 44)
+                    // Sign In / Sign Out (conditional)
+                    if authService.isSignedIn {
+                        Button {
+                            showingSignOutConfirm = true
+                        } label: {
+                            HStack(spacing: 16) {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                    .foregroundStyle(.primary)
+                                    .frame(width: 44)
 
-                            Text("Sign Out")
-                                .font(.body)
+                                Text("Sign Out")
+                                    .font(.body)
 
-                            Spacer()
+                                Spacer()
+                            }
                         }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
+                    } else {
+                        Button {
+                            showSignIn = true
+                        } label: {
+                            HStack(spacing: 16) {
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                    .foregroundStyle(.blue)
+                                    .frame(width: 44)
 
-                    // Delete All Data (destructive)
-                    Button {
-                        showingDeleteAllDataConfirm = true
-                    } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
-                                .frame(width: 44)
+                                Text("Sign In")
+                                    .font(.body)
+                                    .foregroundStyle(.blue)
 
-                            Text("Delete All Data")
-                                .font(.body)
-                                .foregroundStyle(.red)
-
-                            Spacer()
+                                Spacer()
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
                 } header: {
                     Text("Account")
                 }
@@ -1282,7 +1292,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
 
                     NavigationLink {
-                        Text("Language Settings")
+                        LanguagePickerView()
                     } label: {
                         HStack(spacing: 16) {
                             Image(systemName: "globe")
@@ -1294,7 +1304,7 @@ struct SettingsView: View {
 
                             Spacer()
 
-                            Text("English")
+                            Text(LanguageSettings.shared.selectedLanguage.displayName)
                                 .font(.body)
                                 .foregroundStyle(.secondary)
                         }
@@ -1307,7 +1317,7 @@ struct SettingsView: View {
                 // MARK: - Support Section
                 Section {
                     Button {
-                        if let url = URL(string: "mailto:support@voicenotes.app") {
+                        if let url = URL(string: "mailto:support@eeon.com") {
                             UIApplication.shared.open(url)
                         }
                     } label: {
@@ -1331,7 +1341,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
 
                     Button {
-                        if let url = URL(string: "https://voicenotes.app/privacy") {
+                        if let url = URL(string: "https://www.eeon.com/privacy") {
                             UIApplication.shared.open(url)
                         }
                     } label: {
@@ -1353,8 +1363,58 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.vertical, 4)
+
+                    Button {
+                        if let url = URL(string: "https://www.eeon.com/terms") {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "doc.text")
+                                .foregroundStyle(.blue)
+                                .frame(width: 44)
+
+                            Text("Terms of Use")
+                                .font(.body)
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
                 } header: {
                     Text("Support")
+                }
+
+                // MARK: - Danger Zone (at bottom)
+                Section {
+                    Button {
+                        showingDeleteAllDataConfirm = true
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                                .frame(width: 44)
+
+                            Text("Delete Account & Data")
+                                .font(.body)
+                                .foregroundStyle(.red)
+
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Danger Zone")
+                } footer: {
+                    Text("This will permanently delete your account, all notes, projects, and associated data from this device and iCloud. This action cannot be undone.")
+                        .font(.caption)
                 }
             }
             .navigationTitle("Settings")
@@ -1396,6 +1456,11 @@ struct SettingsView: View {
                     showingPaywall = false
                 })
             }
+            .sheet(isPresented: $showSignIn) {
+                SignInView(onSignedIn: {
+                    showSignIn = false
+                })
+            }
             .confirmationDialog("Downgrade to Free?", isPresented: $showingResetConfirm, titleVisibility: .visible) {
                 Button("Downgrade", role: .destructive) {
                     UsageService.shared.downgradeToFree()
@@ -1412,13 +1477,13 @@ struct SettingsView: View {
             } message: {
                 Text("Your notes will be kept and synced with iCloud. You can sign back in anytime.")
             }
-            .confirmationDialog("Delete All Data?", isPresented: $showingDeleteAllDataConfirm, titleVisibility: .visible) {
-                Button("Delete Everything", role: .destructive) {
+            .confirmationDialog("Delete Account & Data?", isPresented: $showingDeleteAllDataConfirm, titleVisibility: .visible) {
+                Button("Delete Account & Data", role: .destructive) {
                     deleteAllDataAndSignOut()
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text("This will permanently delete all your notes, projects, and data. This cannot be undone.")
+                Text("This will permanently delete your account and all associated data including notes, projects, and recordings. This action cannot be undone.")
             }
         }
     }
@@ -1694,6 +1759,37 @@ struct ProjectEditView: View {
         case "pink": return .pink
         default: return .blue
         }
+    }
+}
+
+// MARK: - Language Picker View
+
+struct LanguagePickerView: View {
+    @State private var selectedLanguage = LanguageSettings.shared.selectedLanguage
+
+    var body: some View {
+        List {
+            ForEach(TranscriptionLanguage.allCases) { language in
+                Button {
+                    selectedLanguage = language
+                    LanguageSettings.shared.selectedLanguage = language
+                } label: {
+                    HStack {
+                        Text(language.displayName)
+                            .foregroundStyle(.primary)
+
+                        Spacer()
+
+                        if selectedLanguage == language {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Transcription Language")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

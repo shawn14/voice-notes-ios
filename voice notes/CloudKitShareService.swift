@@ -34,9 +34,12 @@ actor CloudKitShareService {
     // Record type name in CloudKit
     private let recordType = "SharedNote"
 
+    // Container identifier - must match your entitlements
+    private static let containerIdentifier = "iCloud.aivoiceeeon"
+
     private init() {
-        // Use the default container (configured in Xcode capabilities)
-        self.container = CKContainer.default()
+        // Use the explicit container identifier
+        self.container = CKContainer(identifier: Self.containerIdentifier)
         self.publicDB = container.publicCloudDatabase
     }
 
@@ -103,8 +106,18 @@ actor CloudKitShareService {
             }
 
             var audioURL: URL? = nil
-            if let asset = record["audio"] as? CKAsset {
-                audioURL = asset.fileURL
+            if let asset = record["audio"] as? CKAsset,
+               let tempURL = asset.fileURL {
+                // Copy audio to cache directory (CKAsset.fileURL is temporary)
+                let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                let cachedAudioURL = cacheDir.appendingPathComponent("shared_audio_\(id).m4a")
+
+                // Remove old cached file if exists
+                try? FileManager.default.removeItem(at: cachedAudioURL)
+
+                // Copy the audio file
+                try FileManager.default.copyItem(at: tempURL, to: cachedAudioURL)
+                audioURL = cachedAudioURL
             }
 
             return SharedNote(

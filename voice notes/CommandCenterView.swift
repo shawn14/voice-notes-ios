@@ -171,7 +171,7 @@ struct CommandCenterView: View {
                     DisclosureGroup(isExpanded: $showingNotesContext) {
                         VStack(spacing: 8) {
                             ForEach(notes.prefix(10)) { note in
-                                NavigationLink(destination: NoteEditorView(note: note)) {
+                                NavigationLink(destination: NoteDetailView(note: note)) {
                                     RecentNoteRow(note: note)
                                 }
                                 .buttonStyle(.plain)
@@ -285,7 +285,7 @@ struct CommandCenterView: View {
 
         Task {
             do {
-                let service = TranscriptionService(apiKey: apiKey)
+                let service = TranscriptionService(apiKey: apiKey, language: LanguageSettings.shared.selectedLanguage)
                 let transcript = try await service.transcribe(audioURL: url)
 
                 await MainActor.run {

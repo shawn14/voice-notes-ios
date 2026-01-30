@@ -104,6 +104,8 @@ final class Note {
     var projectId: UUID?
     var column: String = "Thinking"  // KanbanColumn raw value
     var aiInsight: String?  // AI-generated summary or next step
+    var isFavorite: Bool = false
+    var audioDuration: Double?  // Duration in seconds
 
     // Intent classification
     var intentType: String = "Unknown"  // Action, Decision, Idea, Update, Reminder, Unknown

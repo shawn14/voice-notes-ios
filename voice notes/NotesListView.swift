@@ -110,7 +110,7 @@ struct NotesListView: View {
                         } else if !isRecording {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 ForEach(Array(filteredNotes.enumerated()), id: \.element.id) { index, note in
-                                    NavigationLink(destination: NoteEditorView(note: note)) {
+                                    NavigationLink(destination: NoteDetailView(note: note)) {
                                         StickyNoteCard(
                                             note: note,
                                             color: noteColors[index % noteColors.count],
@@ -268,7 +268,7 @@ struct NotesListView: View {
 
         Task {
             do {
-                let service = TranscriptionService(apiKey: apiKey)
+                let service = TranscriptionService(apiKey: apiKey, language: LanguageSettings.shared.selectedLanguage)
                 let transcript = try await service.transcribe(audioURL: url)
 
                 await MainActor.run {

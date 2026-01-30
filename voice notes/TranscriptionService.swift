@@ -6,8 +6,102 @@
 import Foundation
 import AVFoundation
 
+// MARK: - Supported Languages
+
+enum TranscriptionLanguage: String, CaseIterable, Identifiable {
+    case auto = ""
+    case english = "en"
+    case spanish = "es"
+    case french = "fr"
+    case german = "de"
+    case italian = "it"
+    case portuguese = "pt"
+    case dutch = "nl"
+    case russian = "ru"
+    case chinese = "zh"
+    case japanese = "ja"
+    case korean = "ko"
+    case arabic = "ar"
+    case hindi = "hi"
+    case polish = "pl"
+    case turkish = "tr"
+    case vietnamese = "vi"
+    case thai = "th"
+    case indonesian = "id"
+    case swedish = "sv"
+    case danish = "da"
+    case norwegian = "no"
+    case finnish = "fi"
+    case greek = "el"
+    case hebrew = "he"
+    case czech = "cs"
+    case romanian = "ro"
+    case hungarian = "hu"
+    case ukrainian = "uk"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .auto: return "Auto-detect"
+        case .english: return "English"
+        case .spanish: return "Spanish"
+        case .french: return "French"
+        case .german: return "German"
+        case .italian: return "Italian"
+        case .portuguese: return "Portuguese"
+        case .dutch: return "Dutch"
+        case .russian: return "Russian"
+        case .chinese: return "Chinese"
+        case .japanese: return "Japanese"
+        case .korean: return "Korean"
+        case .arabic: return "Arabic"
+        case .hindi: return "Hindi"
+        case .polish: return "Polish"
+        case .turkish: return "Turkish"
+        case .vietnamese: return "Vietnamese"
+        case .thai: return "Thai"
+        case .indonesian: return "Indonesian"
+        case .swedish: return "Swedish"
+        case .danish: return "Danish"
+        case .norwegian: return "Norwegian"
+        case .finnish: return "Finnish"
+        case .greek: return "Greek"
+        case .hebrew: return "Hebrew"
+        case .czech: return "Czech"
+        case .romanian: return "Romanian"
+        case .hungarian: return "Hungarian"
+        case .ukrainian: return "Ukrainian"
+        }
+    }
+}
+
+// MARK: - Language Settings
+
+class LanguageSettings {
+    static let shared = LanguageSettings()
+
+    private let key = "transcriptionLanguage"
+
+    var selectedLanguage: TranscriptionLanguage {
+        get {
+            if let raw = UserDefaults.standard.string(forKey: key),
+               let lang = TranscriptionLanguage(rawValue: raw) {
+                return lang
+            }
+            return .auto
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: key)
+        }
+    }
+}
+
+// MARK: - Transcription Service
+
 actor TranscriptionService {
     private let apiKey: String
+    private let language: TranscriptionLanguage
 
     enum TranscriptionError: LocalizedError {
         case invalidURL
@@ -29,8 +123,9 @@ actor TranscriptionService {
         }
     }
 
-    init(apiKey: String) {
+    init(apiKey: String, language: TranscriptionLanguage = .auto) {
         self.apiKey = apiKey
+        self.language = language
     }
 
     func transcribe(audioURL: URL) async throws -> String {
@@ -71,6 +166,13 @@ actor TranscriptionService {
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
         body.append("whisper-1\r\n".data(using: .utf8)!)
+
+        // Add language field (if not auto-detect)
+        if language != .auto {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(language.rawValue)\r\n".data(using: .utf8)!)
+        }
 
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
@@ -172,6 +274,14 @@ actor TranscriptionService {
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
         body.append("whisper-1\r\n".data(using: .utf8)!)
+
+        // Add language field (if not auto-detect)
+        if language != .auto {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(language.rawValue)\r\n".data(using: .utf8)!)
+        }
+
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
         request.httpBody = body

@@ -154,7 +154,6 @@ class AuthService {
 // MARK: - Sign In View
 
 struct SignInView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     let onSignedIn: () -> Void
 
@@ -164,76 +163,95 @@ struct SignInView: View {
     @State private var errorMessage = ""
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-            // App icon/branding
-            VStack(spacing: 16) {
-                Image(systemName: "waveform.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundStyle(.blue)
+            VStack(spacing: 40) {
+                Spacer()
 
-                Text("Voice Notes")
-                    .font(.largeTitle.weight(.bold))
+                // Mic icon
+                ZStack {
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 100, height: 100)
 
-                Text("Turn messy thoughts into\nresolved actions")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(.white)
+                }
 
-            Spacer()
+                // Copy
+                VStack(spacing: 12) {
+                    Text("Voice Notes")
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(.white)
 
-            // Features
-            VStack(alignment: .leading, spacing: 16) {
-                FeatureItem(icon: "mic.fill", text: "Unlimited recording")
-                FeatureItem(icon: "brain.head.profile", text: "AI-powered extraction")
-                FeatureItem(icon: "icloud.fill", text: "Synced across devices")
-            }
-            .padding(.horizontal, 32)
+                    Text("Talk it out. We'll handle the rest.")
+                        .font(.title3)
+                        .foregroundStyle(.gray)
+                }
 
-            Spacer()
+                Spacer()
 
-            // Sign in button - using SwiftUI native
-            SignInWithAppleButton(.signIn) { request in
-                request.requestedScopes = [.fullName, .email]
-            } onCompletion: { result in
-                switch result {
-                case .success(let authorization):
-                    authService.handleSignInResult(.success(authorization))
-                    if authService.isSignedIn {
+                // Simple features
+                VStack(alignment: .leading, spacing: 20) {
+                    SignInFeatureRow(icon: "waveform", text: "Record your thoughts")
+                    SignInFeatureRow(icon: "sparkles", text: "AI extracts the action items")
+                    SignInFeatureRow(icon: "icloud", text: "Synced everywhere")
+                }
+                .padding(.horizontal, 48)
+
+                Spacer()
+
+                // Sign in
+                VStack(spacing: 16) {
+                    SignInWithAppleButton(.signIn) { request in
+                        request.requestedScopes = [.fullName, .email]
+                    } onCompletion: { result in
+                        switch result {
+                        case .success(let authorization):
+                            authService.handleSignInResult(.success(authorization))
+                            if authService.isSignedIn {
+                                onSignedIn()
+                            }
+                        case .failure(let error):
+                            errorMessage = error.localizedDescription
+                            showingError = true
+                        }
+                    }
+                    .signInWithAppleButtonStyle(.white)
+                    .frame(height: 50)
+
+                    Button("Skip for now") {
                         onSignedIn()
                     }
-                case .failure(let error):
-                    print("Sign in failed: \(error.localizedDescription)")
-                    errorMessage = error.localizedDescription
-                    showingError = true
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
                 }
-            }
-            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-            .frame(height: 50)
-            .padding(.horizontal, 32)
+                .padding(.horizontal, 32)
 
-            // Skip option
-            Button("Continue without account") {
-                // Allow using app without sign in (local only)
-                onSignedIn()
+                #if DEBUG
+                Button {
+                    authService.debugSignIn()
+                    onSignedIn()
+                } label: {
+                    HStack {
+                        Image(systemName: "hammer.fill")
+                        Text("Debug Sign In (Simulator)")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.orange)
+                    .cornerRadius(12)
+                }
+                .padding(.top, 8)
+                #endif
             }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-
-            // Debug: Skip sign-in for simulator testing
-            #if DEBUG
-            Button("Debug: Skip to signed in") {
-                authService.debugSignIn()
-                onSignedIn()
-            }
-            .font(.caption)
-            .foregroundStyle(.orange)
-            #endif
+            .padding(.bottom, 32)
         }
-        .padding(.bottom, 32)
-        .alert("Sign In Error", isPresented: $showingError) {
+                .alert("Sign In Error", isPresented: $showingError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
@@ -241,19 +259,19 @@ struct SignInView: View {
     }
 }
 
-struct FeatureItem: View {
+private struct SignInFeatureRow: View {
     let icon: String
     let text: String
 
     var body: some View {
         HStack(spacing: 16) {
             Image(systemName: icon)
-                .font(.title2)
+                .font(.title3)
                 .foregroundStyle(.blue)
-                .frame(width: 32)
-
+                .frame(width: 28)
             Text(text)
                 .font(.body)
+                .foregroundStyle(.white.opacity(0.9))
         }
     }
 }

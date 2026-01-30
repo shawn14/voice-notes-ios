@@ -173,7 +173,7 @@ struct KanbanBoardView: View {
 
         Task {
             do {
-                let service = TranscriptionService(apiKey: apiKey)
+                let service = TranscriptionService(apiKey: apiKey, language: LanguageSettings.shared.selectedLanguage)
                 let transcript = try await service.transcribe(audioURL: url)
 
                 await MainActor.run {

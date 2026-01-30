@@ -16,6 +16,12 @@ struct voice_notesApp: App {
     @State private var hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
     @Environment(\.scenePhase) private var scenePhase
 
+    // Shared note handling
+    @State private var sharedNoteToShow: SharedNote?
+    @State private var showingSharedNote = false
+    @State private var sharedNoteError: String?
+    @State private var showingSharedNoteError = false
+
     init() {
         let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self, DailyBrief.self])
 
@@ -56,29 +62,74 @@ struct voice_notesApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if hasCompletedOnboarding {
-                HomeView()
-                    .task {
-                        // Check if Apple ID credential is still valid
-                        await authService.checkCredentialState()
-                        // Check subscription status
-                        await subscriptionManager.updateSubscriptionStatus()
-                    }
-                    .onChange(of: scenePhase) { _, newPhase in
-                        if newPhase == .active {
-                            Task {
-                                await triggerAppActiveRefresh()
+            Group {
+                if hasCompletedOnboarding {
+                    HomeView()
+                        .task {
+                            // Check if Apple ID credential is still valid
+                            await authService.checkCredentialState()
+                            // Check subscription status
+                            await subscriptionManager.updateSubscriptionStatus()
+                        }
+                        .onChange(of: scenePhase) { _, newPhase in
+                            if newPhase == .active {
+                                Task {
+                                    await triggerAppActiveRefresh()
+                                }
                             }
                         }
+                } else {
+                    SignInView {
+                        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+                        hasCompletedOnboarding = true
                     }
-            } else {
-                SignInView {
-                    UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-                    hasCompletedOnboarding = true
                 }
+            }
+            .onOpenURL { url in
+                handleIncomingURL(url)
+            }
+            .sheet(isPresented: $showingSharedNote) {
+                if let note = sharedNoteToShow {
+                    SharedNoteDetailView(sharedNote: note)
+                }
+            }
+            .alert("Couldn't Open Link", isPresented: $showingSharedNoteError) {
+                Button("OK") { }
+            } message: {
+                Text(sharedNoteError ?? "Unknown error")
             }
         }
         .modelContainer(container)
+    }
+
+    private func handleIncomingURL(_ url: URL) {
+        // Handle voicenotes://share/{id}
+        guard url.scheme == "voicenotes",
+              url.host == "share",
+              let noteId = url.pathComponents.last, !noteId.isEmpty else {
+            return
+        }
+
+        Task {
+            do {
+                if let note = try await CloudKitShareService.shared.fetchSharedNote(id: noteId) {
+                    await MainActor.run {
+                        sharedNoteToShow = note
+                        showingSharedNote = true
+                    }
+                } else {
+                    await MainActor.run {
+                        sharedNoteError = "This note has expired or been deleted."
+                        showingSharedNoteError = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    sharedNoteError = "Couldn't load the shared note: \(error.localizedDescription)"
+                    showingSharedNoteError = true
+                }
+            }
+        }
     }
 
     /// Trigger intelligence refresh on app becoming active

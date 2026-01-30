@@ -264,7 +264,7 @@ struct RecordingView: View {
 
         Task {
             do {
-                let service = TranscriptionService(apiKey: apiKey)
+                let service = TranscriptionService(apiKey: apiKey, language: LanguageSettings.shared.selectedLanguage)
                 let result = try await service.transcribe(audioURL: url)
 
                 await MainActor.run {

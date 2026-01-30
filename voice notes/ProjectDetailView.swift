@@ -223,7 +223,7 @@ struct ProjectDetailView: View {
 
         Task {
             do {
-                let service = TranscriptionService(apiKey: apiKey)
+                let service = TranscriptionService(apiKey: apiKey, language: LanguageSettings.shared.selectedLanguage)
                 let transcript = try await service.transcribe(audioURL: url)
 
                 await MainActor.run {
@@ -367,7 +367,7 @@ struct NoteCard: View {
     let onMoveBackward: () -> Void
 
     var body: some View {
-        NavigationLink(destination: NoteEditorView(note: note)) {
+        NavigationLink(destination: NoteDetailView(note: note)) {
             HStack(spacing: 16) {
                 // Mic icon
                 ZStack {
