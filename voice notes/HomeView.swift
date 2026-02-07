@@ -100,8 +100,7 @@ struct HomeView: View {
         case .projects:
             result = result.filter { $0.projectId != nil }
         case .favorites:
-            // For now, show notes with tags (could add a favorite flag later)
-            result = result.filter { !$0.tags.isEmpty }
+            result = result.filter { $0.isFavorite }
         case .recent:
             // Show notes from last 7 days
             let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
@@ -193,6 +192,47 @@ struct HomeView: View {
                         )
                         .padding(.horizontal)
                         .padding(.top, 8)
+                    }
+
+                    // Usage warning (show when 2 or fewer free notes remaining)
+                    if authService.isSignedIn && !UsageService.shared.isPro {
+                        let remaining = UsageService.shared.freeNotesRemaining
+                        if remaining <= 2 && remaining > 0 {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundStyle(.orange)
+                                Text("\(remaining) free note\(remaining == 1 ? "" : "s") left")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.orange)
+                                Spacer()
+                                Button("Upgrade") {
+                                    showPaywall = true
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.blue)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.orange.opacity(0.15))
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                        }
+                    }
+
+                    // Background processing indicator
+                    if intelligenceService.isRefreshingDaily {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .tint(.blue)
+                            Text("Generating daily brief...")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 4)
                     }
 
                     // Search bar (only show when signed in)
@@ -330,21 +370,41 @@ struct HomeView: View {
                         }
                         Spacer()
                     } else {
-                        ScrollView {
-                            LazyVStack(spacing: 2) {
-                                ForEach(filteredNotes) { note in
-                                    NavigationLink(destination: NoteDetailView(note: note)) {
-                                        HomeNoteRow(note: note) { tag in
-                                            withAnimation(.easeInOut(duration: 0.2)) {
-                                                selectedTag = tag
-                                            }
+                        List {
+                            ForEach(filteredNotes) { note in
+                                NavigationLink(destination: NoteDetailView(note: note)) {
+                                    HomeNoteRow(note: note) { tag in
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            selectedTag = tag
                                         }
                                     }
-                                    .buttonStyle(.plain)
+                                }
+                                .listRowBackground(Color(.systemGray6).opacity(0.2))
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 0))
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        deleteNote(note)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                    Button {
+                                        note.isFavorite.toggle()
+                                    } label: {
+                                        Label(
+                                            note.isFavorite ? "Unfavorite" : "Favorite",
+                                            systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
+                                        )
+                                    }
+                                    .tint(.red)
                                 }
                             }
-                            .padding(.bottom, 120) // Space for bottom bar
                         }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        .padding(.bottom, 80) // Space for bottom bar
                     }
                 }
 
@@ -513,6 +573,11 @@ struct HomeView: View {
         }
         currentAudioFileName = nil
         isRecording = false
+    }
+
+    private func deleteNote(_ note: Note) {
+        note.deleteAudioFile()
+        modelContext.delete(note)
     }
 
     private func transcribeAndSave(url: URL) {
@@ -822,6 +887,32 @@ struct HomeNoteRow: View {
                             }
                         }
                     }
+                }
+
+                // Next step with quick resolve
+                if let nextStep = note.suggestedNextStep, !nextStep.isEmpty, !note.isNextStepResolved {
+                    HStack(spacing: 8) {
+                        Image(systemName: note.nextStepType.icon)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+
+                        Text(nextStep)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        Button {
+                            note.resolveNextStep(with: "Done")
+                        } label: {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.body)
+                                .foregroundStyle(.green)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 4)
                 }
             }
 

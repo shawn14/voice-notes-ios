@@ -169,7 +169,8 @@ struct NoteDetailView: View {
         .sheet(isPresented: $showingProjectPicker) {
             ProjectPickerSheet(
                 selectedProjectId: $note.projectId,
-                projects: allProjects.filter { !$0.isArchived }
+                projects: allProjects.filter { !$0.isArchived },
+                noteContent: note.transcript ?? note.content
             )
         }
         .sheet(isPresented: $showingCustomPrompt) {
@@ -492,30 +493,85 @@ struct NoteDetailView: View {
     // MARK: - Audio Player
 
     private var audioPlayerBar: some View {
-        HStack(spacing: 12) {
-            Button(action: togglePlayback) {
-                Image(systemName: audioRecorder.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.title3)
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Color.blue)
-                    .clipShape(Circle())
+        VStack(spacing: 12) {
+            // Seek slider
+            HStack(spacing: 8) {
+                Text(formatDuration(audioRecorder.currentTime))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.gray)
+                    .frame(width: 40, alignment: .trailing)
+
+                Slider(
+                    value: Binding(
+                        get: { audioRecorder.currentTime },
+                        set: { audioRecorder.seek(to: $0) }
+                    ),
+                    in: 0...(audioRecorder.duration > 0 ? audioRecorder.duration : (note.audioDuration ?? 1))
+                )
+                .tint(.blue)
+
+                Text(formatDuration(audioRecorder.duration > 0 ? audioRecorder.duration : note.audioDuration))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.gray)
+                    .frame(width: 40, alignment: .leading)
             }
 
-            // Waveform visualization (static bars)
-            HStack(spacing: 2) {
-                ForEach(0..<35, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color.white.opacity(0.4))
-                        .frame(width: 3, height: CGFloat([12, 18, 8, 22, 14, 20, 10, 16, 24, 12, 18, 8, 22, 14, 20, 10, 16, 24, 12, 18, 8, 22, 14, 20, 10, 16, 24, 12, 18, 8, 22, 14, 20, 10, 16][i % 35]))
+            // Controls row
+            HStack(spacing: 20) {
+                // Skip backward 15s
+                Button {
+                    audioRecorder.seek(to: audioRecorder.currentTime - 15)
+                } label: {
+                    Image(systemName: "gobackward.15")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                }
+
+                // Play/Pause
+                Button(action: togglePlayback) {
+                    Image(systemName: audioRecorder.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 52)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                }
+
+                // Skip forward 15s
+                Button {
+                    audioRecorder.seek(to: audioRecorder.currentTime + 15)
+                } label: {
+                    Image(systemName: "goforward.15")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                }
+
+                Spacer()
+
+                // Speed control
+                Menu {
+                    ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { rate in
+                        Button {
+                            audioRecorder.setPlaybackRate(Float(rate))
+                        } label: {
+                            HStack {
+                                Text(rate == 1.0 ? "1x" : "\(rate, specifier: "%.2g")x")
+                                if audioRecorder.playbackRate == Float(rate) {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Text("\(audioRecorder.playbackRate, specifier: "%.2g")x")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.blue)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.15))
+                        .cornerRadius(8)
                 }
             }
-            .frame(height: 32)
-
-            // Duration
-            Text(formatDuration(note.audioDuration))
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.gray)
         }
         .padding()
         .background(
@@ -531,7 +587,9 @@ struct NoteDetailView: View {
         guard let url = note.audioURL else { return }
 
         if audioRecorder.isPlaying {
-            audioRecorder.stopPlaying()
+            audioRecorder.pausePlaying()
+        } else if audioRecorder.currentTime > 0 {
+            audioRecorder.resumePlaying()
         } else {
             try? audioRecorder.playAudio(url: url)
         }
@@ -632,6 +690,7 @@ struct ProjectPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var selectedProjectId: UUID?
     let projects: [Project]
+    var noteContent: String = ""  // For learning from corrections
 
     var body: some View {
         NavigationStack {
@@ -655,6 +714,10 @@ struct ProjectPickerSheet: View {
 
                 ForEach(projects) { project in
                     Button {
+                        // Learn from this assignment if changing to a different project
+                        if selectedProjectId != project.id && !noteContent.isEmpty {
+                            ProjectMatcher.learnFromCorrection(text: noteContent, assignedTo: project)
+                        }
                         selectedProjectId = project.id
                         dismiss()
                     } label: {

@@ -16,7 +16,13 @@ final class AudioRecorder: NSObject {
     var recordingTime: TimeInterval = 0
     var currentFileName: String?
 
+    // Playback control properties
+    var currentTime: TimeInterval = 0
+    var duration: TimeInterval = 0
+    var playbackRate: Float = 1.0
+
     private var timer: Timer?
+    private var playbackTimer: Timer?
 
     override init() {
         super.init()
@@ -77,13 +83,54 @@ final class AudioRecorder: NSObject {
 
         audioPlayer = try AVAudioPlayer(contentsOf: url)
         audioPlayer?.delegate = self
+        audioPlayer?.enableRate = true
+        audioPlayer?.rate = playbackRate
         audioPlayer?.play()
         isPlaying = true
+        duration = audioPlayer?.duration ?? 0
+
+        // Start playback timer for current time tracking
+        playbackTimer?.invalidate()
+        playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.currentTime = self?.audioPlayer?.currentTime ?? 0
+        }
     }
 
     func stopPlaying() {
         audioPlayer?.stop()
+        playbackTimer?.invalidate()
+        playbackTimer = nil
         isPlaying = false
+        currentTime = 0
+    }
+
+    func pausePlaying() {
+        audioPlayer?.pause()
+        playbackTimer?.invalidate()
+        playbackTimer = nil
+        isPlaying = false
+    }
+
+    func resumePlaying() {
+        audioPlayer?.play()
+        isPlaying = true
+
+        playbackTimer?.invalidate()
+        playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.currentTime = self?.audioPlayer?.currentTime ?? 0
+        }
+    }
+
+    func seek(to time: TimeInterval) {
+        guard let player = audioPlayer else { return }
+        let clampedTime = min(max(0, time), player.duration)
+        player.currentTime = clampedTime
+        currentTime = clampedTime
+    }
+
+    func setPlaybackRate(_ rate: Float) {
+        playbackRate = rate
+        audioPlayer?.rate = rate
     }
 
     func deleteRecording(fileName: String) {
@@ -104,6 +151,9 @@ final class AudioRecorder: NSObject {
 
 extension AudioRecorder: AVAudioPlayerDelegate {
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        playbackTimer?.invalidate()
+        playbackTimer = nil
         isPlaying = false
+        currentTime = 0
     }
 }

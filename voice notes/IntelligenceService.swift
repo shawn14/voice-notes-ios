@@ -90,6 +90,60 @@ final class IntelligenceService {
                         match.project.noteCount += 1
                     }
                 }
+
+                // Persist extracted decisions
+                for decision in result.decisions {
+                    let item = ExtractedDecision(
+                        content: decision.content,
+                        affects: decision.affects,
+                        confidence: decision.confidence,
+                        sourceNoteId: note.id
+                    )
+                    context.insert(item)
+                }
+
+                // Persist extracted actions and auto-create Kanban items
+                for action in result.actions {
+                    let extractedAction = ExtractedAction(
+                        content: action.content,
+                        owner: action.owner,
+                        deadline: action.deadline,
+                        sourceNoteId: note.id
+                    )
+                    context.insert(extractedAction)
+
+                    // Auto-create Kanban item for each action
+                    let kanbanItem = KanbanItem(
+                        content: action.content,
+                        column: .doing,
+                        itemType: .action,
+                        sourceNoteId: note.id,
+                        projectId: note.projectId
+                    )
+                    kanbanItem.owner = action.owner
+                    kanbanItem.deadline = action.deadline
+                    context.insert(kanbanItem)
+                }
+
+                // Persist extracted commitments
+                for commitment in result.commitments {
+                    let item = ExtractedCommitment(
+                        who: commitment.who,
+                        what: commitment.what,
+                        sourceNoteId: note.id
+                    )
+                    context.insert(item)
+                }
+
+                // Persist unresolved items
+                for unresolved in result.unresolved {
+                    let item = UnresolvedItem(
+                        content: unresolved.content,
+                        reason: unresolved.reason,
+                        sourceNoteId: note.id
+                    )
+                    context.insert(item)
+                }
             }
         } catch {
             print("Intent extraction failed: \(error)")
