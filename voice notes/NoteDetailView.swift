@@ -10,9 +10,9 @@ import SwiftData
 import AVFoundation
 
 enum NoteTab: String, CaseIterable {
-    case summary = "Summary"
+    case insights = "Insights"
     case transcript = "Transcript"
-    case ai = "AI"
+    case transform = "Transform"
 }
 
 // MARK: - AI Transform Types
@@ -66,8 +66,10 @@ struct NoteDetailView: View {
 
     @Bindable var note: Note
     @Query private var allProjects: [Project]
+    @Query private var allDecisions: [ExtractedDecision]
+    @Query private var allActions: [ExtractedAction]
 
-    @State private var selectedTab: NoteTab = .summary
+    @State private var selectedTab: NoteTab = .insights
     @State private var audioRecorder = AudioRecorder()
     @State private var showingDeleteConfirm = false
     @State private var showingShareSheet = false
@@ -276,17 +278,64 @@ struct NoteDetailView: View {
     @ViewBuilder
     private var contentView: some View {
         switch selectedTab {
-        case .summary:
-            summaryView
+        case .insights:
+            insightsView
         case .transcript:
             transcriptView
-        case .ai:
-            aiView
+        case .transform:
+            transformView
         }
     }
 
-    private var summaryView: some View {
+    // Computed properties for note-specific decisions and actions
+    private var noteDecisions: [ExtractedDecision] {
+        allDecisions.filter { $0.sourceNoteId == note.id }
+    }
+
+    private var noteActions: [ExtractedAction] {
+        allActions.filter { $0.sourceNoteId == note.id && !$0.isCompleted }
+    }
+
+    private var insightsView: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // AI Insights Card (if any extracted items exist)
+            if !noteDecisions.isEmpty || !noteActions.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(.blue)
+                        Text("AI Found")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.white)
+                    }
+
+                    ForEach(noteDecisions) { decision in
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.seal")
+                                .foregroundStyle(.green)
+                                .font(.caption)
+                            Text(decision.content)
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+                    }
+
+                    ForEach(noteActions) { action in
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.right.circle")
+                                .foregroundStyle(.orange)
+                                .font(.caption)
+                            Text(action.content)
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(12)
+            }
+
             Text(summary)
                 .font(.body)
                 .foregroundStyle(.white)
@@ -302,10 +351,10 @@ struct NoteDetailView: View {
                     Text(note.intentType)
                 }
                 .font(.subheadline)
-                .foregroundStyle(.blue)
+                .foregroundStyle(note.intent.color)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.blue.opacity(0.15))
+                .background(note.intent.color.opacity(0.15))
                 .cornerRadius(20)
             }
 
@@ -389,9 +438,9 @@ struct NoteDetailView: View {
         }
     }
 
-    // MARK: - AI View
+    // MARK: - Transform View
 
-    private var aiView: some View {
+    private var transformView: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Transform options grid
             Text("Transform your note")

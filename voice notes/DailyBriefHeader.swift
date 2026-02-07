@@ -65,6 +65,20 @@ struct DailyBriefHeader: View {
                                     .foregroundStyle(.orange)
                             }
                         }
+
+                        // Show first priority action
+                        if let firstAction = brief.suggestedActions.first {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.right.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.blue)
+                                Text(firstAction.content)
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.8))
+                                    .lineLimit(1)
+                            }
+                            .padding(.top, 4)
+                        }
                     } else if let session = sessionBrief {
                         Text(sessionSummary(session))
                             .font(.subheadline.weight(.medium))

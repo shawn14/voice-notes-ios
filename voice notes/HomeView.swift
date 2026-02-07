@@ -149,9 +149,15 @@ struct HomeView: View {
                         Button {
                             showingAssistant = true
                         } label: {
-                            Image(systemName: "sparkles")
-                                .font(.title2)
-                                .foregroundStyle(.blue)
+                            ZStack {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.15))
+                                    .frame(width: 40, height: 40)
+
+                                Image(systemName: "sparkles")
+                                    .font(.title3)
+                                    .foregroundStyle(.blue)
+                            }
                         }
 
                         Spacer()
@@ -833,15 +839,15 @@ struct HomeNoteRow: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            // Mic icon
+            // Intent-colored icon
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.blue.opacity(0.15))
+                    .fill(note.intent.color.opacity(0.15))
                     .frame(width: 56, height: 56)
 
                 Image(systemName: note.hasAudio ? "mic.fill" : "note.text")
                     .font(.title2)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(note.intent.color)
             }
 
             // Content
@@ -864,6 +870,24 @@ struct HomeNoteRow: View {
                         Text(formattedDuration(note.audioDuration))
                             .font(.caption)
                             .foregroundStyle(.gray)
+                    }
+
+                    // Intent badge
+                    if note.intent != .unknown {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        HStack(spacing: 4) {
+                            Image(systemName: note.intent.icon)
+                                .font(.caption2)
+                            Text(note.intentType)
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(note.intent.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(note.intent.color.opacity(0.1))
+                        .cornerRadius(4)
                     }
                 }
 
@@ -1080,13 +1104,25 @@ struct HomeTranscribingOverlay: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 24) {
-                ProgressView()
-                    .scaleEffect(2)
-                    .tint(.white)
+                // Animated sparkles icon
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.2))
+                        .frame(width: 100, height: 100)
 
-                Text("Transcribing...")
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.blue)
+                        .symbolEffect(.pulse)
+                }
+
+                Text("Understanding your note...")
                     .font(.title2.weight(.medium))
                     .foregroundStyle(.white)
+
+                Text("Transcribing and finding insights")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
             }
         }
     }
