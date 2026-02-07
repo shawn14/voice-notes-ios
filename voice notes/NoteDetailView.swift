@@ -235,7 +235,7 @@ struct NoteDetailView: View {
     private var headerView: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(note.displayTitle)
                         .font(.title2.weight(.bold))
                         .foregroundStyle(.white)
@@ -247,22 +247,33 @@ struct NoteDetailView: View {
                             .font(.subheadline)
                             .foregroundStyle(.gray)
 
-                        // Project badge if assigned
-                        if let projectId = note.projectId,
-                           let project = allProjects.first(where: { $0.id == projectId }) {
-                            Button(action: { showingProjectPicker = true }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: project.icon)
-                                        .font(.caption)
-                                    Text(project.name)
-                                        .font(.caption)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.2))
-                                .foregroundStyle(.blue)
-                                .cornerRadius(12)
+                        // Intent badge (if not unknown)
+                        if note.intent != .unknown {
+                            HStack(spacing: 4) {
+                                Image(systemName: note.intent.icon)
+                                    .font(.caption2)
+                                Text(note.intentType)
+                                    .font(.caption)
                             }
+                            .foregroundStyle(note.intent.color)
+                        }
+                    }
+
+                    // Project badge if assigned
+                    if let projectId = note.projectId,
+                       let project = allProjects.first(where: { $0.id == projectId }) {
+                        Button(action: { showingProjectPicker = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: project.icon)
+                                    .font(.caption)
+                                Text(project.name)
+                                    .font(.caption)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.15))
+                            .foregroundStyle(.blue)
+                            .cornerRadius(8)
                         }
                     }
                 }
@@ -336,53 +347,46 @@ struct NoteDetailView: View {
     }
 
     private var insightsView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Image Gallery (if note has images)
-            if note.hasImages {
-                ImageGalleryView(
-                    imageFileNames: note.imageFileNames,
-                    onImageTap: { fileName in
-                        selectedImageForFullscreen = fileName
-                        showingFullscreenImage = true
-                    },
-                    onImageDelete: { fileName in
-                        ImageService.deleteImage(fileName: fileName)
-                        note.removeImageFileName(fileName)
-                    }
-                )
+        VStack(alignment: .leading, spacing: 20) {
+            // Main content card - shows transcript preview or content
+            if !note.content.isEmpty || note.transcript != nil {
+                VStack(alignment: .leading, spacing: 12) {
+                    let displayText = !note.content.isEmpty ? note.content : (note.transcript ?? "")
+                    Text(String(displayText.prefix(300)) + (displayText.count > 300 ? "..." : ""))
+                        .font(.body)
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineSpacing(4)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6).opacity(0.2))
+                .cornerRadius(12)
             }
 
-            // AI Insights Card (if any extracted items exist)
-            if !noteDecisions.isEmpty || !noteActions.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "sparkles")
-                            .foregroundStyle(.blue)
-                        Text("AI Found")
+            // Next step card (prominent if unresolved)
+            if let nextStep = note.suggestedNextStep, !nextStep.isEmpty, !note.isNextStepResolved {
+                HStack(spacing: 12) {
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.blue)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Next Step")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Text(nextStep)
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.white)
                     }
 
-                    ForEach(noteDecisions) { decision in
-                        HStack(spacing: 8) {
-                            Image(systemName: "checkmark.seal")
-                                .foregroundStyle(.green)
-                                .font(.caption)
-                            Text(decision.content)
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.9))
-                        }
-                    }
+                    Spacer()
 
-                    ForEach(noteActions) { action in
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.right.circle")
-                                .foregroundStyle(.orange)
-                                .font(.caption)
-                            Text(action.content)
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.9))
-                        }
+                    Button {
+                        note.resolveNextStep(with: "Completed")
+                    } label: {
+                        Image(systemName: "checkmark.circle")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
                     }
                 }
                 .padding()
@@ -390,69 +394,79 @@ struct NoteDetailView: View {
                 .cornerRadius(12)
             }
 
-            Text(summary)
-                .font(.body)
-                .foregroundStyle(.white)
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6).opacity(0.3))
-                .cornerRadius(12)
+            // Extracted items (decisions & actions)
+            if !noteDecisions.isEmpty || !noteActions.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    if !noteDecisions.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Decisions")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.gray)
 
-            // Intent badge if available
-            if note.intentType != "Unknown" {
-                HStack {
-                    Image(systemName: note.intent.icon)
-                    Text(note.intentType)
-                }
-                .font(.subheadline)
-                .foregroundStyle(note.intent.color)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(note.intent.color.opacity(0.15))
-                .cornerRadius(20)
-            }
-
-            // Next step if available
-            if let nextStep = note.suggestedNextStep, !nextStep.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Next Step")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.gray)
-
-                    HStack(spacing: 12) {
-                        Image(systemName: note.isNextStepResolved ? "checkmark.circle.fill" : "arrow.right.circle.fill")
-                            .foregroundStyle(note.isNextStepResolved ? .green : .blue)
-
-                        Text(note.isNextStepResolved ? (note.nextStepResolution ?? "Done") : nextStep)
-                            .font(.body)
-                            .foregroundStyle(note.isNextStepResolved ? .green : .white)
-
-                        Spacer()
-
-                        if !note.isNextStepResolved {
-                            Button("Done") {
-                                note.resolveNextStep(with: "Completed")
+                            ForEach(noteDecisions) { decision in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .foregroundStyle(.green)
+                                        .font(.subheadline)
+                                    Text(decision.content)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.white.opacity(0.9))
+                                }
                             }
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.blue)
                         }
                     }
-                    .padding()
-                    .background(Color(.systemGray6).opacity(0.3))
-                    .cornerRadius(12)
+
+                    if !noteActions.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Actions")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.gray)
+
+                            ForEach(noteActions) { action in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: "circle")
+                                        .foregroundStyle(.orange)
+                                        .font(.caption)
+                                    Text(action.content)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.white.opacity(0.9))
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(Color(.systemGray6).opacity(0.2))
+                .cornerRadius(12)
+            }
+
+            // Images (if any)
+            if note.hasImages {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Attachments")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.gray)
+
+                    ImageGalleryView(
+                        imageFileNames: note.imageFileNames,
+                        onImageTap: { fileName in
+                            selectedImageForFullscreen = fileName
+                            showingFullscreenImage = true
+                        },
+                        onImageDelete: { fileName in
+                            ImageService.deleteImage(fileName: fileName)
+                            note.removeImageFileName(fileName)
+                        }
+                    )
                 }
             }
 
-            // URL Previews
+            // Links (if any)
             if !noteURLs.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "link")
-                            .foregroundStyle(.blue)
-                        Text("Links")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.gray)
-                    }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Links")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.gray)
 
                     ForEach(noteURLs) { extractedURL in
                         URLPreviewCard(extractedURL: extractedURL)
@@ -460,20 +474,17 @@ struct NoteDetailView: View {
                 }
             }
 
-            // Delete button
+            // Delete button (at bottom, subtle)
             Button(action: { showingDeleteConfirm = true }) {
                 HStack {
                     Image(systemName: "trash")
                     Text("Delete Note")
                 }
                 .font(.subheadline)
-                .foregroundStyle(.red)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.red.opacity(0.1))
-                .cornerRadius(12)
+                .foregroundStyle(.red.opacity(0.8))
             }
-            .padding(.top, 20)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 24)
         }
     }
 

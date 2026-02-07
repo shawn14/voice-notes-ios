@@ -8,8 +8,6 @@
 
 import SwiftUI
 import SwiftData
-import PhotosUI
-import UIKit
 
 struct AIHomeView: View {
     @Environment(\.modelContext) private var modelContext
@@ -42,10 +40,6 @@ struct AIHomeView: View {
     @State private var currentAudioFileName: String?
     @State private var errorMessage: String?
     @State private var showingError = false
-
-    // Photo state
-    @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var isProcessingPhoto = false
 
     // Today's daily brief
     private var todaysBrief: DailyBrief? {
@@ -126,9 +120,7 @@ struct AIHomeView: View {
                     HomeBottomBar(
                         isRecording: isRecording,
                         isTranscribing: isTranscribing,
-                        isProcessingPhoto: isProcessingPhoto,
-                        onRecord: toggleRecording,
-                        selectedPhotoItem: $selectedPhotoItem
+                        onRecord: toggleRecording
                     )
                 }
 
@@ -166,10 +158,6 @@ struct AIHomeView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage ?? "Unknown error")
-            }
-            .onChange(of: selectedPhotoItem) { _, newItem in
-                guard let newItem = newItem else { return }
-                processSelectedPhoto(newItem)
             }
         }
         .preferredColorScheme(.dark)
@@ -656,101 +644,6 @@ struct AIHomeView: View {
         let (data, _) = try await URLSession.shared.data(for: request)
         let response = try JSONDecoder().decode(Response.self, from: data)
         return response.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Voice Note"
-    }
-
-    // MARK: - Photo Processing
-
-    private func processSelectedPhoto(_ item: PhotosPickerItem) {
-        if !authService.isSignedIn {
-            showSignIn = true
-            selectedPhotoItem = nil
-            return
-        }
-
-        if !UsageService.shared.canCreateNote {
-            showPaywall = true
-            selectedPhotoItem = nil
-            return
-        }
-
-        isProcessingPhoto = true
-
-        Task {
-            do {
-                guard let data = try await item.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data) else {
-                    await MainActor.run {
-                        errorMessage = "Could not load image"
-                        showingError = true
-                        isProcessingPhoto = false
-                        selectedPhotoItem = nil
-                    }
-                    return
-                }
-
-                await MainActor.run {
-                    createNoteWithImage(image)
-                }
-            } catch {
-                await MainActor.run {
-                    errorMessage = "Failed to process image: \(error.localizedDescription)"
-                    showingError = true
-                    isProcessingPhoto = false
-                    selectedPhotoItem = nil
-                }
-            }
-        }
-    }
-
-    private func createNoteWithImage(_ image: UIImage) {
-        let noteId = UUID()
-
-        do {
-            let fileName = try ImageService.saveImage(image, noteId: noteId)
-
-            let note = Note(title: "Photo Note", content: "")
-            note.addImageFileName(fileName)
-            modelContext.insert(note)
-            UsageService.shared.incrementNoteCount()
-
-            Task {
-                do {
-                    let extractedText = try await ImageService.extractText(from: image)
-                    if !extractedText.isEmpty {
-                        await MainActor.run {
-                            note.content = extractedText
-                            note.title = String(extractedText.prefix(50))
-                        }
-
-                        if let apiKey = APIKeys.openAI, !apiKey.isEmpty {
-                            let title = try await generateTitle(for: extractedText, apiKey: apiKey)
-                            await MainActor.run {
-                                note.title = title
-                            }
-
-                            await intelligenceService.processNoteSave(
-                                note: note,
-                                transcript: extractedText,
-                                projects: projects,
-                                tags: tags,
-                                context: modelContext
-                            )
-                        }
-                    }
-                } catch {
-                    print("OCR failed: \(error)")
-                }
-            }
-
-            isProcessingPhoto = false
-            selectedPhotoItem = nil
-
-        } catch {
-            errorMessage = "Failed to save image: \(error.localizedDescription)"
-            showingError = true
-            isProcessingPhoto = false
-            selectedPhotoItem = nil
-        }
     }
 }
 

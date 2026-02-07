@@ -437,9 +437,7 @@ struct HomeView: View {
                     HomeBottomBar(
                         isRecording: isRecording,
                         isTranscribing: isTranscribing,
-                        isProcessingPhoto: isProcessingPhoto,
-                        onRecord: toggleRecording,
-                        selectedPhotoItem: $selectedPhotoItem
+                        onRecord: toggleRecording
                     )
                 }
 
@@ -1128,51 +1126,28 @@ struct HomeNoteRow: View {
 struct HomeBottomBar: View {
     let isRecording: Bool
     let isTranscribing: Bool
-    let isProcessingPhoto: Bool
     let onRecord: () -> Void
-    @Binding var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
-        HStack(spacing: 32) {
-            // Photo picker button
-            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                ZStack {
-                    Circle()
-                        .fill(Color(.systemGray6))
-                        .frame(width: 52, height: 52)
+        // Record button only
+        Button(action: onRecord) {
+            ZStack {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 72, height: 72)
 
-                    if isProcessingPhoto {
-                        ProgressView()
-                            .tint(.blue)
-                    } else {
-                        Image(systemName: "photo")
-                            .font(.title2)
-                            .foregroundStyle(.blue)
-                    }
+                if isTranscribing {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: isRecording ? 24 : 28, height: isRecording ? 24 : 28)
                 }
             }
-            .disabled(isRecording || isTranscribing || isProcessingPhoto)
-
-            // Record button
-            Button(action: onRecord) {
-                ZStack {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 72, height: 72)
-
-                    if isTranscribing {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: isRecording ? 24 : 28, height: isRecording ? 24 : 28)
-                    }
-                }
-                .shadow(color: .red.opacity(0.4), radius: 12, y: 4)
-            }
-            .disabled(isTranscribing || isProcessingPhoto)
+            .shadow(color: .red.opacity(0.4), radius: 12, y: 4)
         }
+        .disabled(isTranscribing)
         .padding(.bottom, 30)
     }
 }
