@@ -73,6 +73,9 @@ struct HomeView: View {
     @State private var showingAddProjectFromMain = false
     @State private var newProjectName = ""
 
+    // Tag filtering
+    @State private var selectedTag: Tag?
+
     // Filtered notes based on search and filter
     private var filteredNotes: [Note] {
         // Don't show notes when signed out - they'll reappear on sign in
@@ -103,6 +106,11 @@ struct HomeView: View {
             // Show notes from last 7 days
             let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
             result = result.filter { $0.createdAt >= weekAgo }
+        }
+
+        // Apply tag filter
+        if let tag = selectedTag {
+            result = result.filter { $0.tags.contains { $0.id == tag.id } }
         }
 
         return result
@@ -250,6 +258,36 @@ struct HomeView: View {
                         .padding(.vertical, 16)
                     }
 
+                    // Tag filter indicator
+                    if let tag = selectedTag {
+                        HStack {
+                            Image(systemName: "tag.fill")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+
+                            Text(tag.name)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.white)
+
+                            Spacer()
+
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedTag = nil
+                                }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.body)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.blue.opacity(0.15))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                    }
+
                     // Notes list
                     if filteredNotes.isEmpty {
                         Spacer()
@@ -296,7 +334,11 @@ struct HomeView: View {
                             LazyVStack(spacing: 2) {
                                 ForEach(filteredNotes) { note in
                                     NavigationLink(destination: NoteDetailView(note: note)) {
-                                        HomeNoteRow(note: note)
+                                        HomeNoteRow(note: note) { tag in
+                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                selectedTag = tag
+                                            }
+                                        }
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -346,7 +388,8 @@ struct HomeView: View {
                 if isRecording {
                     HomeRecordingOverlay(
                         onStop: stopRecording,
-                        onCancel: cancelRecording
+                        onCancel: cancelRecording,
+                        audioRecorder: audioRecorder
                     )
                 }
 
@@ -721,6 +764,7 @@ struct FilterTab: View {
 
 struct HomeNoteRow: View {
     let note: Note
+    var onTagTap: ((Tag) -> Void)?
 
     var body: some View {
         HStack(spacing: 16) {
@@ -736,28 +780,62 @@ struct HomeNoteRow: View {
             }
 
             // Content
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(note.displayTitle)
                     .font(.body.weight(.medium))
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
-                Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+                HStack(spacing: 8) {
+                    Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+
+                    // Duration (if audio)
+                    if note.hasAudio {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Text(formattedDuration(note.audioDuration))
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
+                }
+
+                // Tags
+                if !note.tags.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(note.tags, id: \.id) { tag in
+                                Button {
+                                    onTagTap?(tag)
+                                } label: {
+                                    Text(tag.name)
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.blue)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.blue.opacity(0.15))
+                                        .cornerRadius(6)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
             }
 
-            Spacer()
-
-            // Duration (if audio)
-            if note.hasAudio {
-                Text("00:07") // TODO: Store actual duration
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-            }
+            Spacer(minLength: 0)
         }
         .padding()
         .background(Color(.systemGray6).opacity(0.2))
+    }
+
+    private func formattedDuration(_ seconds: Double?) -> String {
+        guard let seconds = seconds, seconds > 0 else { return "--:--" }
+        let minutes = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%02d:%02d", minutes, secs)
     }
 }
 
@@ -835,6 +913,7 @@ struct UserAvatarView: View {
 struct HomeRecordingOverlay: View {
     let onStop: () -> Void
     let onCancel: () -> Void
+    let audioRecorder: AudioRecorder
 
     @State private var pulseAnimation = false
 
@@ -861,9 +940,13 @@ struct HomeRecordingOverlay: View {
                         .foregroundStyle(.white)
                 }
 
-                Text("Recording...")
-                    .font(.title.weight(.semibold))
+                Text(audioRecorder.formattedTime)
+                    .font(.system(size: 48, weight: .light, design: .monospaced))
                     .foregroundStyle(.white)
+
+                Text("Recording...")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.7))
 
                 HStack(spacing: 60) {
                     Button(action: onCancel) {

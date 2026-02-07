@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CloudKit
+import AVFoundation
 
 struct ShareNoteView: View {
     let note: Note
@@ -388,33 +389,140 @@ struct SharedNoteContent: View {
 struct SharedAudioPlayer: View {
     let url: URL
 
+    @State private var player: AVAudioPlayer?
     @State private var isPlaying = false
+    @State private var currentTime: TimeInterval = 0
+    @State private var duration: TimeInterval = 0
+    @State private var timer: Timer?
+    @State private var loadError: String?
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                isPlaying.toggle()
-                // Audio playback would be implemented here
-            } label: {
-                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.blue)
-            }
-
-            // Simple waveform visualization
-            HStack(spacing: 2) {
-                ForEach(0..<25, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color.blue.opacity(0.6))
-                        .frame(width: 3, height: CGFloat.random(in: 8...25))
+        VStack(spacing: 12) {
+            if let error = loadError {
+                // Error state
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-            }
+                .padding()
+            } else {
+                HStack(spacing: 16) {
+                    // Play/Pause button
+                    Button {
+                        togglePlayback()
+                    } label: {
+                        Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.blue)
+                    }
 
-            Spacer()
+                    VStack(spacing: 8) {
+                        // Progress slider
+                        Slider(
+                            value: Binding(
+                                get: { currentTime },
+                                set: { seek(to: $0) }
+                            ),
+                            in: 0...max(duration, 1)
+                        )
+                        .tint(.blue)
+
+                        // Time labels
+                        HStack {
+                            Text(formatTime(currentTime))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            Text(formatTime(duration))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding()
+            }
         }
-        .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
+        .onAppear {
+            setupPlayer()
+        }
+        .onDisappear {
+            stopPlayback()
+        }
+    }
+
+    private func setupPlayer() {
+        do {
+            // Configure audio session for playback
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default)
+            try session.setActive(true)
+
+            // Create player
+            player = try AVAudioPlayer(contentsOf: url)
+            player?.prepareToPlay()
+            duration = player?.duration ?? 0
+        } catch {
+            loadError = "Unable to load audio"
+            print("Audio player setup failed: \(error)")
+        }
+    }
+
+    private func togglePlayback() {
+        guard let player = player else { return }
+
+        if isPlaying {
+            player.pause()
+            stopTimer()
+        } else {
+            player.play()
+            startTimer()
+        }
+        isPlaying.toggle()
+    }
+
+    private func seek(to time: TimeInterval) {
+        player?.currentTime = time
+        currentTime = time
+    }
+
+    private func startTimer() {
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            guard let player = player else { return }
+
+            currentTime = player.currentTime
+
+            // Check if playback finished
+            if !player.isPlaying && isPlaying {
+                isPlaying = false
+                currentTime = 0
+                player.currentTime = 0
+                stopTimer()
+            }
+        }
+    }
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func stopPlayback() {
+        player?.stop()
+        stopTimer()
+        isPlaying = false
+    }
+
+    private func formatTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
