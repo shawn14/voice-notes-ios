@@ -206,6 +206,9 @@ struct SessionBriefBuilder {
         let startOfToday = calendar.startOfDay(for: now)
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) ?? now
 
+        // Calculate dropped balls once and reuse (was being called 3 times before)
+        let droppedBalls = HealthScoreService.detectDroppedBalls(items: items)
+
         // Build project summaries (top 3 most active)
         let activeProjects = projects.filter { !$0.isArchived }
         let projectSummaries = buildProjectSummaries(projects: activeProjects, notes: notes, items: items)
@@ -213,11 +216,11 @@ struct SessionBriefBuilder {
             .prefix(3)
             .map { $0 }
 
-        // Build stalled items
-        let stalledItems = buildStalledItems(items: items, projects: projects)
+        // Build stalled items (reuse cached droppedBalls)
+        let stalledItems = buildStalledItems(droppedBalls: droppedBalls, projects: projects)
 
-        // Build attention warnings
-        let warnings = buildAttentionWarnings(items: items, commitments: commitments)
+        // Build attention warnings (reuse cached droppedBalls)
+        let warnings = buildAttentionWarnings(droppedBalls: droppedBalls, commitments: commitments)
 
         // Build quick stats
         let notesToday = notes.filter { $0.createdAt >= startOfToday }.count
@@ -294,13 +297,14 @@ struct SessionBriefBuilder {
     }
 
     private static func buildStalledItems(
-        items: [KanbanItem],
+        droppedBalls: [DroppedBall],
         projects: [Project]
     ) -> [StalledItemSummary] {
-        let droppedBalls = HealthScoreService.detectDroppedBalls(items: items)
+        // Build project lookup for O(1) access
+        let projectLookup = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0.name) })
 
         return droppedBalls.map { ball in
-            let projectName = projects.first { $0.id == ball.item.projectId }?.name
+            let projectName = ball.item.projectId.flatMap { projectLookup[$0] }
 
             return StalledItemSummary(
                 id: ball.item.id,
@@ -315,13 +319,10 @@ struct SessionBriefBuilder {
     }
 
     private static func buildAttentionWarnings(
-        items: [KanbanItem],
+        droppedBalls: [DroppedBall],
         commitments: [ExtractedCommitment]
     ) -> [AttentionWarning] {
         var warnings: [AttentionWarning] = []
-
-        // Get dropped balls as warnings
-        let droppedBalls = HealthScoreService.detectDroppedBalls(items: items)
 
         for ball in droppedBalls.prefix(5) {
             let warningType: AttentionWarning.WarningType

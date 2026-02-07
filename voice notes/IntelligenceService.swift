@@ -27,6 +27,7 @@ final class IntelligenceService {
     private enum Keys {
         static let lastDailyBriefDate = "intelligence.lastDailyBriefDate"
         static let sessionNeedsRefresh = "sessionBrief.needsRefresh"
+        static let lastBriefNoteCount = "sessionBrief.lastNoteCount"
     }
 
     // MARK: - Init
@@ -114,7 +115,11 @@ final class IntelligenceService {
         // Check if we have a valid cached brief
         if let cached = sessionBrief, !cached.isStale {
             let needsRefresh = UserDefaults.standard.bool(forKey: Keys.sessionNeedsRefresh)
-            if !needsRefresh && !cached.isSoftExpired {
+            let lastNoteCount = UserDefaults.standard.integer(forKey: Keys.lastBriefNoteCount)
+            let noteCountChanged = notes.count != lastNoteCount
+
+            // Skip refresh if cache is fresh AND note count unchanged AND not explicitly marked stale
+            if !needsRefresh && !cached.isSoftExpired && !noteCountChanged {
                 return  // Cache is fresh, skip refresh
             }
         }
@@ -137,6 +142,7 @@ final class IntelligenceService {
             sessionBrief = newBrief
             newBrief.saveToCache()
             UserDefaults.standard.set(false, forKey: Keys.sessionNeedsRefresh)
+            UserDefaults.standard.set(notes.count, forKey: Keys.lastBriefNoteCount)
             isRefreshingSession = false
         }
 
@@ -331,12 +337,15 @@ final class IntelligenceService {
     ) -> String {
         var context = ""
 
+        // Build project lookup dictionary for O(1) access
+        let projectLookup = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0.name) })
+
         // Recent notes (last 15)
         let recentNotes = notes.sorted { $0.createdAt > $1.createdAt }.prefix(15)
         if !recentNotes.isEmpty {
             context += "RECENT NOTES:\n"
             for note in recentNotes {
-                let projectName = projects.first { $0.id == note.projectId }?.name ?? "Inbox"
+                let projectName = note.projectId.flatMap { projectLookup[$0] } ?? "Inbox"
                 let preview = String(note.content.prefix(100)).replacingOccurrences(of: "\n", with: " ")
                 context += "- [\(projectName)] \(note.displayTitle): \(preview)\n"
             }

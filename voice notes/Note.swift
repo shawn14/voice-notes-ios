@@ -235,4 +235,15 @@ final class Note {
         nextStepResolvedAt = nil
         updatedAt = Date()
     }
+
+    // MARK: - Audio Cleanup
+
+    /// Deletes the associated audio file from disk
+    /// Call this before deleting the note to avoid orphaned audio files
+    func deleteAudioFile() {
+        guard let fileName = audioFileName else { return }
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let audioURL = documentsURL.appendingPathComponent(fileName)
+        try? FileManager.default.removeItem(at: audioURL)
+    }
 }

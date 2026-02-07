@@ -113,6 +113,22 @@ struct PaywallView: View {
                 .padding(.horizontal)
                 .disabled(isPurchasing || subscriptionManager.products.isEmpty)
 
+                // Legal text & links
+                VStack(spacing: 8) {
+                    Text("Payment will be charged to your Apple ID account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    HStack(spacing: 16) {
+                        Link("Terms of Use", destination: URL(string: "https://eeon.com/terms")!)
+                            .font(.footnote.weight(.medium))
+                        Link("Privacy Policy", destination: URL(string: "https://eeon.com/privacy")!)
+                            .font(.footnote.weight(.medium))
+                    }
+                }
+                .padding(.horizontal, 32)
+
                 // Restore purchases
                 Button("Restore Purchases") {
                     Task {
@@ -133,29 +149,6 @@ struct PaywallView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 16)
-
-                // Legal text
-                VStack(spacing: 8) {
-                    Text("Payment will be charged to your Apple ID account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-
-                    HStack(spacing: 4) {
-                        Text("By subscribing, you agree to our")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                        Link("Terms of Use", destination: URL(string: "https://eeon.com/terms")!)
-                            .font(.caption2)
-                        Text("and")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                        Link("Privacy Policy", destination: URL(string: "https://eeon.com/privacy")!)
-                            .font(.caption2)
-                    }
-                }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 32)
             }
         }
         .alert("Purchase Error", isPresented: $showError) {

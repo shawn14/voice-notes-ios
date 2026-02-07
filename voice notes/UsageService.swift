@@ -45,7 +45,7 @@ class UsageService {
 
     // MARK: - Computed Properties
 
-    var isPro: Bool { subscriptionStatus == "pro" }
+    var isPro: Bool { subscriptionStatus == "pro" && AuthService.shared.isSignedIn }
 
     var canCreateNote: Bool {
         isPro || noteCount < UsageService.freeNoteLimit

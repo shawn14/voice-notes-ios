@@ -40,6 +40,8 @@ struct HomeView: View {
     @Query private var extractedActions: [ExtractedAction]
     @Query private var extractedCommitments: [ExtractedCommitment]
     @Query private var unresolvedItems: [UnresolvedItem]
+    // Note: @Query loads all records. For large datasets, consider using FetchDescriptor with fetchLimit
+    // in a manual fetch instead. Currently limited by SwiftData macro syntax.
     @Query(sort: \DailyBrief.briefDate, order: .reverse) private var dailyBriefs: [DailyBrief]
 
     // Observe AuthService for name changes
@@ -1341,7 +1343,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
 
                     Button {
-                        if let url = URL(string: "https://www.eeon.com/privacy") {
+                        if let url = URL(string: "https://eeon.com/privacy") {
                             UIApplication.shared.open(url)
                         }
                     } label: {
@@ -1365,7 +1367,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
 
                     Button {
-                        if let url = URL(string: "https://www.eeon.com/terms") {
+                        if let url = URL(string: "https://eeon.com/terms") {
                             UIApplication.shared.open(url)
                         }
                     } label: {
@@ -1519,8 +1521,9 @@ struct SettingsView: View {
     }
 
     private func deleteAllDataAndSignOut() {
-        // Delete all notes
+        // Delete all notes and their audio files
         for note in notes {
+            note.deleteAudioFile()
             modelContext.delete(note)
         }
 
