@@ -124,6 +124,12 @@ final class Note {
     // Project inference
     var inferredProjectName: String?    // AI-suggested project name
 
+    // Image attachments (JSON-encoded filenames)
+    var imageFileNamesJSON: String?
+
+    // People mentioned (JSON-encoded names)
+    var mentionedPeopleJSON: String?
+
     @Relationship(deleteRule: .nullify, inverse: \Tag.notes)
     var tagsOptional: [Tag]?
 
@@ -236,6 +242,69 @@ final class Note {
         updatedAt = Date()
     }
 
+    // MARK: - People Mentioned
+
+    var mentionedPeople: [String] {
+        get {
+            guard let json = mentionedPeopleJSON,
+                  let data = json.data(using: .utf8) else { return [] }
+            return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue),
+                  let json = String(data: data, encoding: .utf8) else {
+                mentionedPeopleJSON = nil
+                return
+            }
+            mentionedPeopleJSON = json
+            updatedAt = Date()
+        }
+    }
+
+    var hasMentionedPeople: Bool {
+        !mentionedPeople.isEmpty
+    }
+
+    // MARK: - Image Attachments
+
+    var imageFileNames: [String] {
+        get {
+            guard let json = imageFileNamesJSON,
+                  let data = json.data(using: .utf8) else { return [] }
+            return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue),
+                  let json = String(data: data, encoding: .utf8) else {
+                imageFileNamesJSON = nil
+                return
+            }
+            imageFileNamesJSON = json
+            updatedAt = Date()
+        }
+    }
+
+    var imageURLs: [URL] {
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return imageFileNames.map { documentsURL.appendingPathComponent($0) }
+    }
+
+    var hasImages: Bool {
+        !imageFileNames.isEmpty
+    }
+
+    func addImageFileName(_ fileName: String) {
+        var names = imageFileNames
+        names.append(fileName)
+        imageFileNames = names
+    }
+
+    func removeImageFileName(_ fileName: String) {
+        var names = imageFileNames
+        names.removeAll { $0 == fileName }
+        imageFileNames = names
+    }
+
     // MARK: - Audio Cleanup
 
     /// Deletes the associated audio file from disk
@@ -245,5 +314,15 @@ final class Note {
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let audioURL = documentsURL.appendingPathComponent(fileName)
         try? FileManager.default.removeItem(at: audioURL)
+    }
+
+    /// Deletes all associated image files from disk
+    /// Call this before deleting the note to avoid orphaned files
+    func deleteImageFiles() {
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        for fileName in imageFileNames {
+            let imageURL = documentsURL.appendingPathComponent(fileName)
+            try? FileManager.default.removeItem(at: imageURL)
+        }
     }
 }

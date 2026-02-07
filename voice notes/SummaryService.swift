@@ -51,6 +51,7 @@ struct IntentAnalysis: Sendable {
     let nextStepType: String        // date, contact, decision, simple
     let missingInfo: [MissingInfoExtract]
     let inferredProject: String?
+    let mentionedPeople: [String]   // Names of people mentioned
 
     // Include existing analysis fields for combined extraction
     let summary: String
@@ -358,7 +359,8 @@ enum SummaryService {
     3. The next step: what should happen next? (imperative verb)
     4. Missing info: what's incomplete or unclear?
     5. Project inference: what project does this belong to?
-    6. Standard analysis: summary, key points, decisions, actions, commitments, unresolved
+    6. People mentioned: names of people referenced (not "I", "me", "myself")
+    7. Standard analysis: summary, key points, decisions, actions, commitments, unresolved
 
     NEXT STEP TYPES (classify based on what resolution requires):
     - date: Involves picking a date/time ("Pick a date", "Schedule", "Set deadline", "When should we...")
@@ -380,6 +382,7 @@ enum SummaryService {
             {"field": "date", "description": "Needs a specific date"}
         ],
         "inferredProject": "StockAlarm",
+        "mentionedPeople": ["John", "Sarah"],
         "summary": "Brief description of what this note is about",
         "keyPoints": ["Factual takeaway 1", "Factual takeaway 2"],
         "decisions": [
@@ -419,6 +422,7 @@ enum SummaryService {
     - nextStepType: Pick ONE from date, contact, decision, simple based on what resolution requires
     - missingInfo: Array of gaps. Empty array if nothing missing.
     - inferredProject: Best guess at project name. Null if unclear.
+    - mentionedPeople: Array of proper names mentioned. Exclude "I", "me", "myself". Empty array if none.
     - Return ONLY JSON, no other text
     """
 
@@ -470,6 +474,7 @@ enum SummaryService {
                 IntentAnalysis.MissingInfoExtract(field: $0.field, description: $0.description)
             },
             inferredProject: parsed.inferredProject,
+            mentionedPeople: parsed.mentionedPeople ?? [],
             summary: parsed.summary,
             keyPoints: parsed.keyPoints,
             decisions: parsed.decisions.map {
@@ -498,6 +503,7 @@ nonisolated struct IntentAnalysisResponse: Codable, Sendable {
     let nextStepType: String?
     let missingInfo: [MissingInfoResponse]
     let inferredProject: String?
+    let mentionedPeople: [String]?
     let summary: String
     let keyPoints: [String]
     let decisions: [DecisionResponse]
@@ -584,4 +590,179 @@ nonisolated struct SummaryChatResponse: Codable, Sendable {
 nonisolated struct SummaryResponse: Codable, Sendable {
     let keyPoints: [String]
     let actionItems: [String]
+}
+
+// MARK: - URL Metadata
+
+struct URLMetadata: Sendable {
+    let title: String?
+    let description: String?
+    let siteName: String?
+    let imageURL: String?
+    let faviconURL: String?
+}
+
+// MARK: - URL Detection & Metadata Fetching
+
+extension SummaryService {
+    /// Detect URLs in text using NSDataDetector (no API call, instant)
+    static func detectURLs(in text: String) -> [String] {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+            return []
+        }
+
+        let matches = detector.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
+
+        return matches.compactMap { match -> String? in
+            guard let range = Range(match.range, in: text) else { return nil }
+            let urlString = String(text[range])
+            // Filter out email addresses and other non-http links
+            guard urlString.hasPrefix("http://") || urlString.hasPrefix("https://") else { return nil }
+            return urlString
+        }
+        .prefix(3) // Limit to 3 URLs per note
+        .map { $0 }
+    }
+
+    /// Fetch OpenGraph metadata from a URL (HTML parsing, no API call)
+    static func fetchURLMetadata(urlString: String) async throws -> URLMetadata {
+        guard let url = URL(string: urlString) else {
+            throw URLMetadataError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw URLMetadataError.fetchFailed
+        }
+
+        guard let html = String(data: data, encoding: .utf8) else {
+            throw URLMetadataError.invalidResponse
+        }
+
+        return parseOpenGraphTags(from: html, baseURL: url)
+    }
+
+    private static func parseOpenGraphTags(from html: String, baseURL: URL) -> URLMetadata {
+        // Extract OpenGraph meta tags
+        let title = extractMetaContent(from: html, property: "og:title")
+            ?? extractMetaContent(from: html, name: "title")
+            ?? extractTitleTag(from: html)
+
+        let description = extractMetaContent(from: html, property: "og:description")
+            ?? extractMetaContent(from: html, name: "description")
+
+        let siteName = extractMetaContent(from: html, property: "og:site_name")
+
+        var imageURL = extractMetaContent(from: html, property: "og:image")
+        // Make relative URLs absolute
+        if let image = imageURL, !image.hasPrefix("http") {
+            if image.hasPrefix("//") {
+                imageURL = "https:" + image
+            } else if image.hasPrefix("/") {
+                imageURL = "\(baseURL.scheme ?? "https")://\(baseURL.host ?? "")\(image)"
+            }
+        }
+
+        // Try to get favicon
+        var faviconURL = extractFaviconURL(from: html, baseURL: baseURL)
+        if faviconURL == nil {
+            // Fallback to standard favicon location
+            faviconURL = "\(baseURL.scheme ?? "https")://\(baseURL.host ?? "")/favicon.ico"
+        }
+
+        return URLMetadata(
+            title: title,
+            description: description,
+            siteName: siteName,
+            imageURL: imageURL,
+            faviconURL: faviconURL
+        )
+    }
+
+    private static func extractMetaContent(from html: String, property: String) -> String? {
+        // Match: <meta property="og:title" content="...">
+        let pattern = #"<meta\s+[^>]*property\s*=\s*["']\#(property)["'][^>]*content\s*=\s*["']([^"']*)["']"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: html, options: [], range: NSRange(html.startIndex..., in: html)),
+              let contentRange = Range(match.range(at: 1), in: html) else {
+            // Try reverse order: content before property
+            let reversePattern = #"<meta\s+[^>]*content\s*=\s*["']([^"']*)["'][^>]*property\s*=\s*["']\#(property)["']"#
+            guard let reverseRegex = try? NSRegularExpression(pattern: reversePattern, options: .caseInsensitive),
+                  let reverseMatch = reverseRegex.firstMatch(in: html, options: [], range: NSRange(html.startIndex..., in: html)),
+                  let reverseRange = Range(reverseMatch.range(at: 1), in: html) else {
+                return nil
+            }
+            return String(html[reverseRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return String(html[contentRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func extractMetaContent(from html: String, name: String) -> String? {
+        // Match: <meta name="description" content="...">
+        let pattern = #"<meta\s+[^>]*name\s*=\s*["']\#(name)["'][^>]*content\s*=\s*["']([^"']*)["']"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: html, options: [], range: NSRange(html.startIndex..., in: html)),
+              let contentRange = Range(match.range(at: 1), in: html) else {
+            // Try reverse order
+            let reversePattern = #"<meta\s+[^>]*content\s*=\s*["']([^"']*)["'][^>]*name\s*=\s*["']\#(name)["']"#
+            guard let reverseRegex = try? NSRegularExpression(pattern: reversePattern, options: .caseInsensitive),
+                  let reverseMatch = reverseRegex.firstMatch(in: html, options: [], range: NSRange(html.startIndex..., in: html)),
+                  let reverseRange = Range(reverseMatch.range(at: 1), in: html) else {
+                return nil
+            }
+            return String(html[reverseRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return String(html[contentRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func extractTitleTag(from html: String) -> String? {
+        let pattern = #"<title[^>]*>([^<]*)</title>"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: html, options: [], range: NSRange(html.startIndex..., in: html)),
+              let titleRange = Range(match.range(at: 1), in: html) else {
+            return nil
+        }
+        return String(html[titleRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func extractFaviconURL(from html: String, baseURL: URL) -> String? {
+        // Match: <link rel="icon" href="..."> or <link rel="shortcut icon" href="...">
+        let pattern = #"<link\s+[^>]*rel\s*=\s*["'][^"']*icon[^"']*["'][^>]*href\s*=\s*["']([^"']*)["']"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: html, options: [], range: NSRange(html.startIndex..., in: html)),
+              let hrefRange = Range(match.range(at: 1), in: html) else {
+            return nil
+        }
+
+        var favicon = String(html[hrefRange])
+        if !favicon.hasPrefix("http") {
+            if favicon.hasPrefix("//") {
+                favicon = "https:" + favicon
+            } else if favicon.hasPrefix("/") {
+                favicon = "\(baseURL.scheme ?? "https")://\(baseURL.host ?? "")\(favicon)"
+            }
+        }
+        return favicon
+    }
+}
+
+enum URLMetadataError: LocalizedError {
+    case invalidURL
+    case fetchFailed
+    case invalidResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "Invalid URL"
+        case .fetchFailed: return "Failed to fetch URL"
+        case .invalidResponse: return "Invalid response"
+        }
+    }
 }

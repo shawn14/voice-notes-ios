@@ -14,6 +14,8 @@ struct voice_notesApp: App {
     @State private var authService = AuthService.shared
     @State private var subscriptionManager = SubscriptionManager.shared
     @State private var hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+    @State private var hasSeenOnboardingPaywall = UserDefaults.standard.bool(forKey: "hasSeenOnboardingPaywall")
+    @State private var isSignedInDuringOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
 
     // Shared note handling
@@ -23,7 +25,7 @@ struct voice_notesApp: App {
     @State private var showingSharedNoteError = false
 
     init() {
-        let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self, DailyBrief.self])
+        let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self, DailyBrief.self, ExtractedURL.self, MentionedPerson.self])
 
         do {
             // Configure for CloudKit sync
@@ -64,7 +66,7 @@ struct voice_notesApp: App {
         WindowGroup {
             Group {
                 if hasCompletedOnboarding {
-                    HomeView()
+                    AIHomeView()
                         .task {
                             // Check if Apple ID credential is still valid
                             await authService.checkCredentialState()
@@ -78,10 +80,20 @@ struct voice_notesApp: App {
                                 }
                             }
                         }
-                } else {
-                    SignInView {
+                } else if isSignedInDuringOnboarding || hasSeenOnboardingPaywall {
+                    // Step 2: Show onboarding paywall after sign-in
+                    OnboardingPaywallView {
+                        // Complete onboarding (whether they subscribed or skipped)
                         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+                        UserDefaults.standard.set(true, forKey: "hasSeenOnboardingPaywall")
                         hasCompletedOnboarding = true
+                        hasSeenOnboardingPaywall = true
+                    }
+                } else {
+                    // Step 1: Sign in first
+                    SignInView {
+                        // Move to paywall step instead of completing onboarding
+                        isSignedInDuringOnboarding = true
                     }
                 }
             }

@@ -135,6 +135,11 @@ final class IntelligenceService {
                     context.insert(item)
                 }
 
+                // Store mentioned people on note
+                if !result.mentionedPeople.isEmpty {
+                    note.mentionedPeople = result.mentionedPeople
+                }
+
                 // Persist unresolved items
                 for unresolved in result.unresolved {
                     let item = UnresolvedItem(
@@ -149,9 +154,106 @@ final class IntelligenceService {
             print("Intent extraction failed: \(error)")
         }
 
+        // Detect and process URLs (no API call)
+        await processURLs(in: transcript, noteId: note.id, context: context)
+
+        // Process mentioned people
+        await processMentionedPeople(for: note, context: context)
+
         // Update counters
         StatusCounters.shared.incrementNotesToday()
         StatusCounters.shared.markSessionStale()
+    }
+
+    // MARK: - URL Processing
+
+    /// Detect URLs in transcript and create ExtractedURL records
+    private func processURLs(in text: String, noteId: UUID, context: ModelContext) async {
+        let detectedURLs = SummaryService.detectURLs(in: text)
+        guard !detectedURLs.isEmpty else { return }
+
+        for urlString in detectedURLs {
+            let extractedURL = ExtractedURL(url: urlString, sourceNoteId: noteId)
+
+            await MainActor.run {
+                context.insert(extractedURL)
+            }
+
+            // Fetch metadata in background (non-blocking)
+            Task {
+                do {
+                    let metadata = try await SummaryService.fetchURLMetadata(urlString: urlString)
+                    await MainActor.run {
+                        extractedURL.title = metadata.title
+                        extractedURL.urlDescription = metadata.description
+                        extractedURL.siteName = metadata.siteName
+                        extractedURL.imageURL = metadata.imageURL
+                        extractedURL.faviconURL = metadata.faviconURL
+                        extractedURL.fetchedAt = Date()
+                    }
+                } catch {
+                    await MainActor.run {
+                        extractedURL.fetchError = error.localizedDescription
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - People Processing
+
+    /// Find or create MentionedPerson records for people in the note
+    private func processMentionedPeople(for note: Note, context: ModelContext) async {
+        let peopleNames = note.mentionedPeople
+        guard !peopleNames.isEmpty else { return }
+
+        // Fetch all existing people
+        let descriptor = FetchDescriptor<MentionedPerson>()
+        let existingPeople = (try? context.fetch(descriptor)) ?? []
+        let existingByNormalized = Dictionary(uniqueKeysWithValues: existingPeople.map { ($0.normalizedName, $0) })
+
+        await MainActor.run {
+            for name in peopleNames {
+                let normalizedName = MentionedPerson.normalize(name)
+                if let existing = existingByNormalized[normalizedName] {
+                    // Update existing person
+                    existing.incrementMention()
+                } else {
+                    // Create new person
+                    let person = MentionedPerson(name: name)
+                    context.insert(person)
+                }
+            }
+
+            // Update commitment counts for people
+            updateCommitmentCounts(context: context)
+        }
+    }
+
+    /// Recalculate open commitment counts for all people
+    private func updateCommitmentCounts(context: ModelContext) {
+        let peopleDescriptor = FetchDescriptor<MentionedPerson>()
+        let commitmentDescriptor = FetchDescriptor<ExtractedCommitment>(
+            predicate: #Predicate { !$0.isCompleted && $0.personName != nil }
+        )
+
+        guard let people = try? context.fetch(peopleDescriptor),
+              let openCommitments = try? context.fetch(commitmentDescriptor) else {
+            return
+        }
+
+        // Count open commitments per person
+        var commitmentsByPerson: [String: Int] = [:]
+        for commitment in openCommitments {
+            if let personName = commitment.personName {
+                commitmentsByPerson[personName, default: 0] += 1
+            }
+        }
+
+        // Update each person
+        for person in people {
+            person.openCommitmentCount = commitmentsByPerson[person.normalizedName] ?? 0
+        }
     }
 
     // MARK: - Tier 2: Session (on app active)

@@ -97,6 +97,7 @@ final class ExtractedCommitment {
     var isCompleted: Bool = false
     var createdAt: Date = Date()
     var sourceNoteId: UUID?
+    var personName: String?  // Normalized name for linking to MentionedPerson
 
     init(who: String, what: String, sourceNoteId: UUID? = nil) {
         self.id = UUID()
@@ -105,10 +106,19 @@ final class ExtractedCommitment {
         self.isCompleted = false
         self.createdAt = Date()
         self.sourceNoteId = sourceNoteId
+        // Set personName if not a self-reference
+        if !ExtractedCommitment.isUserReference(who) {
+            self.personName = who.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 
     var isUserCommitment: Bool {
-        who.lowercased() == "me" || who.lowercased() == "i" || who.lowercased().contains("myself")
+        ExtractedCommitment.isUserReference(who)
+    }
+
+    static func isUserReference(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return lower == "me" || lower == "i" || lower.contains("myself")
     }
 }
 

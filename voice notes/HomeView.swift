@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 import UIKit
 import AVFoundation
+import PhotosUI
 
 // MARK: - Filter Options
 
@@ -18,6 +19,7 @@ enum NoteFilter: String, CaseIterable {
     case projects = "Projects"
     case favorites = "Favorites"
     case recent = "Recent"
+    case people = "People"
 
     var icon: String {
         switch self {
@@ -25,6 +27,7 @@ enum NoteFilter: String, CaseIterable {
         case .projects: return "folder"
         case .favorites: return "star"
         case .recent: return "clock"
+        case .people: return "person.2"
         }
     }
 }
@@ -76,6 +79,13 @@ struct HomeView: View {
     // Tag filtering
     @State private var selectedTag: Tag?
 
+    // Photo attachment
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var isProcessingPhoto = false
+
+    // People view
+    @State private var showingPeopleView = false
+
     // Filtered notes based on search and filter
     private var filteredNotes: [Note] {
         // Don't show notes when signed out - they'll reappear on sign in
@@ -105,6 +115,9 @@ struct HomeView: View {
             // Show notes from last 7 days
             let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
             result = result.filter { $0.createdAt >= weekAgo }
+        case .people:
+            // People filter opens PeopleView, so show all here
+            break
         }
 
         // Apply tag filter
@@ -264,8 +277,12 @@ struct HomeView: View {
                                     title: filter.rawValue,
                                     isSelected: selectedFilter == filter
                                 ) {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        selectedFilter = filter
+                                    if filter == .people {
+                                        showingPeopleView = true
+                                    } else {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            selectedFilter = filter
+                                        }
                                     }
                                 }
                             }
@@ -420,7 +437,9 @@ struct HomeView: View {
                     HomeBottomBar(
                         isRecording: isRecording,
                         isTranscribing: isTranscribing,
-                        onRecord: toggleRecording
+                        isProcessingPhoto: isProcessingPhoto,
+                        onRecord: toggleRecording,
+                        selectedPhotoItem: $selectedPhotoItem
                     )
                 }
 
@@ -494,6 +513,9 @@ struct HomeView: View {
                     showPaywall = false
                 })
             }
+            .sheet(isPresented: $showingPeopleView) {
+                PeopleView()
+            }
             .alert("Ready to understand", isPresented: $showExtractFallback) {
                 Button("See what I can do") {
                     // Navigate to NoteEditorView with the note
@@ -527,6 +549,115 @@ struct HomeView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            guard let newItem = newItem else { return }
+            processSelectedPhoto(newItem)
+        }
+    }
+
+    // MARK: - Photo Processing
+
+    private func processSelectedPhoto(_ item: PhotosPickerItem) {
+        // Must be signed in
+        if !authService.isSignedIn {
+            showSignIn = true
+            selectedPhotoItem = nil
+            return
+        }
+
+        // Check usage
+        if !UsageService.shared.canCreateNote {
+            showPaywall = true
+            selectedPhotoItem = nil
+            return
+        }
+
+        isProcessingPhoto = true
+
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    await MainActor.run {
+                        errorMessage = "Could not load image"
+                        showingError = true
+                        isProcessingPhoto = false
+                        selectedPhotoItem = nil
+                    }
+                    return
+                }
+
+                await MainActor.run {
+                    createNoteWithImage(image)
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Failed to process image: \(error.localizedDescription)"
+                    showingError = true
+                    isProcessingPhoto = false
+                    selectedPhotoItem = nil
+                }
+            }
+        }
+    }
+
+    private func createNoteWithImage(_ image: UIImage) {
+        let noteId = UUID()
+
+        do {
+            let fileName = try ImageService.saveImage(image, noteId: noteId)
+
+            let note = Note(
+                title: "Photo Note",
+                content: ""
+            )
+            note.addImageFileName(fileName)
+            modelContext.insert(note)
+
+            // Track usage
+            UsageService.shared.incrementNoteCount()
+
+            // Try to extract text from image (OCR)
+            Task {
+                do {
+                    let extractedText = try await ImageService.extractText(from: image)
+                    if !extractedText.isEmpty {
+                        await MainActor.run {
+                            note.content = extractedText
+                            note.title = String(extractedText.prefix(50))
+                        }
+
+                        // Process with AI if we got text
+                        if let apiKey = APIKeys.openAI, !apiKey.isEmpty {
+                            let title = try await generateTitle(for: extractedText, apiKey: apiKey)
+                            await MainActor.run {
+                                note.title = title
+                            }
+
+                            // Tier 1 processing
+                            await intelligenceService.processNoteSave(
+                                note: note,
+                                transcript: extractedText,
+                                projects: projects,
+                                tags: tags,
+                                context: modelContext
+                            )
+                        }
+                    }
+                } catch {
+                    print("OCR failed: \(error)")
+                }
+            }
+
+            isProcessingPhoto = false
+            selectedPhotoItem = nil
+
+        } catch {
+            errorMessage = "Failed to save image: \(error.localizedDescription)"
+            showingError = true
+            isProcessingPhoto = false
+            selectedPhotoItem = nil
+        }
     }
 
     // MARK: - Recording
@@ -583,6 +714,7 @@ struct HomeView: View {
 
     private func deleteNote(_ note: Note) {
         note.deleteAudioFile()
+        note.deleteImageFiles()
         modelContext.delete(note)
     }
 
@@ -839,15 +971,25 @@ struct HomeNoteRow: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            // Intent-colored icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(note.intent.color.opacity(0.15))
+            // Intent-colored icon or first image thumbnail
+            if let firstImageFileName = note.imageFileNames.first,
+               let thumbnail = ImageService.loadImage(fileName: firstImageFileName) {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
                     .frame(width: 56, height: 56)
+                    .cornerRadius(12)
+                    .clipped()
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(note.intent.color.opacity(0.15))
+                        .frame(width: 56, height: 56)
 
-                Image(systemName: note.hasAudio ? "mic.fill" : "note.text")
-                    .font(.title2)
-                    .foregroundStyle(note.intent.color)
+                    Image(systemName: note.hasAudio ? "mic.fill" : "note.text")
+                        .font(.title2)
+                        .foregroundStyle(note.intent.color)
+                }
             }
 
             // Content
@@ -891,10 +1033,11 @@ struct HomeNoteRow: View {
                     }
                 }
 
-                // Tags
-                if !note.tags.isEmpty {
+                // Tags and People
+                if !note.tags.isEmpty || note.hasMentionedPeople {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 6) {
+                            // Tags
                             ForEach(note.tags, id: \.id) { tag in
                                 Button {
                                     onTagTap?(tag)
@@ -908,6 +1051,32 @@ struct HomeNoteRow: View {
                                         .cornerRadius(6)
                                 }
                                 .buttonStyle(.plain)
+                            }
+
+                            // People pills (first 3)
+                            ForEach(note.mentionedPeople.prefix(3), id: \.self) { name in
+                                HStack(spacing: 4) {
+                                    Image(systemName: "person.fill")
+                                        .font(.system(size: 8))
+                                    Text(name)
+                                }
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.purple)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.purple.opacity(0.15))
+                                .cornerRadius(6)
+                            }
+
+                            // Overflow indicator
+                            if note.mentionedPeople.count > 3 {
+                                Text("+\(note.mentionedPeople.count - 3)")
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.purple)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 4)
+                                    .background(Color.purple.opacity(0.15))
+                                    .cornerRadius(6)
                             }
                         }
                     }
@@ -959,27 +1128,51 @@ struct HomeNoteRow: View {
 struct HomeBottomBar: View {
     let isRecording: Bool
     let isTranscribing: Bool
+    let isProcessingPhoto: Bool
     let onRecord: () -> Void
+    @Binding var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
-        Button(action: onRecord) {
-            ZStack {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 72, height: 72)
-
-                if isTranscribing {
-                    ProgressView()
-                        .tint(.white)
-                } else {
+        HStack(spacing: 32) {
+            // Photo picker button
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                ZStack {
                     Circle()
-                        .fill(Color.white)
-                        .frame(width: isRecording ? 24 : 28, height: isRecording ? 24 : 28)
+                        .fill(Color(.systemGray6))
+                        .frame(width: 52, height: 52)
+
+                    if isProcessingPhoto {
+                        ProgressView()
+                            .tint(.blue)
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+                    }
                 }
             }
-            .shadow(color: .red.opacity(0.4), radius: 12, y: 4)
+            .disabled(isRecording || isTranscribing || isProcessingPhoto)
+
+            // Record button
+            Button(action: onRecord) {
+                ZStack {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 72, height: 72)
+
+                    if isTranscribing {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: isRecording ? 24 : 28, height: isRecording ? 24 : 28)
+                    }
+                }
+                .shadow(color: .red.opacity(0.4), radius: 12, y: 4)
+            }
+            .disabled(isTranscribing || isProcessingPhoto)
         }
-        .disabled(isTranscribing)
         .padding(.bottom, 30)
     }
 }
@@ -1602,6 +1795,58 @@ struct SettingsView: View {
                 } header: {
                     Text("Support")
                 }
+
+                // MARK: - Developer Section (DEBUG only)
+                #if DEBUG
+                Section {
+                    Button {
+                        // Reset onboarding flags
+                        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+                        UserDefaults.standard.set(false, forKey: "hasSeenOnboardingPaywall")
+                        // Force app restart by crashing (development only)
+                        fatalError("Restart app to see onboarding")
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "arrow.counterclockwise.circle")
+                                .foregroundStyle(.purple)
+                                .frame(width: 44)
+
+                            Text("Reset Onboarding")
+                                .font(.body)
+                                .foregroundStyle(.purple)
+
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+
+                    Button {
+                        // Reset usage counters
+                        UsageService.shared.noteCount = 0
+                        UsageService.shared.hasShownPaywall = false
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "gobackward")
+                                .foregroundStyle(.orange)
+                                .frame(width: 44)
+
+                            Text("Reset Free Notes Counter")
+                                .font(.body)
+                                .foregroundStyle(.orange)
+
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Developer")
+                } footer: {
+                    Text("Debug tools for testing. Reset Onboarding will restart the app.")
+                        .font(.caption)
+                }
+                #endif
 
                 // MARK: - Danger Zone (at bottom)
                 Section {

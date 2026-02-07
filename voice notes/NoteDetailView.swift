@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
+import PhotosUI
 
 enum NoteTab: String, CaseIterable {
     case insights = "Insights"
@@ -68,6 +69,7 @@ struct NoteDetailView: View {
     @Query private var allProjects: [Project]
     @Query private var allDecisions: [ExtractedDecision]
     @Query private var allActions: [ExtractedAction]
+    @Query private var allExtractedURLs: [ExtractedURL]
 
     @State private var selectedTab: NoteTab = .insights
     @State private var audioRecorder = AudioRecorder()
@@ -84,6 +86,12 @@ struct NoteDetailView: View {
     @State private var aiOutput: String?
     @State private var aiOutputType: AITransformType?
     @State private var aiError: String?
+
+    // Image attachment state
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var isProcessingImage = false
+    @State private var selectedImageForFullscreen: String?
+    @State private var showingFullscreenImage = false
 
     // Computed summary from transcript
     private var summary: String {
@@ -150,9 +158,36 @@ struct NoteDetailView: View {
             }
 
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: { showingShareSheet = true }) {
-                    Image(systemName: "square.and.arrow.up")
-                        .foregroundStyle(.white)
+                HStack(spacing: 16) {
+                    // Photo picker
+                    PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                        if isProcessingImage {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "photo.badge.plus")
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .disabled(isProcessingImage)
+
+                    // Share button
+                    Button(action: { showingShareSheet = true }) {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundStyle(.white)
+                    }
+                }
+            }
+        }
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            guard let newItem = newItem else { return }
+            processPhoto(newItem)
+        }
+        .fullScreenCover(isPresented: $showingFullscreenImage) {
+            if let fileName = selectedImageForFullscreen {
+                FullscreenImageView(fileName: fileName) {
+                    showingFullscreenImage = false
+                    selectedImageForFullscreen = nil
                 }
             }
         }
@@ -296,8 +331,27 @@ struct NoteDetailView: View {
         allActions.filter { $0.sourceNoteId == note.id && !$0.isCompleted }
     }
 
+    private var noteURLs: [ExtractedURL] {
+        allExtractedURLs.filter { $0.sourceNoteId == note.id }
+    }
+
     private var insightsView: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Image Gallery (if note has images)
+            if note.hasImages {
+                ImageGalleryView(
+                    imageFileNames: note.imageFileNames,
+                    onImageTap: { fileName in
+                        selectedImageForFullscreen = fileName
+                        showingFullscreenImage = true
+                    },
+                    onImageDelete: { fileName in
+                        ImageService.deleteImage(fileName: fileName)
+                        note.removeImageFileName(fileName)
+                    }
+                )
+            }
+
             // AI Insights Card (if any extracted items exist)
             if !noteDecisions.isEmpty || !noteActions.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
@@ -386,6 +440,23 @@ struct NoteDetailView: View {
                     .padding()
                     .background(Color(.systemGray6).opacity(0.3))
                     .cornerRadius(12)
+                }
+            }
+
+            // URL Previews
+            if !noteURLs.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "link")
+                            .foregroundStyle(.blue)
+                        Text("Links")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.gray)
+                    }
+
+                    ForEach(noteURLs) { extractedURL in
+                        URLPreviewCard(extractedURL: extractedURL)
+                    }
                 }
             }
 
@@ -650,6 +721,8 @@ struct NoteDetailView: View {
                 .appendingPathComponent(fileName)
             try? FileManager.default.removeItem(at: url)
         }
+        // Delete image files
+        note.deleteImageFiles()
         modelContext.delete(note)
         dismiss()
     }
@@ -697,6 +770,50 @@ struct NoteDetailView: View {
                     aiError = "Failed to generate: \(error.localizedDescription)"
                     isGeneratingAI = false
                     aiOutputType = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Photo Processing
+
+    private func processPhoto(_ item: PhotosPickerItem) {
+        isProcessingImage = true
+
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    await MainActor.run {
+                        aiError = "Could not load image"
+                        isProcessingImage = false
+                        selectedPhotoItem = nil
+                    }
+                    return
+                }
+
+                let fileName = try ImageService.saveImage(image, noteId: note.id)
+
+                await MainActor.run {
+                    note.addImageFileName(fileName)
+                    isProcessingImage = false
+                    selectedPhotoItem = nil
+                }
+
+                // Try OCR if note has no content
+                if note.content.isEmpty {
+                    let extractedText = try await ImageService.extractText(from: image)
+                    if !extractedText.isEmpty {
+                        await MainActor.run {
+                            note.content = extractedText
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    aiError = "Failed to process image: \(error.localizedDescription)"
+                    isProcessingImage = false
+                    selectedPhotoItem = nil
                 }
             }
         }
@@ -791,6 +908,229 @@ struct ProjectPickerSheet: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Image Gallery View
+
+struct ImageGalleryView: View {
+    let imageFileNames: [String]
+    let onImageTap: (String) -> Void
+    let onImageDelete: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .foregroundStyle(.blue)
+                Text("Attachments")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.gray)
+                Spacer()
+                Text("\(imageFileNames.count) image\(imageFileNames.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(imageFileNames, id: \.self) { fileName in
+                        ImageThumbnailView(
+                            fileName: fileName,
+                            onTap: { onImageTap(fileName) },
+                            onDelete: { onImageDelete(fileName) }
+                        )
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6).opacity(0.3))
+        .cornerRadius(12)
+    }
+}
+
+struct ImageThumbnailView: View {
+    let fileName: String
+    let onTap: () -> Void
+    let onDelete: () -> Void
+
+    @State private var showDeleteConfirm = false
+
+    var body: some View {
+        if let image = ImageService.loadImage(fileName: fileName) {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 100, height: 100)
+                .cornerRadius(8)
+                .clipped()
+                .onTapGesture { onTap() }
+                .contextMenu {
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+                .confirmationDialog("Delete Image?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                    Button("Delete", role: .destructive) {
+                        onDelete()
+                    }
+                    Button("Cancel", role: .cancel) { }
+                }
+        } else {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.systemGray5))
+                .frame(width: 100, height: 100)
+                .overlay {
+                    Image(systemName: "photo")
+                        .foregroundStyle(.gray)
+                }
+        }
+    }
+}
+
+struct FullscreenImageView: View {
+    let fileName: String
+    let onDismiss: () -> Void
+
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let image = ImageService.loadImage(fileName: fileName) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .scaleEffect(scale)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                scale = lastScale * value
+                            }
+                            .onEnded { _ in
+                                lastScale = scale
+                                if scale < 1.0 {
+                                    withAnimation {
+                                        scale = 1.0
+                                        lastScale = 1.0
+                                    }
+                                }
+                            }
+                    )
+                    .onTapGesture(count: 2) {
+                        withAnimation {
+                            if scale > 1.0 {
+                                scale = 1.0
+                                lastScale = 1.0
+                            } else {
+                                scale = 2.0
+                                lastScale = 2.0
+                            }
+                        }
+                    }
+            }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title)
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .padding()
+                }
+                Spacer()
+            }
+        }
+    }
+}
+
+// MARK: - URL Preview Card
+
+struct URLPreviewCard: View {
+    let extractedURL: ExtractedURL
+
+    var body: some View {
+        Button {
+            if let url = URL(string: extractedURL.url) {
+                UIApplication.shared.open(url)
+            }
+        } label: {
+            HStack(spacing: 12) {
+                // Favicon or image placeholder
+                if let imageURLString = extractedURL.imageURL,
+                   let imageURL = URL(string: imageURLString) {
+                    AsyncImage(url: imageURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 60, height: 60)
+                                .cornerRadius(8)
+                        case .failure:
+                            urlPlaceholderIcon
+                        case .empty:
+                            ProgressView()
+                                .frame(width: 60, height: 60)
+                        @unknown default:
+                            urlPlaceholderIcon
+                        }
+                    }
+                } else {
+                    urlPlaceholderIcon
+                }
+
+                // Content
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(extractedURL.displayTitle)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+
+                    if let description = extractedURL.urlDescription, !description.isEmpty {
+                        Text(description)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    Text(extractedURL.displayHost)
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.up.right.square")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+            }
+            .padding(12)
+            .background(Color(.systemGray6).opacity(0.5))
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var urlPlaceholderIcon: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.blue.opacity(0.15))
+                .frame(width: 60, height: 60)
+
+            Image(systemName: "link")
+                .font(.title2)
+                .foregroundStyle(.blue)
         }
     }
 }
