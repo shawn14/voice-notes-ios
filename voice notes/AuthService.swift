@@ -153,12 +153,61 @@ class AuthService {
 
 // MARK: - Sign In View
 
+// MARK: - Onboarding Page Model
+
+private struct OnboardingPage: Identifiable {
+    let id = UUID()
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+    let features: [(icon: String, text: String)]
+}
+
+private let onboardingPages: [OnboardingPage] = [
+    OnboardingPage(
+        icon: "mic.fill",
+        iconColor: .blue,
+        title: "Capture Everything",
+        subtitle: "Just talk. Your voice becomes searchable, organized notes — automatically.",
+        features: [
+            (icon: "waveform", text: "Record anytime, anywhere"),
+            (icon: "text.alignleft", text: "Instant transcription"),
+            (icon: "clock.fill", text: "Unlimited recording time")
+        ]
+    ),
+    OnboardingPage(
+        icon: "sparkles",
+        iconColor: .blue,
+        title: "AI Does the Work",
+        subtitle: "Decisions, action items, commitments — extracted instantly from every note.",
+        features: [
+            (icon: "checkmark.circle.fill", text: "Actions pulled from your words"),
+            (icon: "person.2.fill", text: "Tracks who owes what"),
+            (icon: "brain.head.profile", text: "Surfaces what needs attention")
+        ]
+    ),
+    OnboardingPage(
+        icon: "chart.bar.doc.horizontal.fill",
+        iconColor: .blue,
+        title: "Stay on Top of It All",
+        subtitle: "CEO reports, goal tracking, project status — one tap from your voice notes.",
+        features: [
+            (icon: "rectangle.3.group.fill", text: "Visual project boards"),
+            (icon: "doc.text.magnifyingglass", text: "AI-powered reports"),
+            (icon: "icloud.fill", text: "Synced across all devices")
+        ]
+    )
+]
+
+// MARK: - Sign In View
+
 struct SignInView: View {
-    @Environment(\.colorScheme) private var colorScheme
     let onSignedIn: () -> Void
 
     private var authService: AuthService { AuthService.shared }
 
+    @State private var currentPage = 0
     @State private var showingError = false
     @State private var errorMessage = ""
 
@@ -166,61 +215,62 @@ struct SignInView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 40) {
-                Spacer()
-
-                // Mic icon
-                ZStack {
-                    Circle()
-                        .fill(Color.blue)
-                        .frame(width: 100, height: 100)
-
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 44))
-                        .foregroundStyle(.white)
-                }
-
-                // Copy
-                VStack(spacing: 12) {
-                    Text("Voice Notes")
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(.white)
-
-                    Text("Talk it out. We'll handle the rest.")
-                        .font(.title3)
-                        .foregroundStyle(.gray)
-                }
-
-                Spacer()
-
-                // Simple features
-                VStack(alignment: .leading, spacing: 20) {
-                    SignInFeatureRow(icon: "waveform", text: "Record your thoughts")
-                    SignInFeatureRow(icon: "sparkles", text: "AI extracts the action items")
-                    SignInFeatureRow(icon: "icloud", text: "Synced everywhere")
-                }
-                .padding(.horizontal, 48)
-
-                Spacer()
-
-                // Sign in
-                VStack(spacing: 16) {
-                    SignInWithAppleButton(.signIn) { request in
-                        request.requestedScopes = [.fullName, .email]
-                    } onCompletion: { result in
-                        switch result {
-                        case .success(let authorization):
-                            authService.handleSignInResult(.success(authorization))
-                            if authService.isSignedIn {
-                                onSignedIn()
-                            }
-                        case .failure(let error):
-                            errorMessage = error.localizedDescription
-                            showingError = true
-                        }
+            VStack(spacing: 0) {
+                // Paged walkthrough
+                TabView(selection: $currentPage) {
+                    ForEach(Array(onboardingPages.enumerated()), id: \.element.id) { index, page in
+                        onboardingPageView(page)
+                            .tag(index)
                     }
-                    .signInWithAppleButtonStyle(.white)
-                    .frame(height: 50)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(.easeInOut, value: currentPage)
+
+                // Page dots
+                HStack(spacing: 8) {
+                    ForEach(0..<onboardingPages.count, id: \.self) { index in
+                        Circle()
+                            .fill(index == currentPage ? Color.blue : Color.white.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+
+                // Sign in section
+                VStack(spacing: 14) {
+                    if currentPage < onboardingPages.count - 1 {
+                        // "Next" button on first pages
+                        Button {
+                            withAnimation { currentPage += 1 }
+                        } label: {
+                            Text("Next")
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(Color.blue)
+                                .cornerRadius(12)
+                        }
+                    } else {
+                        // Sign in on last page
+                        SignInWithAppleButton(.signIn) { request in
+                            request.requestedScopes = [.fullName, .email]
+                        } onCompletion: { result in
+                            switch result {
+                            case .success(let authorization):
+                                authService.handleSignInResult(.success(authorization))
+                                if authService.isSignedIn {
+                                    onSignedIn()
+                                }
+                            case .failure(let error):
+                                errorMessage = error.localizedDescription
+                                showingError = true
+                            }
+                        }
+                        .signInWithAppleButtonStyle(.white)
+                        .frame(height: 50)
+                    }
 
                     Button("Skip for now") {
                         onSignedIn()
@@ -247,31 +297,76 @@ struct SignInView: View {
                     .cornerRadius(12)
                 }
                 .padding(.top, 8)
+                .padding(.horizontal, 32)
                 #endif
+
+                Spacer().frame(height: 24)
             }
-            .padding(.bottom, 32)
         }
-                .alert("Sign In Error", isPresented: $showingError) {
+        .alert("Sign In Error", isPresented: $showingError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
         }
     }
-}
 
-private struct SignInFeatureRow: View {
-    let icon: String
-    let text: String
+    // MARK: - Onboarding Page
 
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(.blue)
-                .frame(width: 28)
-            Text(text)
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.9))
+    private func onboardingPageView(_ page: OnboardingPage) -> some View {
+        VStack(spacing: 28) {
+            Spacer()
+
+            // Hero icon
+            ZStack {
+                Circle()
+                    .fill(page.iconColor.opacity(0.15))
+                    .frame(width: 100, height: 100)
+
+                Image(systemName: page.icon)
+                    .font(.system(size: 42))
+                    .foregroundStyle(page.iconColor)
+            }
+
+            // Title & subtitle
+            VStack(spacing: 10) {
+                Text(page.title)
+                    .font(.title.weight(.bold))
+                    .foregroundStyle(.white)
+
+                Text(page.subtitle)
+                    .font(.body)
+                    .foregroundStyle(.gray)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .padding(.horizontal, 24)
+            }
+
+            Spacer().frame(height: 8)
+
+            // Feature cards
+            VStack(spacing: 12) {
+                ForEach(page.features, id: \.text) { feature in
+                    HStack(spacing: 14) {
+                        Image(systemName: feature.icon)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.blue)
+                            .frame(width: 28)
+
+                        Text(feature.text)
+                            .font(.body)
+                            .foregroundStyle(.white.opacity(0.9))
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(Color(.systemGray6).opacity(0.3))
+                    .cornerRadius(12)
+                }
+            }
+            .padding(.horizontal, 32)
+
+            Spacer()
         }
     }
 }

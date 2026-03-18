@@ -32,33 +32,33 @@ struct OnboardingPaywallView: View {
                     VStack(spacing: 16) {
                         ZStack {
                             Circle()
-                                .fill(Color.white)
+                                .fill(Color.blue.opacity(0.15))
                                 .frame(width: 80, height: 80)
 
-                            Image(systemName: "mic.fill")
+                            Image(systemName: "sparkles")
                                 .font(.system(size: 36))
-                                .foregroundStyle(.black)
+                                .foregroundStyle(.blue)
                         }
 
-                        Text("Voice Notes")
+                        Text("Unlock Everything")
                             .font(.title.weight(.bold))
                             .foregroundStyle(.white)
                     }
 
                     // Value proposition
-                    VStack(spacing: 24) {
-                        Text("Your thoughts, organized")
-                            .font(.title2.weight(.semibold))
-                            .foregroundStyle(.white)
+                    VStack(spacing: 20) {
+                        Text("Your AI-powered second brain")
+                            .font(.title3.weight(.medium))
+                            .foregroundStyle(.gray)
                             .multilineTextAlignment(.center)
 
-                        VStack(alignment: .leading, spacing: 16) {
-                            FeatureItem(icon: "waveform", text: "Unlimited voice notes")
+                        VStack(spacing: 10) {
+                            FeatureItem(icon: "infinity", text: "Unlimited voice notes")
                             FeatureItem(icon: "sparkles", text: "AI extracts decisions & action items")
-                            FeatureItem(icon: "person.2", text: "Track commitments by person")
-                            FeatureItem(icon: "icloud", text: "Sync across all your devices")
+                            FeatureItem(icon: "chart.bar.doc.horizontal.fill", text: "CEO reports & SWOT analysis")
+                            FeatureItem(icon: "person.2.fill", text: "Track commitments by person")
+                            FeatureItem(icon: "icloud.fill", text: "Sync across all your devices")
                         }
-                        .padding(.horizontal, 8)
                     }
                     .padding(.horizontal)
 
@@ -101,7 +101,7 @@ struct OnboardingPaywallView: View {
             HStack(spacing: 14) {
                 Image(systemName: icon)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.blue)
                     .frame(width: 24)
 
                 Text(text)
@@ -110,6 +110,10 @@ struct OnboardingPaywallView: View {
 
                 Spacer()
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.systemGray6).opacity(0.3))
+            .cornerRadius(12)
         }
     }
 
@@ -190,7 +194,7 @@ struct OnboardingPaywallView: View {
                 HStack {
                     if isPurchasing {
                         ProgressView()
-                            .tint(.black)
+                            .tint(.white)
                     } else {
                         Text("Continue")
                             .font(.headline.weight(.semibold))
@@ -198,8 +202,8 @@ struct OnboardingPaywallView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(Color.white)
-                .foregroundStyle(.black)
+                .background(Color.blue)
+                .foregroundStyle(.white)
                 .cornerRadius(12)
             }
             .disabled(isPurchasing || subscriptionManager.products.isEmpty)
