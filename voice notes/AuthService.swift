@@ -162,6 +162,7 @@ private struct OnboardingPage: Identifiable {
     let title: String
     let subtitle: String
     let features: [(icon: String, text: String)]
+    let screenshotName: String? // Asset catalog image name, nil = show icon instead
 }
 
 private let onboardingPages: [OnboardingPage] = [
@@ -174,7 +175,8 @@ private let onboardingPages: [OnboardingPage] = [
             (icon: "waveform", text: "Record anytime, anywhere"),
             (icon: "text.alignleft", text: "Instant transcription"),
             (icon: "clock.fill", text: "Unlimited recording time")
-        ]
+        ],
+        screenshotName: "onboarding_capture" // Add to Assets.xcassets
     ),
     OnboardingPage(
         icon: "sparkles",
@@ -185,7 +187,8 @@ private let onboardingPages: [OnboardingPage] = [
             (icon: "checkmark.circle.fill", text: "Actions pulled from your words"),
             (icon: "person.2.fill", text: "Tracks who owes what"),
             (icon: "brain.head.profile", text: "Surfaces what needs attention")
-        ]
+        ],
+        screenshotName: "onboarding_ai" // Add to Assets.xcassets
     ),
     OnboardingPage(
         icon: "chart.bar.doc.horizontal.fill",
@@ -196,7 +199,8 @@ private let onboardingPages: [OnboardingPage] = [
             (icon: "rectangle.3.group.fill", text: "Visual project boards"),
             (icon: "doc.text.magnifyingglass", text: "AI-powered reports"),
             (icon: "icloud.fill", text: "Synced across all devices")
-        ]
+        ],
+        screenshotName: "onboarding_reports" // Add to Assets.xcassets
     )
 ]
 
@@ -313,18 +317,31 @@ struct SignInView: View {
     // MARK: - Onboarding Page
 
     private func onboardingPageView(_ page: OnboardingPage) -> some View {
-        VStack(spacing: 28) {
+        VStack(spacing: 20) {
             Spacer()
 
-            // Hero icon
-            ZStack {
-                Circle()
-                    .fill(page.iconColor.opacity(0.15))
-                    .frame(width: 100, height: 100)
+            // Hero: screenshot or icon fallback
+            if let screenshotName = page.screenshotName,
+               UIImage(named: screenshotName) != nil {
+                // App screenshot in a phone frame
+                Image(screenshotName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxHeight: 280)
+                    .cornerRadius(20)
+                    .shadow(color: page.iconColor.opacity(0.3), radius: 20, y: 10)
+                    .padding(.horizontal, 48)
+            } else {
+                // SF Symbol fallback
+                ZStack {
+                    Circle()
+                        .fill(page.iconColor.opacity(0.15))
+                        .frame(width: 100, height: 100)
 
-                Image(systemName: page.icon)
-                    .font(.system(size: 42))
-                    .foregroundStyle(page.iconColor)
+                    Image(systemName: page.icon)
+                        .font(.system(size: 42))
+                        .foregroundStyle(page.iconColor)
+                }
             }
 
             // Title & subtitle
@@ -341,10 +358,10 @@ struct SignInView: View {
                     .padding(.horizontal, 24)
             }
 
-            Spacer().frame(height: 8)
+            Spacer().frame(height: 4)
 
             // Feature cards
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 ForEach(page.features, id: \.text) { feature in
                     HStack(spacing: 14) {
                         Image(systemName: feature.icon)
@@ -359,7 +376,7 @@ struct SignInView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 12)
                     .background(Color(.systemGray6).opacity(0.3))
                     .cornerRadius(12)
                 }
