@@ -21,57 +21,61 @@ struct OnboardingPaywallView: View {
 
     var body: some View {
         ZStack {
-            // Clean dark background
+            // Atmospheric background matching onboarding page 3
             Color.black.ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 32) {
-                    Spacer().frame(height: 40)
+            RadialGradient(
+                colors: [Color.blue.opacity(0.15), Color.clear],
+                center: .top,
+                startRadius: 50,
+                endRadius: 400
+            )
+            .ignoresSafeArea()
 
-                    // App icon / branding
-                    VStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.blue.opacity(0.15))
-                                .frame(width: 80, height: 80)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    Spacer().frame(height: 60)
 
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 36))
-                                .foregroundStyle(.blue)
-                        }
-
-                        Text("Unlock Everything")
-                            .font(.title.weight(.bold))
+                    // Headline — editorial, not template
+                    VStack(spacing: 14) {
+                        Text("Go unlimited.")
+                            .font(.system(size: 34, weight: .bold))
                             .foregroundStyle(.white)
-                    }
 
-                    // Value proposition
-                    VStack(spacing: 20) {
-                        Text("Your AI-powered second brain")
-                            .font(.title3.weight(.medium))
-                            .foregroundStyle(.gray)
+                        Text("Everything you just saw,\nwithout limits.")
+                            .font(.system(size: 17))
+                            .foregroundStyle(.white.opacity(0.55))
                             .multilineTextAlignment(.center)
-
-                        VStack(spacing: 10) {
-                            FeatureItem(icon: "infinity", text: "Unlimited voice notes")
-                            FeatureItem(icon: "sparkles", text: "AI extracts decisions & action items")
-                            FeatureItem(icon: "chart.bar.doc.horizontal.fill", text: "CEO reports & SWOT analysis")
-                            FeatureItem(icon: "person.2.fill", text: "Track commitments by person")
-                            FeatureItem(icon: "icloud.fill", text: "Sync across all your devices")
-                        }
+                            .lineSpacing(4)
                     }
-                    .padding(.horizontal)
+
+                    Spacer().frame(height: 36)
+
+                    // Feature list — minimal, matching onboarding style
+                    VStack(spacing: 16) {
+                        paywallFeature("infinity", "Unlimited voice notes")
+                        paywallFeature("sparkles", "AI extraction on every note")
+                        paywallFeature("chart.bar.doc.horizontal", "CEO reports & SWOT analysis")
+                        paywallFeature("person.2", "People & commitment tracking")
+                        paywallFeature("arrow.trianglehead.2.clockwise", "Sync across all devices")
+                    }
+                    .padding(.horizontal, 40)
+
+                    Spacer().frame(height: 36)
 
                     // Subscription options
                     subscriptionSection
-                        .padding(.horizontal)
+                        .padding(.horizontal, 28)
 
-                    // CTA buttons
+                    Spacer().frame(height: 24)
+
+                    // CTA
                     ctaSection
-                        .padding(.horizontal)
+                        .padding(.horizontal, 28)
 
                     // Legal
                     legalSection
+                        .padding(.top, 20)
 
                     Spacer().frame(height: 20)
                 }
@@ -91,29 +95,20 @@ struct OnboardingPaywallView: View {
         }
     }
 
-    // MARK: - Feature Item
+    // MARK: - Feature Row (matches onboarding style)
 
-    private struct FeatureItem: View {
-        let icon: String
-        let text: String
+    private func paywallFeature(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
+                .frame(width: 22)
 
-        var body: some View {
-            HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.blue)
-                    .frame(width: 24)
+            Text(text)
+                .font(.system(size: 15))
+                .foregroundStyle(.white.opacity(0.6))
 
-                Text(text)
-                    .font(.body)
-                    .foregroundStyle(.white.opacity(0.9))
-
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(.systemGray6).opacity(0.3))
-            .cornerRadius(12)
+            Spacer()
         }
     }
 
@@ -138,7 +133,7 @@ struct OnboardingPaywallView: View {
                 }
                 .padding(.vertical, 20)
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     // Annual (recommended)
                     if let annual = subscriptionManager.annualProduct {
                         PlanOption(
@@ -188,23 +183,23 @@ struct OnboardingPaywallView: View {
     // MARK: - CTA Section
 
     private var ctaSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             // Subscribe button
             Button(action: handlePurchase) {
                 HStack {
                     if isPurchasing {
                         ProgressView()
-                            .tint(.white)
+                            .tint(.black)
                     } else {
-                        Text("Continue")
-                            .font(.headline.weight(.semibold))
+                        Text("Start Pro")
+                            .font(.body.weight(.semibold))
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(Color.blue)
-                .foregroundStyle(.white)
-                .cornerRadius(12)
+                .background(Color.white)
+                .foregroundStyle(.black)
+                .cornerRadius(14)
             }
             .disabled(isPurchasing || subscriptionManager.products.isEmpty)
 
@@ -212,10 +207,9 @@ struct OnboardingPaywallView: View {
             Button {
                 onComplete()
             } label: {
-                Text("Try 5 Free Notes First")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .padding(.vertical, 12)
+                Text("Try 5 free notes first")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.4))
             }
 
             // Restore purchases
@@ -228,7 +222,8 @@ struct OnboardingPaywallView: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(.gray)
+            .foregroundStyle(.white.opacity(0.25))
+            .padding(.top, 4)
         }
     }
 
@@ -238,14 +233,14 @@ struct OnboardingPaywallView: View {
         VStack(spacing: 6) {
             Text("Cancel anytime. Payment charged to Apple ID.")
                 .font(.caption2)
-                .foregroundStyle(.gray)
+                .foregroundStyle(.white.opacity(0.25))
 
             HStack(spacing: 16) {
                 Link("Terms", destination: URL(string: "https://eeon.com/terms")!)
                 Link("Privacy", destination: URL(string: "https://eeon.com/privacy")!)
             }
             .font(.caption2)
-            .foregroundStyle(.gray)
+            .foregroundStyle(.white.opacity(0.25))
         }
         .padding(.bottom, 16)
     }
@@ -297,7 +292,7 @@ struct PlanOption: View {
                 // Selection indicator
                 ZStack {
                     Circle()
-                        .stroke(isSelected ? Color.white : Color.gray.opacity(0.5), lineWidth: 2)
+                        .stroke(isSelected ? Color.white : Color.white.opacity(0.2), lineWidth: 1.5)
                         .frame(width: 22, height: 22)
 
                     if isSelected {
@@ -327,7 +322,7 @@ struct PlanOption: View {
                     if let subtitle = subtitle {
                         Text(subtitle)
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.white.opacity(0.4))
                     }
                 }
 
@@ -339,17 +334,17 @@ struct PlanOption: View {
                         .foregroundStyle(.white)
                     Text("/\(period)")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.white.opacity(0.4))
                 }
             }
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(isSelected ? 0.1 : 0.05))
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(isSelected ? 0.08 : 0.03))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.white.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? Color.white.opacity(0.3) : Color.white.opacity(0.08), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
