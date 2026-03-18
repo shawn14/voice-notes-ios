@@ -766,3 +766,113 @@ enum URLMetadataError: LocalizedError {
         }
     }
 }
+
+// MARK: - Account Context for Reports
+
+extension SummaryService {
+    /// Builds a structured context string from all user data for account-level reports.
+    /// Call on @MainActor (SwiftData models are not Sendable). Pass the resulting String to async API calls.
+    static func buildAccountContext(
+        notes: [Note],
+        projects: [Project],
+        decisions: [ExtractedDecision],
+        actions: [ExtractedAction],
+        commitments: [ExtractedCommitment],
+        people: [MentionedPerson],
+        kanbanItems: [KanbanItem]
+    ) -> String {
+        let maxContextLength = 12_000
+        var sections: [String] = []
+
+        // Projects (always included, compact)
+        if !projects.isEmpty {
+            let projectLines = projects.map { project in
+                let status = project.isStalled ? "stalled" : "active"
+                let lastActivity = project.lastActivityAt?.formatted(date: .abbreviated, time: .omitted) ?? "none"
+                return "- \(project.name): \(project.noteCount) notes, \(project.openActionCount) open actions, last activity: \(lastActivity), status: \(status)"
+            }
+            sections.append("PROJECTS (\(projects.count) total):\n" + projectLines.joined(separator: "\n"))
+        }
+
+        // Decisions (always included, compact)
+        if !decisions.isEmpty {
+            let decisionLines = decisions.map { d in
+                "- [\(d.createdAt.formatted(date: .abbreviated, time: .omitted))] \(d.content) (Status: \(d.status), Affects: \(d.affects))"
+            }
+            sections.append("DECISIONS (\(decisions.count) total):\n" + decisionLines.joined(separator: "\n"))
+        }
+
+        // Actions (always included, compact)
+        if !actions.isEmpty {
+            let actionLines = actions.map { a in
+                let status = a.isCompleted ? "completed" : (a.isBlocked ? "blocked" : "open")
+                return "- [\(a.createdAt.formatted(date: .abbreviated, time: .omitted))] \(a.content) — Owner: \(a.owner), Deadline: \(a.deadline), Status: \(status), Priority: \(a.priority)"
+            }
+            sections.append("ACTIONS (\(actions.count) total):\n" + actionLines.joined(separator: "\n"))
+        }
+
+        // Commitments (always included, compact)
+        if !commitments.isEmpty {
+            let commitmentLines = commitments.map { c in
+                let status = c.isCompleted ? "completed" : "open"
+                return "- [\(c.createdAt.formatted(date: .abbreviated, time: .omitted))] \(c.who): \(c.what) — Status: \(status)"
+            }
+            sections.append("COMMITMENTS (\(commitments.count) total):\n" + commitmentLines.joined(separator: "\n"))
+        }
+
+        // People (always included, compact)
+        if !people.isEmpty {
+            let peopleLines = people.filter { !$0.isArchived }.map { p in
+                "- \(p.displayName): \(p.mentionCount) mentions, \(p.openCommitmentCount) open commitments, last mentioned: \(p.lastMentionedAt.formatted(date: .abbreviated, time: .omitted))"
+            }
+            sections.append("PEOPLE (\(people.filter { !$0.isArchived }.count) total):\n" + peopleLines.joined(separator: "\n"))
+        }
+
+        // Build non-note context first to measure remaining budget
+        let fixedContext = "ACCOUNT CONTEXT:\n================\n\n" + sections.joined(separator: "\n\n")
+        let remainingBudget = maxContextLength - fixedContext.count
+
+        // Notes (trimmed to fit budget)
+        if !notes.isEmpty && remainingBudget > 200 {
+            let notesToInclude = Array(notes.prefix(50))
+            var noteLines: [String] = []
+            var noteCharsUsed = 0
+            let headerLine = "NOTES (\(notes.count) total):\n"
+            noteCharsUsed += headerLine.count
+
+            for note in notesToInclude {
+                let preview = String((note.transcript ?? note.content).prefix(200))
+                let line = "- [\(note.createdAt.formatted(date: .abbreviated, time: .omitted))] \(note.displayTitle): \(preview)"
+                if noteCharsUsed + line.count + 1 > remainingBudget - 100 { break }
+                noteLines.append(line)
+                noteCharsUsed += line.count + 1
+            }
+
+            if !noteLines.isEmpty {
+                sections.insert(headerLine + noteLines.joined(separator: "\n"), at: 0)
+            }
+        }
+
+        // Kanban items (trimmed if needed)
+        let currentLength = ("ACCOUNT CONTEXT:\n================\n\n" + sections.joined(separator: "\n\n")).count
+        if !kanbanItems.isEmpty && currentLength < maxContextLength - 200 {
+            let kanbanBudget = maxContextLength - currentLength - 50
+            var kanbanLines: [String] = []
+            var kanbanCharsUsed = 0
+
+            for item in kanbanItems {
+                let daysSince = Calendar.current.dateComponents([.day], from: item.updatedAt, to: Date()).day ?? 0
+                let line = "- [\(item.column)] \(item.content) — Type: \(item.itemType), Days since update: \(daysSince)"
+                if kanbanCharsUsed + line.count + 1 > kanbanBudget { break }
+                kanbanLines.append(line)
+                kanbanCharsUsed += line.count + 1
+            }
+
+            if !kanbanLines.isEmpty {
+                sections.append("KANBAN ITEMS (\(kanbanItems.count) total):\n" + kanbanLines.joined(separator: "\n"))
+            }
+        }
+
+        return "ACCOUNT CONTEXT:\n================\n\n" + sections.joined(separator: "\n\n")
+    }
+}
