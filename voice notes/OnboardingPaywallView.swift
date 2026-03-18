@@ -208,8 +208,8 @@ struct OnboardingPaywallView: View {
                 onComplete()
             } label: {
                 Text("Try 5 free notes first")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.8))
             }
 
             // Restore purchases
@@ -221,8 +221,8 @@ struct OnboardingPaywallView: View {
                     }
                 }
             }
-            .font(.caption)
-            .foregroundStyle(.white.opacity(0.45))
+            .font(.subheadline)
+            .foregroundStyle(.white.opacity(0.6))
             .padding(.top, 4)
         }
     }
@@ -232,15 +232,15 @@ struct OnboardingPaywallView: View {
     private var legalSection: some View {
         VStack(spacing: 6) {
             Text("Cancel anytime. Payment charged to Apple ID.")
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.4))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.5))
 
             HStack(spacing: 16) {
                 Link("Terms", destination: URL(string: "https://eeon.com/terms")!)
                 Link("Privacy", destination: URL(string: "https://eeon.com/privacy")!)
             }
-            .font(.caption2)
-            .foregroundStyle(.white.opacity(0.4))
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.5))
         }
         .padding(.bottom, 16)
     }
