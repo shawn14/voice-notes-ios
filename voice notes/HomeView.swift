@@ -86,6 +86,9 @@ struct HomeView: View {
     // People view
     @State private var showingPeopleView = false
 
+    // Type note (alternative to voice)
+    @State private var showingTypeNote = false
+
     // Filtered notes based on search and filter
     private var filteredNotes: [Note] {
         // Don't show notes when signed out - they'll reappear on sign in
@@ -437,7 +440,8 @@ struct HomeView: View {
                     HomeBottomBar(
                         isRecording: isRecording,
                         isTranscribing: isTranscribing,
-                        onRecord: toggleRecording
+                        onRecord: toggleRecording,
+                        onTypeNote: { showingTypeNote = true }
                     )
                 }
 
@@ -513,6 +517,15 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingPeopleView) {
                 PeopleView()
+            }
+            .sheet(isPresented: $showingTypeNote) {
+                TypeNoteSheet(onSave: { text in
+                    showingTypeNote = false
+                    guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    createTypedNote(content: text)
+                }, onCancel: {
+                    showingTypeNote = false
+                })
             }
             .alert("Ready to understand", isPresented: $showExtractFallback) {
                 Button("See what I can do") {
@@ -827,6 +840,62 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Create Typed Note
+
+    private func createTypedNote(content: String) {
+        let note = Note(
+            title: "",
+            content: content,
+            transcript: content,  // Treat typed text as transcript for AI processing
+            audioFileName: nil    // No audio for typed notes
+        )
+        modelContext.insert(note)
+        UsageService.shared.incrementNoteCount()
+        try? modelContext.save()
+
+        // AI processing for title, tags (same as voice notes)
+        if let apiKey = APIKeys.openAI, !apiKey.isEmpty {
+            let existingTags = tags
+            let allProjects = projects
+
+            Task {
+                do {
+                    let title = try await generateTitle(for: content, apiKey: apiKey)
+                    let extractor = TagExtractor(apiKey: apiKey)
+                    let tagNames = try await extractor.extractTags(from: content)
+
+                    await MainActor.run {
+                        note.title = title
+
+                        for tagName in tagNames {
+                            if let existingTag = existingTags.first(where: { $0.name.lowercased() == tagName.lowercased() }) {
+                                if !note.tags.contains(where: { $0.id == existingTag.id }) {
+                                    note.tags.append(existingTag)
+                                }
+                            } else {
+                                let newTag = Tag(name: tagName.capitalized)
+                                modelContext.insert(newTag)
+                                note.tags.append(newTag)
+                            }
+                        }
+
+                        // Auto-assign project
+                        let matcher = ProjectMatcher(apiKey: apiKey)
+                        Task {
+                            if let projectId = await matcher.findMatchingProject(for: content, projects: allProjects) {
+                                await MainActor.run {
+                                    note.projectId = projectId
+                                }
+                            }
+                        }
+                    }
+                } catch {
+                    print("Error processing typed note: \(error)")
+                }
+            }
+        }
+    }
+
     // MARK: - Auto-Extract for First Note
 
     private func autoExtractAndShowClarity(note: Note, transcript: String) {
@@ -1127,28 +1196,91 @@ struct HomeBottomBar: View {
     let isRecording: Bool
     let isTranscribing: Bool
     let onRecord: () -> Void
+    var onTypeNote: (() -> Void)? = nil
 
     var body: some View {
-        // Record button only
-        Button(action: onRecord) {
-            ZStack {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 72, height: 72)
+        HStack(spacing: 40) {
+            // Subtle keyboard icon for typing (low-key, left of record)
+            if let onType = onTypeNote, !isRecording && !isTranscribing {
+                Button(action: onType) {
+                    Image(systemName: "keyboard")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.gray.opacity(0.5))
+                }
+                .frame(width: 44, height: 44)
+            } else {
+                // Spacer to keep record button centered
+                Color.clear.frame(width: 44, height: 44)
+            }
 
-                if isTranscribing {
-                    ProgressView()
-                        .tint(.white)
-                } else {
+            // Record button (primary)
+            Button(action: onRecord) {
+                ZStack {
                     Circle()
-                        .fill(Color.white)
-                        .frame(width: isRecording ? 24 : 28, height: isRecording ? 24 : 28)
+                        .fill(Color.red)
+                        .frame(width: 72, height: 72)
+
+                    if isTranscribing {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: isRecording ? 24 : 28, height: isRecording ? 24 : 28)
+                    }
+                }
+                .shadow(color: .red.opacity(0.4), radius: 12, y: 4)
+            }
+            .disabled(isTranscribing)
+
+            // Balance spacer on right
+            Color.clear.frame(width: 44, height: 44)
+        }
+        .padding(.bottom, 30)
+    }
+}
+
+// MARK: - Type Note Sheet
+
+struct TypeNoteSheet: View {
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+
+    @State private var noteText = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                TextEditor(text: $noteText)
+                    .focused($isFocused)
+                    .padding()
+                    .scrollContentBackground(.hidden)
+                    .background(Color(.systemBackground))
+            }
+            .navigationTitle("New Note")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                    .foregroundStyle(.gray)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(noteText)
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            .shadow(color: .red.opacity(0.4), radius: 12, y: 4)
+            .onAppear {
+                isFocused = true
+            }
         }
-        .disabled(isTranscribing)
-        .padding(.bottom, 30)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -1775,11 +1907,7 @@ struct SettingsView: View {
                 #if DEBUG
                 Section {
                     Button {
-                        // Reset onboarding flags
-                        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
-                        UserDefaults.standard.set(false, forKey: "hasSeenOnboardingPaywall")
-                        // Force app restart by crashing (development only)
-                        fatalError("Restart app to see onboarding")
+                        OnboardingState.set(.needsSignIn)
                     } label: {
                         HStack(spacing: 16) {
                             Image(systemName: "arrow.counterclockwise.circle")
@@ -1941,13 +2069,8 @@ struct SettingsView: View {
 
     private func signOutOnly() {
         // Just sign out - keep all data locally and in iCloud
+        // AuthService.signOut() also resets OnboardingState to .needsSignIn
         AuthService.shared.signOut()
-
-        // Reset all onboarding flags so user sees full onboarding flow again
-        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
-        UserDefaults.standard.set(false, forKey: "hasSeenOnboardingPaywall")
-
-        // Dismiss settings
         dismiss()
     }
 
@@ -1978,13 +2101,8 @@ struct SettingsView: View {
         StatusCounters.shared.reset()
 
         // Clear all user data including name/email and usage
+        // clearAllUserData() also resets OnboardingState to .needsSignIn
         AuthService.shared.clearAllUserData()
-
-        // Reset all onboarding flags so user sees full onboarding flow again
-        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
-        UserDefaults.standard.set(false, forKey: "hasSeenOnboardingPaywall")
-
-        // Dismiss settings
         dismiss()
     }
 }
