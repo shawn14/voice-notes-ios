@@ -11,5 +11,8 @@ DerivedData/
 # macOS
 .DS_Store
 
+# Superpowers brainstorm artifacts
+.superpowers/
+
 # CocoaPods
 Pods/

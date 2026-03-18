@@ -13,8 +13,8 @@ struct voice_notesApp: App {
     let container: ModelContainer
     @State private var authService = AuthService.shared
     @State private var subscriptionManager = SubscriptionManager.shared
-    @State private var hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-    @State private var hasSeenOnboardingPaywall = UserDefaults.standard.bool(forKey: "hasSeenOnboardingPaywall")
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("hasSeenOnboardingPaywall") private var hasSeenOnboardingPaywall = false
     @State private var isSignedInDuringOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -84,8 +84,7 @@ struct voice_notesApp: App {
                     // Step 2: Show onboarding paywall after sign-in
                     OnboardingPaywallView {
                         // Complete onboarding (whether they subscribed or skipped)
-                        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-                        UserDefaults.standard.set(true, forKey: "hasSeenOnboardingPaywall")
+                        // @AppStorage automatically persists to UserDefaults
                         hasCompletedOnboarding = true
                         hasSeenOnboardingPaywall = true
                     }

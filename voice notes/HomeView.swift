@@ -1943,8 +1943,9 @@ struct SettingsView: View {
         // Just sign out - keep all data locally and in iCloud
         AuthService.shared.signOut()
 
-        // Reset onboarding flag to show sign in screen again
+        // Reset all onboarding flags so user sees full onboarding flow again
         UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+        UserDefaults.standard.set(false, forKey: "hasSeenOnboardingPaywall")
 
         // Dismiss settings
         dismiss()
@@ -1979,8 +1980,9 @@ struct SettingsView: View {
         // Clear all user data including name/email and usage
         AuthService.shared.clearAllUserData()
 
-        // Reset onboarding flag to show sign in screen again
+        // Reset all onboarding flags so user sees full onboarding flow again
         UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+        UserDefaults.standard.set(false, forKey: "hasSeenOnboardingPaywall")
 
         // Dismiss settings
         dismiss()
