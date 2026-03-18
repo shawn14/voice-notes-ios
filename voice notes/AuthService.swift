@@ -153,57 +153,6 @@ class AuthService {
 
 // MARK: - Sign In View
 
-// MARK: - Onboarding Page Model
-
-private struct OnboardingPage: Identifiable {
-    let id = UUID()
-    let icon: String
-    let iconColor: Color
-    let title: String
-    let subtitle: String
-    let features: [(icon: String, text: String)]
-    let screenshotName: String? // Asset catalog image name, nil = show icon instead
-}
-
-private let onboardingPages: [OnboardingPage] = [
-    OnboardingPage(
-        icon: "mic.fill",
-        iconColor: .blue,
-        title: "Capture Everything",
-        subtitle: "Just talk. Your voice becomes searchable, organized notes — automatically.",
-        features: [
-            (icon: "waveform", text: "Record anytime, anywhere"),
-            (icon: "text.alignleft", text: "Instant transcription"),
-            (icon: "clock.fill", text: "Unlimited recording time")
-        ],
-        screenshotName: "onboarding_capture" // Add to Assets.xcassets
-    ),
-    OnboardingPage(
-        icon: "sparkles",
-        iconColor: .blue,
-        title: "AI Does the Work",
-        subtitle: "Decisions, action items, commitments — extracted instantly from every note.",
-        features: [
-            (icon: "checkmark.circle.fill", text: "Actions pulled from your words"),
-            (icon: "person.2.fill", text: "Tracks who owes what"),
-            (icon: "brain.head.profile", text: "Surfaces what needs attention")
-        ],
-        screenshotName: "onboarding_ai" // Add to Assets.xcassets
-    ),
-    OnboardingPage(
-        icon: "chart.bar.doc.horizontal.fill",
-        iconColor: .blue,
-        title: "Stay on Top of It All",
-        subtitle: "CEO reports, goal tracking, project status — one tap from your voice notes.",
-        features: [
-            (icon: "rectangle.3.group.fill", text: "Visual project boards"),
-            (icon: "doc.text.magnifyingglass", text: "AI-powered reports"),
-            (icon: "icloud.fill", text: "Synced across all devices")
-        ],
-        screenshotName: "onboarding_reports" // Add to Assets.xcassets
-    )
-]
-
 // MARK: - Sign In View
 
 struct SignInView: View {
@@ -215,96 +164,87 @@ struct SignInView: View {
     @State private var showingError = false
     @State private var errorMessage = ""
 
+    private let pageCount = 3
+
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // Atmospheric gradient background that shifts per page
+            backgroundGradient
+                .ignoresSafeArea()
+                .animation(.easeInOut(duration: 0.6), value: currentPage)
 
             VStack(spacing: 0) {
-                // Paged walkthrough
+                // Paged content
                 TabView(selection: $currentPage) {
-                    ForEach(Array(onboardingPages.enumerated()), id: \.element.id) { index, page in
-                        onboardingPageView(page)
-                            .tag(index)
-                    }
+                    page1.tag(0)
+                    page2.tag(1)
+                    page3.tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut, value: currentPage)
 
-                // Page dots
-                HStack(spacing: 8) {
-                    ForEach(0..<onboardingPages.count, id: \.self) { index in
-                        Circle()
-                            .fill(index == currentPage ? Color.blue : Color.white.opacity(0.3))
-                            .frame(width: 8, height: 8)
+                // Page indicator — thin bars, not dots
+                HStack(spacing: 6) {
+                    ForEach(0..<pageCount, id: \.self) { index in
+                        Capsule()
+                            .fill(index == currentPage ? Color.white : Color.white.opacity(0.2))
+                            .frame(width: index == currentPage ? 24 : 8, height: 4)
+                            .animation(.spring(response: 0.35), value: currentPage)
                     }
                 }
-                .padding(.top, 16)
-                .padding(.bottom, 24)
+                .padding(.bottom, 28)
 
-                // Sign in section
-                VStack(spacing: 14) {
-                    if currentPage < onboardingPages.count - 1 {
-                        // "Next" button on first pages
+                // Bottom action area
+                VStack(spacing: 12) {
+                    if currentPage < pageCount - 1 {
                         Button {
-                            withAnimation { currentPage += 1 }
+                            withAnimation(.spring(response: 0.4)) { currentPage += 1 }
                         } label: {
-                            Text("Next")
-                                .font(.headline.weight(.semibold))
+                            Text("Continue")
+                                .font(.body.weight(.semibold))
                                 .foregroundStyle(.black)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(Color.blue)
-                                .cornerRadius(12)
+                                .background(Color.white)
+                                .cornerRadius(14)
                         }
                     } else {
-                        // Sign in on last page
                         SignInWithAppleButton(.signIn) { request in
                             request.requestedScopes = [.fullName, .email]
                         } onCompletion: { result in
                             switch result {
                             case .success(let authorization):
                                 authService.handleSignInResult(.success(authorization))
-                                if authService.isSignedIn {
-                                    onSignedIn()
-                                }
+                                if authService.isSignedIn { onSignedIn() }
                             case .failure(let error):
                                 errorMessage = error.localizedDescription
                                 showingError = true
                             }
                         }
                         .signInWithAppleButtonStyle(.white)
-                        .frame(height: 50)
+                        .frame(height: 52)
+                        .cornerRadius(14)
                     }
 
-                    Button("Skip for now") {
-                        onSignedIn()
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.gray)
+                    Button("Skip") { onSignedIn() }
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.4))
+                        .padding(.top, 2)
                 }
-                .padding(.horizontal, 32)
+                .padding(.horizontal, 28)
 
                 #if DEBUG
                 Button {
                     authService.debugSignIn()
                     onSignedIn()
                 } label: {
-                    HStack {
-                        Image(systemName: "hammer.fill")
-                        Text("Debug Sign In (Simulator)")
-                    }
-                    .font(.headline)
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.orange)
-                    .cornerRadius(12)
+                    Text("Debug Sign In")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.orange)
                 }
-                .padding(.top, 8)
-                .padding(.horizontal, 32)
+                .padding(.top, 12)
                 #endif
 
-                Spacer().frame(height: 24)
+                Spacer().frame(height: 20)
             }
         }
         .alert("Sign In Error", isPresented: $showingError) {
@@ -314,74 +254,210 @@ struct SignInView: View {
         }
     }
 
-    // MARK: - Onboarding Page
+    // MARK: - Background
 
-    private func onboardingPageView(_ page: OnboardingPage) -> some View {
-        VStack(spacing: 20) {
+    private var backgroundGradient: some View {
+        ZStack {
+            Color.black
+
+            switch currentPage {
+            case 0:
+                // Deep blue atmosphere
+                RadialGradient(
+                    colors: [Color.blue.opacity(0.25), Color.clear],
+                    center: .top,
+                    startRadius: 100,
+                    endRadius: 500
+                )
+            case 1:
+                // Warm purple atmosphere
+                RadialGradient(
+                    colors: [Color.purple.opacity(0.2), Color.clear],
+                    center: .topTrailing,
+                    startRadius: 80,
+                    endRadius: 450
+                )
+            default:
+                // Teal atmosphere
+                RadialGradient(
+                    colors: [Color.cyan.opacity(0.15), Color.clear],
+                    center: .topLeading,
+                    startRadius: 100,
+                    endRadius: 500
+                )
+            }
+        }
+    }
+
+    // MARK: - Page 1: Capture
+
+    private var page1: some View {
+        VStack(spacing: 0) {
             Spacer()
 
-            // Hero: screenshot or icon fallback
-            if let screenshotName = page.screenshotName,
-               UIImage(named: screenshotName) != nil {
-                // App screenshot in a phone frame
-                Image(screenshotName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxHeight: 280)
-                    .cornerRadius(20)
-                    .shadow(color: page.iconColor.opacity(0.3), radius: 20, y: 10)
-                    .padding(.horizontal, 48)
-            } else {
-                // SF Symbol fallback
-                ZStack {
-                    Circle()
-                        .fill(page.iconColor.opacity(0.15))
-                        .frame(width: 100, height: 100)
+            // Large icon with glow
+            ZStack {
+                // Outer glow ring
+                Circle()
+                    .fill(Color.blue.opacity(0.08))
+                    .frame(width: 160, height: 160)
 
-                    Image(systemName: page.icon)
-                        .font(.system(size: 42))
-                        .foregroundStyle(page.iconColor)
-                }
+                Circle()
+                    .fill(Color.blue.opacity(0.12))
+                    .frame(width: 110, height: 110)
+
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 48, weight: .light))
+                    .foregroundStyle(.white)
             }
+            .padding(.bottom, 40)
 
-            // Title & subtitle
-            VStack(spacing: 10) {
-                Text(page.title)
-                    .font(.title.weight(.bold))
+            // Typography-forward layout
+            VStack(spacing: 16) {
+                Text("Just talk.")
+                    .font(.system(size: 34, weight: .bold))
                     .foregroundStyle(.white)
 
-                Text(page.subtitle)
-                    .font(.body)
-                    .foregroundStyle(.gray)
+                Text("We turn your voice into\norganized, searchable notes.")
+                    .font(.system(size: 17))
+                    .foregroundStyle(.white.opacity(0.55))
                     .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .padding(.horizontal, 24)
+                    .lineSpacing(4)
             }
 
-            Spacer().frame(height: 4)
+            Spacer()
 
-            // Feature cards
-            VStack(spacing: 10) {
-                ForEach(page.features, id: \.text) { feature in
-                    HStack(spacing: 14) {
-                        Image(systemName: feature.icon)
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(.blue)
-                            .frame(width: 28)
+            // Minimal feature hints — no cards, just clean text
+            VStack(spacing: 18) {
+                featureRow("waveform", "Record anywhere")
+                featureRow("text.cursor", "Transcribed instantly")
+                featureRow("arrow.trianglehead.2.clockwise", "Synced to all devices")
+            }
+            .padding(.horizontal, 48)
 
-                        Text(feature.text)
-                            .font(.body)
-                            .foregroundStyle(.white.opacity(0.9))
+            Spacer().frame(height: 40)
+        }
+    }
 
-                        Spacer()
+    // MARK: - Page 2: AI
+
+    private var page2: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            // Sparkle cluster
+            ZStack {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(.white.opacity(0.3))
+                    .offset(x: -40, y: -30)
+
+                Image(systemName: "sparkle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white.opacity(0.2))
+                    .offset(x: 45, y: -40)
+
+                Image(systemName: "sparkle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.15))
+                    .offset(x: 50, y: 20)
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 52, weight: .light))
+                    .foregroundStyle(.white)
+            }
+            .frame(height: 120)
+            .padding(.bottom, 36)
+
+            VStack(spacing: 16) {
+                Text("AI does the rest.")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(.white)
+
+                Text("Decisions, actions, commitments —\nextracted from every note.")
+                    .font(.system(size: 17))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+
+            Spacer()
+
+            VStack(spacing: 18) {
+                featureRow("checkmark.circle", "Actions from your words")
+                featureRow("person.2", "Tracks who owes what")
+                featureRow("exclamationmark.circle", "Flags what needs attention")
+            }
+            .padding(.horizontal, 48)
+
+            Spacer().frame(height: 40)
+        }
+    }
+
+    // MARK: - Page 3: Reports
+
+    private var page3: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            // Abstract chart visualization
+            ZStack {
+                // Layered bars suggesting a report/dashboard
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach([0.35, 0.55, 0.7, 0.5, 0.85, 0.65, 0.45], id: \.self) { height in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(
+                                LinearGradient(
+                                    colors: [.cyan.opacity(0.6), .blue.opacity(0.3)],
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                )
+                            )
+                            .frame(width: 12, height: CGFloat(height) * 80)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color(.systemGray6).opacity(0.3))
-                    .cornerRadius(12)
                 }
+                .frame(height: 90)
             }
-            .padding(.horizontal, 32)
+            .padding(.bottom, 36)
+
+            VStack(spacing: 16) {
+                Text("Your command\ncenter.")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+
+                Text("CEO reports, SWOT analysis,\ngoal tracking — one tap away.")
+                    .font(.system(size: 17))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+
+            Spacer()
+
+            VStack(spacing: 18) {
+                featureRow("chart.bar.doc.horizontal", "AI-powered reports")
+                featureRow("rectangle.3.group", "Visual project boards")
+                featureRow("target", "Track goals & momentum")
+            }
+            .padding(.horizontal, 48)
+
+            Spacer().frame(height: 40)
+        }
+    }
+
+    // MARK: - Feature Row (minimal, no cards)
+
+    private func featureRow(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
+                .frame(width: 22)
+
+            Text(text)
+                .font(.system(size: 15))
+                .foregroundStyle(.white.opacity(0.6))
 
             Spacer()
         }
