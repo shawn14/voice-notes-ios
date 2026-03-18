@@ -181,6 +181,15 @@ struct AIHomeView: View {
 
             Spacer()
 
+            if authService.isSignedIn {
+                NavigationLink(destination: ReportsView()) {
+                    Image(systemName: "sparkles")
+                        .font(.title3)
+                        .foregroundStyle(.blue)
+                }
+                .padding(.trailing, 8)
+            }
+
             Button {
                 showingSettings = true
             } label: {
