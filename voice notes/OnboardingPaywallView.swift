@@ -209,7 +209,8 @@ struct OnboardingPaywallView: View {
             } label: {
                 Text("Try 5 free notes first")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.blue)
+                    .underline()
             }
 
             // Restore purchases
