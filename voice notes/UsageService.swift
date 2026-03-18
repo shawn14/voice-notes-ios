@@ -21,6 +21,7 @@ class UsageService {
     private let totalRecordingSecondsKey = "totalRecordingSeconds"
     private let hasShownPaywallKey = "hasShownPaywall"
     private let subscriptionStatusKey = "subscriptionStatus"
+    private let reportCountKey = "reportGenerationCount"
 
     // MARK: - Constants
 
@@ -49,6 +50,27 @@ class UsageService {
 
     var canCreateNote: Bool {
         isPro || noteCount < UsageService.freeNoteLimit
+    }
+
+    // MARK: - Report Usage
+
+    static let freeReportLimit = 2
+
+    var reportGenerationCount: Int {
+        get { defaults.integer(forKey: reportCountKey) }
+        set { defaults.set(newValue, forKey: reportCountKey) }
+    }
+
+    var canGenerateReport: Bool {
+        isPro || reportGenerationCount < UsageService.freeReportLimit
+    }
+
+    var freeReportsRemaining: Int {
+        max(0, UsageService.freeReportLimit - reportGenerationCount)
+    }
+
+    func incrementReportCount() {
+        reportGenerationCount += 1
     }
 
     var freeNotesRemaining: Int {
@@ -123,6 +145,7 @@ class UsageService {
         totalRecordingSeconds = 0
         hasShownPaywall = false
         subscriptionStatus = "free"
+        reportGenerationCount = 0
     }
 
     // Legacy compatibility - these can be removed later
