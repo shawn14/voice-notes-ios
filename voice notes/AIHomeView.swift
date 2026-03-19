@@ -8,6 +8,7 @@
 
 import SwiftUI
 import SwiftData
+import AuthenticationServices
 
 struct AIHomeView: View {
     @Environment(\.modelContext) private var modelContext
@@ -152,7 +153,24 @@ struct AIHomeView: View {
                 PaywallView(onDismiss: { showPaywall = false })
             }
             .sheet(isPresented: $showSignIn) {
-                SignInView(onSignedIn: { showSignIn = false })
+                // Minimal sign-in sheet for users who skipped during onboarding
+                SignInWithAppleButton(.signIn) { request in
+                    request.requestedScopes = [.fullName, .email]
+                } onCompletion: { result in
+                    switch result {
+                    case .success(let authorization):
+                        AuthService.shared.handleSignInResult(.success(authorization))
+                        showSignIn = false
+                    case .failure:
+                        showSignIn = false
+                    }
+                }
+                .signInWithAppleButtonStyle(.white)
+                .frame(height: 54)
+                .cornerRadius(14)
+                .padding(28)
+                .presentationDetents([.height(200)])
+                .presentationDragIndicator(.visible)
             }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) { }
@@ -258,6 +276,17 @@ struct AIHomeView: View {
             }
 
             Spacer()
+
+            #if DEBUG
+            Button {
+                OnboardingState.set(.needsSignIn)
+            } label: {
+                Text("Reset Onboarding")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.orange)
+            }
+            .padding(.bottom, 8)
+            #endif
         }
         .padding()
     }

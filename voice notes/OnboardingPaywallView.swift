@@ -10,7 +10,6 @@ import SwiftUI
 import StoreKit
 
 struct OnboardingPaywallView: View {
-    let onComplete: () -> Void
 
     @State private var selectedProductID: String = SubscriptionProduct.annual.rawValue
     @State private var isPurchasing = false
@@ -21,47 +20,84 @@ struct OnboardingPaywallView: View {
 
     var body: some View {
         ZStack {
-            // Atmospheric background matching onboarding page 3
+            // Rich layered atmospheric background
             Color.black.ignoresSafeArea()
 
             RadialGradient(
-                colors: [Color.blue.opacity(0.15), Color.clear],
+                colors: [Color.blue.opacity(0.3), Color.blue.opacity(0.06), Color.clear],
                 center: .top,
+                startRadius: 20,
+                endRadius: 500
+            )
+            .ignoresSafeArea()
+
+            RadialGradient(
+                colors: [Color.indigo.opacity(0.08), Color.clear],
+                center: .bottomTrailing,
                 startRadius: 50,
-                endRadius: 400
+                endRadius: 350
             )
             .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    Spacer().frame(height: 60)
+                    Spacer().frame(height: 50)
 
-                    // Headline — editorial, not template
-                    VStack(spacing: 14) {
+                    // Pro badge icon
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.04))
+                            .frame(width: 80, height: 80)
+
+                        Circle()
+                            .fill(Color.white.opacity(0.06))
+                            .frame(width: 56, height: 56)
+
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.white, .white.opacity(0.7)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    }
+                    .padding(.bottom, 24)
+
+                    // Headline
+                    VStack(spacing: 12) {
                         Text("Go unlimited.")
-                            .font(.system(size: 34, weight: .bold))
+                            .font(.system(size: 38, weight: .bold))
                             .foregroundStyle(.white)
+                            .tracking(-0.5)
 
                         Text("Everything you just saw,\nwithout limits.")
                             .font(.system(size: 17))
-                            .foregroundStyle(.white.opacity(0.55))
+                            .foregroundStyle(.white.opacity(0.5))
                             .multilineTextAlignment(.center)
-                            .lineSpacing(4)
+                            .lineSpacing(5)
                     }
 
-                    Spacer().frame(height: 36)
+                    Spacer().frame(height: 32)
 
-                    // Feature list — minimal, matching onboarding style
-                    VStack(spacing: 16) {
+                    // Feature list — glass-backed card
+                    VStack(spacing: 14) {
                         paywallFeature("infinity", "Unlimited voice notes")
                         paywallFeature("sparkles", "AI extraction on every note")
                         paywallFeature("chart.bar.doc.horizontal", "CEO reports & SWOT analysis")
                         paywallFeature("person.2", "People & commitment tracking")
                         paywallFeature("arrow.trianglehead.2.clockwise", "Sync across all devices")
                     }
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white.opacity(0.04))
+                    )
+                    .padding(.horizontal, 28)
 
-                    Spacer().frame(height: 36)
+                    Spacer().frame(height: 28)
 
                     // Subscription options
                     subscriptionSection
@@ -100,13 +136,13 @@ struct OnboardingPaywallView: View {
     private func paywallFeature(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.4))
-                .frame(width: 22)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white.opacity(0.35))
+                .frame(width: 24, height: 24)
 
             Text(text)
-                .font(.system(size: 15))
-                .foregroundStyle(.white.opacity(0.6))
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.white.opacity(0.65))
 
             Spacer()
         }
@@ -183,33 +219,34 @@ struct OnboardingPaywallView: View {
     // MARK: - CTA Section
 
     private var ctaSection: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             // Subscribe button
             Button(action: handlePurchase) {
-                HStack {
+                HStack(spacing: 8) {
                     if isPurchasing {
                         ProgressView()
                             .tint(.black)
                     } else {
                         Text("Start Pro")
-                            .font(.body.weight(.semibold))
+                            .font(.body.weight(.bold))
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+                .padding(.vertical, 18)
                 .background(Color.white)
                 .foregroundStyle(.black)
                 .cornerRadius(14)
             }
             .disabled(isPurchasing || subscriptionManager.products.isEmpty)
+            .opacity(subscriptionManager.products.isEmpty ? 0.5 : 1)
 
             // Skip button
             Button {
-                onComplete()
+                OnboardingState.set(.completed)
             } label: {
                 Text("Try 5 free notes first")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(0.5))
                     .underline()
             }
 
@@ -218,13 +255,13 @@ struct OnboardingPaywallView: View {
                 Task {
                     await subscriptionManager.restorePurchases()
                     if subscriptionManager.isSubscribed {
-                        onComplete()
+                        OnboardingState.set(.completed)
                     }
                 }
             }
-            .font(.subheadline)
-            .foregroundStyle(.white.opacity(0.6))
-            .padding(.top, 4)
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.35))
+            .padding(.top, 2)
         }
     }
 
@@ -233,15 +270,15 @@ struct OnboardingPaywallView: View {
     private var legalSection: some View {
         VStack(spacing: 6) {
             Text("Cancel anytime. Payment charged to Apple ID.")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.5))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.3))
 
             HStack(spacing: 16) {
                 Link("Terms", destination: URL(string: "https://eeon.com/terms")!)
                 Link("Privacy", destination: URL(string: "https://eeon.com/privacy")!)
             }
-            .font(.caption)
-            .foregroundStyle(.white.opacity(0.5))
+            .font(.caption2)
+            .foregroundStyle(.white.opacity(0.3))
         }
         .padding(.bottom, 16)
     }
@@ -262,7 +299,7 @@ struct OnboardingPaywallView: View {
                 await MainActor.run {
                     isPurchasing = false
                     if success {
-                        onComplete()
+                        OnboardingState.set(.completed)
                     }
                 }
             } catch {
@@ -289,11 +326,11 @@ struct PlanOption: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack {
+            HStack(spacing: 14) {
                 // Selection indicator
                 ZStack {
                     Circle()
-                        .stroke(isSelected ? Color.white : Color.white.opacity(0.2), lineWidth: 1.5)
+                        .stroke(isSelected ? Color.white : Color.white.opacity(0.15), lineWidth: 1.5)
                         .frame(width: 22, height: 22)
 
                     if isSelected {
@@ -303,7 +340,7 @@ struct PlanOption: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 8) {
                         Text(title)
                             .font(.body.weight(.semibold))
@@ -311,12 +348,14 @@ struct PlanOption: View {
 
                         if let badge = badge {
                             Text(badge)
-                                .font(.caption2.weight(.semibold))
+                                .font(.caption2.weight(.bold))
                                 .foregroundStyle(.black)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
-                                .background(Color.white)
-                                .cornerRadius(4)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.white)
+                                )
                         }
                     }
 
@@ -335,23 +374,25 @@ struct PlanOption: View {
                         .foregroundStyle(.white)
                     Text("/\(period)")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(.white.opacity(0.35))
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 18)
             .background(
                 RoundedRectangle(cornerRadius: 14)
                     .fill(Color.white.opacity(isSelected ? 0.08 : 0.03))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(isSelected ? Color.white.opacity(0.3) : Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(isSelected ? Color.white.opacity(0.25) : Color.white.opacity(0.06), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.2), value: isSelected)
     }
 }
 
 #Preview {
-    OnboardingPaywallView(onComplete: {})
+    OnboardingPaywallView()
 }

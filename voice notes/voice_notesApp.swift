@@ -13,9 +13,7 @@ struct voice_notesApp: App {
     let container: ModelContainer
     @State private var authService = AuthService.shared
     @State private var subscriptionManager = SubscriptionManager.shared
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("hasSeenOnboardingPaywall") private var hasSeenOnboardingPaywall = false
-    @State private var isSignedInDuringOnboarding = false
+    @AppStorage("onboardingState") private var onboardingState: String = OnboardingState.needsSignIn.rawValue
     @Environment(\.scenePhase) private var scenePhase
 
     // Shared note handling
@@ -65,12 +63,11 @@ struct voice_notesApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if hasCompletedOnboarding {
+                switch OnboardingState(rawValue: onboardingState) ?? .needsSignIn {
+                case .completed:
                     AIHomeView()
                         .task {
-                            // Check if Apple ID credential is still valid
                             await authService.checkCredentialState()
-                            // Check subscription status
                             await subscriptionManager.updateSubscriptionStatus()
                         }
                         .onChange(of: scenePhase) { _, newPhase in
@@ -80,20 +77,10 @@ struct voice_notesApp: App {
                                 }
                             }
                         }
-                } else if isSignedInDuringOnboarding || hasSeenOnboardingPaywall {
-                    // Step 2: Show onboarding paywall after sign-in
-                    OnboardingPaywallView {
-                        // Complete onboarding (whether they subscribed or skipped)
-                        // @AppStorage automatically persists to UserDefaults
-                        hasCompletedOnboarding = true
-                        hasSeenOnboardingPaywall = true
-                    }
-                } else {
-                    // Step 1: Sign in first
-                    SignInView {
-                        // Move to paywall step instead of completing onboarding
-                        isSignedInDuringOnboarding = true
-                    }
+                case .needsPaywall:
+                    OnboardingPaywallView()
+                case .needsSignIn:
+                    SignInView()
                 }
             }
             .onOpenURL { url in

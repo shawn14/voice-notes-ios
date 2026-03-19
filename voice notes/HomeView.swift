@@ -153,124 +153,128 @@ struct HomeView: View {
         }
     }
 
+    private var headerView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    showingAssistant = true
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.15))
+                            .frame(width: 40, height: 40)
+
+                        Image(systemName: "sparkles")
+                            .font(.title3)
+                            .foregroundStyle(.blue)
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    showingSettings = true
+                } label: {
+                    if authService.isSignedIn {
+                        UserAvatarView(name: authService.displayName, size: 36)
+                    } else {
+                        Image(systemName: "person.circle")
+                            .font(.title2)
+                            .foregroundStyle(.gray)
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            HStack {
+                Text("All Notes")
+                    .font(.largeTitle.weight(.bold))
+                    .foregroundStyle(.white)
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+        }
+    }
+
+    private var briefAndSearchSection: some View {
+        VStack(spacing: 0) {
+            if authService.isSignedIn {
+                DailyBriefHeader(
+                    brief: todaysBrief,
+                    sessionBrief: intelligenceService.sessionBrief,
+                    isGenerating: intelligenceService.isRefreshingDaily,
+                    error: intelligenceService.dailyBriefError,
+                    onRetry: retryDailyBrief
+                )
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+
+            if authService.isSignedIn && !UsageService.shared.isPro {
+                let remaining = UsageService.shared.freeNotesRemaining
+                if remaining <= 2 && remaining > 0 {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundStyle(.orange)
+                        Text("\(remaining) free note\(remaining == 1 ? "" : "s") left")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.orange)
+                        Spacer()
+                        Button("Upgrade") {
+                            showPaywall = true
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.blue)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.orange.opacity(0.15))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                }
+            }
+
+            if intelligenceService.isRefreshingDaily {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .tint(.blue)
+                    Text("Generating daily brief...")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.top, 4)
+            }
+
+            if authService.isSignedIn {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.gray)
+                    TextField("Search", text: $searchText)
+                        .foregroundStyle(.white)
+                }
+                .padding(12)
+                .background(Color(.systemGray6).opacity(0.3))
+                .cornerRadius(10)
+                .padding(.horizontal)
+                .padding(.top, 12)
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
-                // Dark background
                 Color.black.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Header with assistant and settings
-                    HStack {
-                        Button {
-                            showingAssistant = true
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.blue.opacity(0.15))
-                                    .frame(width: 40, height: 40)
-
-                                Image(systemName: "sparkles")
-                                    .font(.title3)
-                                    .foregroundStyle(.blue)
-                            }
-                        }
-
-                        Spacer()
-
-                        Button {
-                            showingSettings = true
-                        } label: {
-                            if authService.isSignedIn {
-                                UserAvatarView(name: authService.displayName, size: 36)
-                            } else {
-                                Image(systemName: "person.circle")
-                                    .font(.title2)
-                                    .foregroundStyle(.gray)
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-
-                    // Title
-                    HStack {
-                        Text("All Notes")
-                            .font(.largeTitle.weight(.bold))
-                            .foregroundStyle(.white)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-
-                    // Daily Brief Header (only show when signed in)
-                    if authService.isSignedIn {
-                        DailyBriefHeader(
-                            brief: todaysBrief,
-                            sessionBrief: intelligenceService.sessionBrief,
-                            isGenerating: intelligenceService.isRefreshingDaily,
-                            error: intelligenceService.dailyBriefError,
-                            onRetry: retryDailyBrief
-                        )
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                    }
-
-                    // Usage warning (show when 2 or fewer free notes remaining)
-                    if authService.isSignedIn && !UsageService.shared.isPro {
-                        let remaining = UsageService.shared.freeNotesRemaining
-                        if remaining <= 2 && remaining > 0 {
-                            HStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .foregroundStyle(.orange)
-                                Text("\(remaining) free note\(remaining == 1 ? "" : "s") left")
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.orange)
-                                Spacer()
-                                Button("Upgrade") {
-                                    showPaywall = true
-                                }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.blue)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.orange.opacity(0.15))
-                            .cornerRadius(10)
-                            .padding(.horizontal)
-                            .padding(.top, 8)
-                        }
-                    }
-
-                    // Background processing indicator
-                    if intelligenceService.isRefreshingDaily {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                                .tint(.blue)
-                            Text("Generating daily brief...")
-                                .font(.caption)
-                                .foregroundStyle(.blue)
-                            Spacer()
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 4)
-                    }
-
-                    // Search bar (only show when signed in)
-                    if authService.isSignedIn {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.gray)
-                            TextField("Search", text: $searchText)
-                                .foregroundStyle(.white)
-                        }
-                        .padding(12)
-                        .background(Color(.systemGray6).opacity(0.3))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
-                        .padding(.top, 12)
-                    }
+                    headerView
+                    briefAndSearchSection
 
                     // Filter tabs
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -498,9 +502,7 @@ struct HomeView: View {
                 AssistantView()
             }
             .sheet(isPresented: $showSignIn) {
-                SignInView(onSignedIn: {
-                    showSignIn = false
-                })
+                SignInView()
             }
             .sheet(isPresented: $showFirstClarity) {
                 if let note = newlyCreatedNote {
@@ -880,13 +882,8 @@ struct HomeView: View {
                         }
 
                         // Auto-assign project
-                        let matcher = ProjectMatcher(apiKey: apiKey)
-                        Task {
-                            if let projectId = await matcher.findMatchingProject(for: content, projects: allProjects) {
-                                await MainActor.run {
-                                    note.projectId = projectId
-                                }
-                            }
+                        if let match = ProjectMatcher.findMatch(for: content, in: allProjects) {
+                            note.projectId = match.project.id
                         }
                     }
                 } catch {
@@ -1486,6 +1483,152 @@ struct SettingsView: View {
 
     private let usage = UsageService.shared
 
+    private var accountSection: some View {
+        Section {
+            accountRow
+
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(usage.isPro ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: usage.isPro ? "sparkles" : "star.fill")
+                        .foregroundStyle(usage.isPro ? .blue : .orange)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Plan: \(usage.isPro ? "Pro" : "Free")")
+                        .font(.body.weight(.medium))
+                    if usage.isPro {
+                        Text("All features unlocked")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("Upgrade for unlimited AI")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if !usage.isPro {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.vertical, 4)
+
+            if !usage.isPro {
+                Button { showingPaywall = true } label: {
+                    HStack(spacing: 16) {
+                        Image(systemName: "sparkles").foregroundStyle(.blue).frame(width: 44)
+                        Text("Upgrade to Pro").font(.body).foregroundStyle(.primary)
+                        Spacer()
+                        Text("$9.99/mo").font(.caption).foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain).padding(.vertical, 4)
+            }
+
+            HStack(spacing: 16) {
+                Image(systemName: "globe").foregroundStyle(.blue).frame(width: 44)
+                Text(AppInfo.versionString).font(.body)
+                Spacer()
+            }
+            .padding(.vertical, 4)
+
+            Button { showingShareSheet = true } label: {
+                HStack(spacing: 16) {
+                    Image(systemName: "square.and.arrow.up").foregroundStyle(.blue).frame(width: 44)
+                    Text("Share Voice Notes").font(.body).foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain).padding(.vertical, 4)
+
+            if usage.isPro {
+                Button { showingResetConfirm = true } label: {
+                    HStack(spacing: 16) {
+                        Image(systemName: "arrow.uturn.backward.circle").foregroundStyle(.orange).frame(width: 44)
+                        Text("Downgrade to Free").font(.body).foregroundStyle(.primary)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain).padding(.vertical, 4)
+            }
+
+            if authService.isSignedIn {
+                Button { showingSignOutConfirm = true } label: {
+                    HStack(spacing: 16) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right").foregroundStyle(.primary).frame(width: 44)
+                        Text("Sign Out").font(.body)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain).padding(.vertical, 4)
+            } else {
+                Button { showSignIn = true } label: {
+                    HStack(spacing: 16) {
+                        Image(systemName: "person.crop.circle.badge.plus").foregroundStyle(.blue).frame(width: 44)
+                        Text("Sign In").font(.body).foregroundStyle(.blue)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain).padding(.vertical, 4)
+            }
+        } header: {
+            Text("Account")
+        }
+    }
+
+    private var accountRow: some View {
+        Button {
+            editedName = authService.userName ?? ""
+            showingEditName = true
+        } label: {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: authService.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle")
+                        .foregroundStyle(.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    if authService.isSignedIn {
+                        Text(authService.displayName)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.primary)
+                        if let email = authService.userEmail {
+                            Text(email)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("Not signed in")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.primary)
+                        Text("Local data only")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                if authService.isSignedIn {
+                    Text("Edit")
+                        .font(.subheadline)
+                        .foregroundStyle(.blue)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 4)
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -1497,213 +1640,7 @@ struct SettingsView: View {
                 }
 
                 // MARK: - Account Section
-                Section {
-                    // Account info with edit button
-                    Button {
-                        editedName = authService.userName ?? ""
-                        showingEditName = true
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.blue.opacity(0.15))
-                                    .frame(width: 44, height: 44)
-                                Image(systemName: authService.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle")
-                                    .foregroundStyle(.blue)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                if authService.isSignedIn {
-                                    Text(authService.displayName)
-                                        .font(.body.weight(.medium))
-                                        .foregroundStyle(.primary)
-                                    if let email = authService.userEmail {
-                                        Text(email)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                } else {
-                                    Text("Not signed in")
-                                        .font(.body.weight(.medium))
-                                        .foregroundStyle(.primary)
-                                    Text("Local data only")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            if authService.isSignedIn {
-                                Text("Edit")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.blue)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-
-                    // Current level
-                    HStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(usage.isPro ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: usage.isPro ? "sparkles" : "star.fill")
-                                .foregroundStyle(usage.isPro ? .blue : .orange)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Plan: \(usage.isPro ? "Pro" : "Free")")
-                                .font(.body.weight(.medium))
-                            if usage.isPro {
-                                Text("All features unlocked")
-                                    .font(.caption)
-                                    .foregroundStyle(.green)
-                            } else {
-                                Text("Upgrade for unlimited AI")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-
-                        Spacer()
-
-                        if !usage.isPro {
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .padding(.vertical, 4)
-
-                    // Upgrade option (only show if not Pro)
-                    if !usage.isPro {
-                        Button {
-                            showingPaywall = true
-                        } label: {
-                            HStack(spacing: 16) {
-                                Image(systemName: "sparkles")
-                                    .foregroundStyle(.blue)
-                                    .frame(width: 44)
-
-                                Text("Upgrade to Pro")
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
-
-                                Spacer()
-
-                                Text("$9.99/mo")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 4)
-                    }
-
-                    // Version
-                    HStack(spacing: 16) {
-                        Image(systemName: "globe")
-                            .foregroundStyle(.blue)
-                            .frame(width: 44)
-
-                        Text(AppInfo.versionString)
-                            .font(.body)
-
-                        Spacer()
-                    }
-                    .padding(.vertical, 4)
-
-                    // Share
-                    Button {
-                        showingShareSheet = true
-                    } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "square.and.arrow.up")
-                                .foregroundStyle(.blue)
-                                .frame(width: 44)
-
-                            Text("Share Voice Notes")
-                                .font(.body)
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-
-                    // Reset to Free (for Pro users or testing)
-                    if usage.isPro {
-                        Button {
-                            showingResetConfirm = true
-                        } label: {
-                            HStack(spacing: 16) {
-                                Image(systemName: "arrow.uturn.backward.circle")
-                                    .foregroundStyle(.orange)
-                                    .frame(width: 44)
-
-                                Text("Downgrade to Free")
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
-
-                                Spacer()
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 4)
-                    }
-
-                    // Sign In / Sign Out (conditional)
-                    if authService.isSignedIn {
-                        Button {
-                            showingSignOutConfirm = true
-                        } label: {
-                            HStack(spacing: 16) {
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                    .foregroundStyle(.primary)
-                                    .frame(width: 44)
-
-                                Text("Sign Out")
-                                    .font(.body)
-
-                                Spacer()
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 4)
-                    } else {
-                        Button {
-                            showSignIn = true
-                        } label: {
-                            HStack(spacing: 16) {
-                                Image(systemName: "person.crop.circle.badge.plus")
-                                    .foregroundStyle(.blue)
-                                    .frame(width: 44)
-
-                                Text("Sign In")
-                                    .font(.body)
-                                    .foregroundStyle(.blue)
-
-                                Spacer()
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 4)
-                    }
-                } header: {
-                    Text("Account")
-                }
+                accountSection
 
                 // MARK: - Projects Section
                 Section {
@@ -2009,7 +1946,7 @@ struct SettingsView: View {
                 Text("This name will be shown in the app and used for your avatar initials.")
             }
             .sheet(isPresented: $showingShareSheet) {
-                ShareSheet(items: [URL(string: "https://apps.apple.com/app/voice-notes")!])
+                ShareSheet(items: [URL(string: "https://apps.apple.com/app/id6758273499")!])
             }
             .sheet(isPresented: $showingPaywall) {
                 PaywallView(onDismiss: {
@@ -2017,9 +1954,7 @@ struct SettingsView: View {
                 })
             }
             .sheet(isPresented: $showSignIn) {
-                SignInView(onSignedIn: {
-                    showSignIn = false
-                })
+                SignInView()
             }
             .confirmationDialog("Downgrade to Free?", isPresented: $showingResetConfirm, titleVisibility: .visible) {
                 Button("Downgrade", role: .destructive) {
@@ -2068,10 +2003,12 @@ struct SettingsView: View {
     }
 
     private func signOutOnly() {
-        // Just sign out - keep all data locally and in iCloud
-        // AuthService.signOut() also resets OnboardingState to .needsSignIn
-        AuthService.shared.signOut()
+        // Dismiss settings first, then sign out after sheet animation completes
+        // This avoids the sheet dismissal fighting the root view swap
         dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            AuthService.shared.signOut()
+        }
     }
 
     private func deleteAllDataAndSignOut() {
@@ -2101,9 +2038,11 @@ struct SettingsView: View {
         StatusCounters.shared.reset()
 
         // Clear all user data including name/email and usage
-        // clearAllUserData() also resets OnboardingState to .needsSignIn
-        AuthService.shared.clearAllUserData()
+        // Dismiss first, then clear data after sheet animation completes
         dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            AuthService.shared.clearAllUserData()
+        }
     }
 }
 

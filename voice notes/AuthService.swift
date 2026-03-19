@@ -10,6 +10,32 @@ import AuthenticationServices
 import SwiftUI
 import UIKit
 
+// MARK: - Onboarding State Machine
+
+/// Single source of truth for onboarding flow.
+/// Persisted to UserDefaults via @AppStorage in voice_notesApp.
+enum OnboardingState: String {
+    case needsSignIn    // Show sign-in carousel
+    case needsPaywall   // Show subscription paywall
+    case completed      // Show main app
+
+    private static let key = "onboardingState"
+
+    /// Read current state from UserDefaults
+    static var current: OnboardingState {
+        guard let raw = UserDefaults.standard.string(forKey: key),
+              let state = OnboardingState(rawValue: raw) else {
+            return .needsSignIn
+        }
+        return state
+    }
+
+    /// Write state to UserDefaults (triggers @AppStorage updates)
+    static func set(_ state: OnboardingState) {
+        UserDefaults.standard.set(state.rawValue, forKey: key)
+    }
+}
+
 @Observable
 class AuthService {
     static let shared = AuthService()
@@ -96,8 +122,7 @@ class AuthService {
         // Only clear userId - keep userName/userEmail so they're restored on sign back in
         // Apple only provides name/email on FIRST sign-in, so we need to preserve them
         setUserId(nil)
-
-        // Note: Usage is NOT reset on sign out - user keeps their usage history
+        OnboardingState.set(.needsSignIn)
         print("Signed out. isSignedIn: \(isSignedIn)")
     }
 
@@ -107,6 +132,7 @@ class AuthService {
         setUserEmail(nil)
         userName = nil
         UsageService.shared.resetAllUsage()
+        OnboardingState.set(.needsSignIn)
     }
 
     #if DEBUG
@@ -156,8 +182,6 @@ class AuthService {
 // MARK: - Sign In View
 
 struct SignInView: View {
-    let onSignedIn: () -> Void
-
     private var authService: AuthService { AuthService.shared }
 
     @State private var currentPage = 0
@@ -165,6 +189,10 @@ struct SignInView: View {
     @State private var errorMessage = ""
 
     private let pageCount = 3
+
+    private func advanceToPaywall() {
+        OnboardingState.set(.needsPaywall)
+    }
 
     var body: some View {
         ZStack {
@@ -182,28 +210,28 @@ struct SignInView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
 
-                // Page indicator — thin bars, not dots
+                // Page indicator — refined capsule bars
                 HStack(spacing: 6) {
                     ForEach(0..<pageCount, id: \.self) { index in
                         Capsule()
-                            .fill(index == currentPage ? Color.white : Color.white.opacity(0.2))
-                            .frame(width: index == currentPage ? 24 : 8, height: 4)
+                            .fill(index == currentPage ? Color.white.opacity(0.9) : Color.white.opacity(0.15))
+                            .frame(width: index == currentPage ? 28 : 8, height: 3)
                             .animation(.spring(response: 0.35), value: currentPage)
                     }
                 }
-                .padding(.bottom, 28)
+                .padding(.bottom, 24)
 
                 // Bottom action area
-                VStack(spacing: 12) {
+                VStack(spacing: 14) {
                     if currentPage < pageCount - 1 {
                         Button {
                             withAnimation(.spring(response: 0.4)) { currentPage += 1 }
                         } label: {
                             Text("Continue")
-                                .font(.body.weight(.semibold))
+                                .font(.body.weight(.bold))
                                 .foregroundStyle(.black)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
+                                .padding(.vertical, 18)
                                 .background(Color.white)
                                 .cornerRadius(14)
                         }
@@ -214,20 +242,20 @@ struct SignInView: View {
                             switch result {
                             case .success(let authorization):
                                 authService.handleSignInResult(.success(authorization))
-                                if authService.isSignedIn { onSignedIn() }
+                                if authService.isSignedIn { advanceToPaywall() }
                             case .failure(let error):
                                 errorMessage = error.localizedDescription
                                 showingError = true
                             }
                         }
                         .signInWithAppleButtonStyle(.white)
-                        .frame(height: 52)
+                        .frame(height: 54)
                         .cornerRadius(14)
                     }
 
-                    Button("Skip") { onSignedIn() }
+                    Button("Skip") { advanceToPaywall() }
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(.white.opacity(0.3))
                         .padding(.top, 2)
                 }
                 .padding(.horizontal, 28)
@@ -235,7 +263,7 @@ struct SignInView: View {
                 #if DEBUG
                 Button {
                     authService.debugSignIn()
-                    onSignedIn()
+                    advanceToPaywall()
                 } label: {
                     Text("Debug Sign In")
                         .font(.caption.weight(.medium))
@@ -262,28 +290,46 @@ struct SignInView: View {
 
             switch currentPage {
             case 0:
-                // Deep blue atmosphere
+                // Deep blue atmosphere — layered for depth
                 RadialGradient(
-                    colors: [Color.blue.opacity(0.25), Color.clear],
+                    colors: [Color.blue.opacity(0.35), Color.blue.opacity(0.08), Color.clear],
                     center: .top,
-                    startRadius: 100,
-                    endRadius: 500
+                    startRadius: 20,
+                    endRadius: 550
+                )
+                RadialGradient(
+                    colors: [Color.cyan.opacity(0.1), Color.clear],
+                    center: .bottomLeading,
+                    startRadius: 50,
+                    endRadius: 400
                 )
             case 1:
-                // Warm purple atmosphere
+                // Warm purple atmosphere — richer, more dramatic
                 RadialGradient(
-                    colors: [Color.purple.opacity(0.2), Color.clear],
+                    colors: [Color.purple.opacity(0.35), Color.purple.opacity(0.08), Color.clear],
                     center: .topTrailing,
+                    startRadius: 20,
+                    endRadius: 500
+                )
+                RadialGradient(
+                    colors: [Color.indigo.opacity(0.12), Color.clear],
+                    center: .bottomLeading,
                     startRadius: 80,
-                    endRadius: 450
+                    endRadius: 400
                 )
             default:
-                // Teal atmosphere
+                // Teal atmosphere — deeper, more confident
                 RadialGradient(
-                    colors: [Color.cyan.opacity(0.15), Color.clear],
+                    colors: [Color.cyan.opacity(0.25), Color.teal.opacity(0.08), Color.clear],
                     center: .topLeading,
-                    startRadius: 100,
+                    startRadius: 20,
                     endRadius: 500
+                )
+                RadialGradient(
+                    colors: [Color.blue.opacity(0.1), Color.clear],
+                    center: .bottomTrailing,
+                    startRadius: 80,
+                    endRadius: 400
                 )
             }
         }
@@ -295,47 +341,57 @@ struct SignInView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Large icon with glow
+            // Hero icon with layered glow
             ZStack {
-                // Outer glow ring
+                Circle()
+                    .fill(Color.blue.opacity(0.05))
+                    .frame(width: 180, height: 180)
+                    .blur(radius: 20)
+
                 Circle()
                     .fill(Color.blue.opacity(0.08))
-                    .frame(width: 160, height: 160)
+                    .frame(width: 140, height: 140)
 
                 Circle()
-                    .fill(Color.blue.opacity(0.12))
-                    .frame(width: 110, height: 110)
+                    .fill(Color.blue.opacity(0.14))
+                    .frame(width: 100, height: 100)
 
                 Image(systemName: "mic.fill")
-                    .font(.system(size: 48, weight: .light))
+                    .font(.system(size: 44, weight: .light))
                     .foregroundStyle(.white)
             }
-            .padding(.bottom, 40)
+            .padding(.bottom, 44)
 
-            // Typography-forward layout
-            VStack(spacing: 16) {
+            VStack(spacing: 14) {
                 Text("Just talk.")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 38, weight: .bold, design: .default))
                     .foregroundStyle(.white)
+                    .tracking(-0.5)
 
                 Text("We turn your voice into\norganized, searchable notes.")
                     .font(.system(size: 17))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(.white.opacity(0.5))
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
+                    .lineSpacing(5)
             }
 
             Spacer()
 
-            // Minimal feature hints — no cards, just clean text
-            VStack(spacing: 18) {
+            // Feature hints with subtle glass backing
+            VStack(spacing: 12) {
                 featureRow("waveform", "Record anywhere")
                 featureRow("text.cursor", "Transcribed instantly")
                 featureRow("arrow.trianglehead.2.clockwise", "Synced to all devices")
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 20)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.04))
+            )
+            .padding(.horizontal, 28)
 
-            Spacer().frame(height: 40)
+            Spacer().frame(height: 32)
         }
     }
 
@@ -345,52 +401,65 @@ struct SignInView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Sparkle cluster
+            // Sparkle cluster — larger, more depth
             ZStack {
-                Image(systemName: "sparkle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.white.opacity(0.3))
-                    .offset(x: -40, y: -30)
+                // Soft glow behind
+                Circle()
+                    .fill(Color.purple.opacity(0.06))
+                    .frame(width: 160, height: 160)
+                    .blur(radius: 20)
 
                 Image(systemName: "sparkle")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.2))
-                    .offset(x: 45, y: -40)
+                    .font(.system(size: 22))
+                    .foregroundStyle(.white.opacity(0.25))
+                    .offset(x: -44, y: -34)
 
                 Image(systemName: "sparkle")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.15))
-                    .offset(x: 50, y: 20)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.white.opacity(0.18))
+                    .offset(x: 48, y: -42)
+
+                Image(systemName: "sparkle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.12))
+                    .offset(x: 52, y: 22)
 
                 Image(systemName: "sparkles")
-                    .font(.system(size: 52, weight: .light))
+                    .font(.system(size: 56, weight: .light))
                     .foregroundStyle(.white)
             }
-            .frame(height: 120)
-            .padding(.bottom, 36)
+            .frame(height: 130)
+            .padding(.bottom, 40)
 
-            VStack(spacing: 16) {
+            VStack(spacing: 14) {
                 Text("AI does the rest.")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 38, weight: .bold))
                     .foregroundStyle(.white)
+                    .tracking(-0.5)
 
                 Text("Decisions, actions, commitments —\nextracted from every note.")
                     .font(.system(size: 17))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(.white.opacity(0.5))
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
+                    .lineSpacing(5)
             }
 
             Spacer()
 
-            VStack(spacing: 18) {
+            VStack(spacing: 12) {
                 featureRow("checkmark.circle", "Actions from your words")
                 featureRow("person.2", "Tracks who owes what")
                 featureRow("exclamationmark.circle", "Flags what needs attention")
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 20)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.04))
+            )
+            .padding(.horizontal, 28)
 
-            Spacer().frame(height: 40)
+            Spacer().frame(height: 32)
         }
     }
 
@@ -400,49 +469,61 @@ struct SignInView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Abstract chart visualization
+            // Abstract chart visualization — more refined
             ZStack {
-                // Layered bars suggesting a report/dashboard
-                HStack(alignment: .bottom, spacing: 6) {
-                    ForEach([0.35, 0.55, 0.7, 0.5, 0.85, 0.65, 0.45], id: \.self) { height in
-                        RoundedRectangle(cornerRadius: 3)
+                // Soft glow
+                Circle()
+                    .fill(Color.cyan.opacity(0.06))
+                    .frame(width: 160, height: 160)
+                    .blur(radius: 20)
+
+                HStack(alignment: .bottom, spacing: 7) {
+                    ForEach(Array([0.3, 0.5, 0.72, 0.48, 0.88, 0.62, 0.4].enumerated()), id: \.offset) { index, height in
+                        RoundedRectangle(cornerRadius: 4)
                             .fill(
                                 LinearGradient(
-                                    colors: [.cyan.opacity(0.6), .blue.opacity(0.3)],
+                                    colors: [.cyan.opacity(0.7), .blue.opacity(0.25)],
                                     startPoint: .bottom,
                                     endPoint: .top
                                 )
                             )
-                            .frame(width: 12, height: CGFloat(height) * 80)
+                            .frame(width: 14, height: CGFloat(height) * 90)
                     }
                 }
-                .frame(height: 90)
+                .frame(height: 100)
             }
-            .padding(.bottom, 36)
+            .padding(.bottom, 40)
 
-            VStack(spacing: 16) {
+            VStack(spacing: 14) {
                 Text("Your command\ncenter.")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 38, weight: .bold))
                     .foregroundStyle(.white)
+                    .tracking(-0.5)
                     .multilineTextAlignment(.center)
 
                 Text("CEO reports, SWOT analysis,\ngoal tracking — one tap away.")
                     .font(.system(size: 17))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(.white.opacity(0.5))
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
+                    .lineSpacing(5)
             }
 
             Spacer()
 
-            VStack(spacing: 18) {
+            VStack(spacing: 12) {
                 featureRow("chart.bar.doc.horizontal", "AI-powered reports")
                 featureRow("rectangle.3.group", "Visual project boards")
                 featureRow("target", "Track goals & momentum")
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 20)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.04))
+            )
+            .padding(.horizontal, 28)
 
-            Spacer().frame(height: 40)
+            Spacer().frame(height: 32)
         }
     }
 
@@ -451,13 +532,13 @@ struct SignInView: View {
     private func featureRow(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.4))
-                .frame(width: 22)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white.opacity(0.35))
+                .frame(width: 24, height: 24)
 
             Text(text)
-                .font(.system(size: 15))
-                .foregroundStyle(.white.opacity(0.6))
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.white.opacity(0.65))
 
             Spacer()
         }
@@ -465,5 +546,5 @@ struct SignInView: View {
 }
 
 #Preview {
-    SignInView(onSignedIn: {})
+    SignInView()
 }
