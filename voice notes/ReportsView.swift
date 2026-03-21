@@ -30,6 +30,8 @@ struct ReportsView: View {
     @State private var showPaywall = false
     @FocusState private var isInputFocused: Bool
     @State private var lastReportType: ReportType?
+    @State private var showingMyEEON = false
+    @State private var personalizedReports: [PersonalizedReport] = PersonalizedReportStore.cached ?? []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -102,14 +104,30 @@ struct ReportsView: View {
             .padding()
             .background(Color(.systemBackground))
         }
-        .navigationTitle("AI Reports")
+        .navigationTitle(AuthService.shared.userName ?? "AI Reports")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: clearChat) {
-                    Image(systemName: "arrow.counterclockwise")
+                HStack(spacing: 16) {
+                    Button { showingMyEEON = true } label: {
+                        Image(systemName: "sparkles")
+                    }
+                    Button(action: clearChat) {
+                        Image(systemName: "arrow.counterclockwise")
+                    }
+                    .disabled(messages.isEmpty)
                 }
-                .disabled(messages.isEmpty)
+            }
+        }
+        .sheet(isPresented: $showingMyEEON) {
+            NavigationStack {
+                MyEEONView()
+            }
+        }
+        .onChange(of: showingMyEEON) {
+            if !showingMyEEON {
+                // Reload personalized reports after MyEEON sheet closes
+                personalizedReports = PersonalizedReportStore.cached ?? []
             }
         }
         .alert("Error", isPresented: $showingError) {
@@ -145,24 +163,67 @@ struct ReportsView: View {
     private var pillRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(ReportType.allCases) { reportType in
+                if !personalizedReports.isEmpty {
+                    // Personalized reports from My EEON
+                    ForEach(personalizedReports) { report in
+                        Button {
+                            handlePersonalizedPillTap(report)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: report.icon)
+                                    .font(.system(size: 12))
+                                Text(report.name)
+                                    .font(.subheadline.weight(.medium))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Color(hexString: report.pillColor))
+                            .foregroundStyle(Color(hexString: report.pillTextColor))
+                            .cornerRadius(20)
+                        }
+                        .disabled(isLoading)
+                        .opacity(isLoading ? 0.5 : 1.0)
+                    }
+                } else {
+                    // Default static reports
+                    ForEach(ReportType.allCases) { reportType in
+                        Button {
+                            handlePillTap(reportType)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: reportType.icon)
+                                    .font(.system(size: 12))
+                                Text(reportType.rawValue)
+                                    .font(.subheadline.weight(.medium))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Color(hexString: reportType.pillColor))
+                            .foregroundStyle(Color(hexString: reportType.pillTextColor))
+                            .cornerRadius(20)
+                        }
+                        .disabled(isLoading && reportType != .custom)
+                        .opacity(isLoading && reportType != .custom ? 0.5 : 1.0)
+                    }
+                }
+
+                // Always show Custom pill at end
+                if !personalizedReports.isEmpty {
                     Button {
-                        handlePillTap(reportType)
+                        isInputFocused = true
                     } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: reportType.icon)
+                            Image(systemName: "text.cursor")
                                 .font(.system(size: 12))
-                            Text(reportType.rawValue)
+                            Text("Custom")
                                 .font(.subheadline.weight(.medium))
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(Color(hexString: reportType.pillColor))
-                        .foregroundStyle(Color(hexString: reportType.pillTextColor))
+                        .background(Color(hexString: "2a1a2a"))
+                        .foregroundStyle(Color(hexString: "ff6bff"))
                         .cornerRadius(20)
                     }
-                    .disabled(isLoading && reportType != .custom)
-                    .opacity(isLoading && reportType != .custom ? 0.5 : 1.0)
                 }
             }
             .padding(.horizontal)
@@ -195,12 +256,49 @@ struct ReportsView: View {
                     .foregroundStyle(.tertiary)
                     .padding(.top, 8)
             }
+
+            // My EEON card
+            Button { showingMyEEON = true } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "sparkles")
+                        .font(.body)
+                        .foregroundStyle(.purple)
+
+                    if AuthService.shared.eeonContext != nil {
+                        Text("Update My EEON to customize reports")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                    } else {
+                        Text("Set up My EEON to personalize reports")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(12)
+                .background(Color(.systemGray6))
+                .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
+            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
     }
 
     // MARK: - Actions
+
+    private func handlePersonalizedPillTap(_ report: PersonalizedReport) {
+        guard checkUsage() else { return }
+        lastReportType = nil
+        sendPersonalizedMessage(report)
+    }
 
     private func handlePillTap(_ reportType: ReportType) {
         if reportType == .custom {
@@ -230,6 +328,99 @@ struct ReportsView: View {
             return false
         }
         return true
+    }
+
+    private func sendPersonalizedMessage(_ report: PersonalizedReport) {
+        let userMessage = ChatMessage(role: .user, content: report.userPrompt, timestamp: Date())
+        messages.append(userMessage)
+        isLoading = true
+
+        let context = SummaryService.buildAccountContext(
+            notes: notes, projects: projects, decisions: decisions,
+            actions: actions, commitments: commitments, people: people, kanbanItems: kanbanItems
+        )
+
+        Task {
+            do {
+                let response = try await callPersonalizedReportAPI(report: report, accountContext: context)
+                await MainActor.run {
+                    let assistantMessage = ChatMessage(role: .assistant, content: response, timestamp: Date())
+                    messages.append(assistantMessage)
+                    isLoading = false
+                    UsageService.shared.incrementReportCount()
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    private func callPersonalizedReportAPI(report: PersonalizedReport, accountContext: String) async throws -> String {
+        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
+            throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "OpenAI API key not configured"])
+        }
+
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let systemPrompt = """
+        \(AuthService.shared.eeonContextPrefix)You are an AI assistant analyzing a user's complete voice notes history. You have full access to their notes, projects, decisions, actions, commitments, people, and workflow board.
+
+        Be concise, actionable, and tailored to the user's role. Use markdown formatting for structured output. Do not use emojis.
+
+        \(report.instructions)
+
+        Here is the user's complete account context:
+
+        \(accountContext)
+        """
+
+        var apiMessages: [[String: String]] = [
+            ["role": "system", "content": systemPrompt]
+        ]
+
+        let recentMessages = messages.suffix(10)
+        for message in recentMessages {
+            apiMessages.append([
+                "role": message.role == .user ? "user" : "assistant",
+                "content": message.content
+            ])
+        }
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": apiMessages,
+            "temperature": 0.5,
+            "max_tokens": 3000
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errMsg = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: errMsg])
+        }
+
+        struct ChatResponse: Codable {
+            struct Choice: Codable {
+                struct Message: Codable { let content: String }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+
+        let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+        return chatResponse.choices.first?.message.content ?? "No response generated."
     }
 
     private func sendMessage(_ text: String, reportType: ReportType) {
