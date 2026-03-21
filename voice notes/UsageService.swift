@@ -136,6 +136,8 @@ class UsageService {
 
     func downgradeToFree() {
         subscriptionStatus = "free"
+        // Reset paywall flag so user can see upgrade prompt again
+        hasShownPaywall = false
     }
 
     // MARK: - Reset (for testing/sign out)

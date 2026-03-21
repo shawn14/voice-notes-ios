@@ -122,6 +122,9 @@ class AuthService {
         // Only clear userId - keep userName/userEmail so they're restored on sign back in
         // Apple only provides name/email on FIRST sign-in, so we need to preserve them
         setUserId(nil)
+        // Clear cached subscription status (isPro requires isSignedIn anyway,
+        // but this prevents stale "pro" status leaking across sign-in cycles)
+        UsageService.shared.downgradeToFree()
         OnboardingState.set(.needsSignIn)
         print("Signed out. isSignedIn: \(isSignedIn)")
     }

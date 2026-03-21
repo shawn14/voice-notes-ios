@@ -43,9 +43,10 @@ class SubscriptionManager {
         // Start listening for transactions
         updateListenerTask = listenForTransactions()
 
-        // Load products and check subscription status on init
+        // Load products, finish orphaned transactions, and check status on init
         Task {
             await loadProducts()
+            await finishUnfinishedTransactions()
             await updateSubscriptionStatus()
         }
     }
@@ -77,7 +78,13 @@ class SubscriptionManager {
 
         do {
             let productIDs = SubscriptionProduct.allCases.map { $0.rawValue }
+            print("StoreKit: Requesting products: \(productIDs)")
             products = try await Product.products(for: productIDs)
+            print("StoreKit: Loaded \(products.count) products: \(products.map { "\($0.id) - \($0.displayPrice)" })")
+
+            if products.isEmpty {
+                errorMessage = "No products found. Check App Store Connect configuration."
+            }
 
             // Sort so annual comes first (better value)
             products.sort { $0.id == SubscriptionProduct.annual.rawValue && $1.id != SubscriptionProduct.annual.rawValue }
@@ -119,6 +126,8 @@ class SubscriptionManager {
 
         case .pending:
             // Transaction is pending (e.g., Ask to Buy)
+            // The transaction listener will handle it when approved
+            print("StoreKit: Purchase pending (Ask to Buy). Will resolve via Transaction.updates.")
             return false
 
         @unknown default:
@@ -174,21 +183,40 @@ class SubscriptionManager {
         }
     }
 
+    // MARK: - Unfinished Transaction Recovery
+
+    /// Finish any orphaned transactions from crashes or interrupted purchases
+    @MainActor
+    func finishUnfinishedTransactions() async {
+        for await result in Transaction.unfinished {
+            do {
+                let transaction = try checkVerified(result)
+                await transaction.finish()
+                print("StoreKit: Finished orphaned transaction for \(transaction.productID)")
+            } catch {
+                // Finish even unverified transactions to clear the queue
+                if case .unverified(let transaction, _) = result {
+                    await transaction.finish()
+                    print("StoreKit: Finished unverified orphaned transaction")
+                }
+            }
+        }
+    }
+
     // MARK: - Transaction Listener
 
     private func listenForTransactions() -> Task<Void, Error> {
-        return Task.detached {
-            // Iterate through any transactions that don't come from a direct call to `purchase()`
+        return Task { @MainActor in
             for await result in Transaction.updates {
                 do {
                     let transaction = try self.checkVerified(result)
-
-                    // Update subscription status
                     await self.updateSubscriptionStatus()
-
-                    // Always finish transactions
                     await transaction.finish()
                 } catch {
+                    // Finish even unverified transactions to prevent queue buildup
+                    if case .unverified(let transaction, _) = result {
+                        await transaction.finish()
+                    }
                     print("Transaction failed verification: \(error)")
                 }
             }

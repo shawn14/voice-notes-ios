@@ -286,7 +286,11 @@ struct OnboardingPaywallView: View {
     // MARK: - Purchase Handler
 
     private func handlePurchase() {
+        print("StoreKit: handlePurchase called. selectedProductID=\(selectedProductID), products=\(subscriptionManager.products.map { $0.id })")
         guard let product = subscriptionManager.products.first(where: { $0.id == selectedProductID }) else {
+            print("StoreKit: No product found for \(selectedProductID)!")
+            errorMessage = "Product not available. Please try again."
+            showError = true
             return
         }
 
