@@ -119,6 +119,8 @@ struct AssistantView: View {
                             if messages.isEmpty {
                                 WelcomeSection(onActionTap: { action in
                                     sendMessage(action.prompt)
+                                }, onMyEEONTap: {
+                                    showingMyEEON = true
                                 })
                             }
 
@@ -289,7 +291,7 @@ struct AssistantView: View {
         - Find specific information across their notes
         - Synthesize insights from multiple notes
 
-        Be concise, actionable, and founder-friendly. Use markdown formatting for structured output.
+        Be concise, actionable, and founder-friendly. Use markdown formatting for structured output. Do not use emojis.
 
         Here are the user's notes for context:
 
@@ -389,6 +391,7 @@ struct AssistantView: View {
 
 struct WelcomeSection: View {
     let onActionTap: (AssistantAction) -> Void
+    var onMyEEONTap: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 24) {
@@ -405,14 +408,38 @@ struct WelcomeSection: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-
-                if AuthService.shared.eeonContext == nil {
-                    Label("Set up My EEON in Settings to personalize your AI", systemImage: "sparkles")
-                        .font(.caption)
-                        .foregroundStyle(.purple)
-                }
             }
             .padding(.top, 40)
+
+            // My EEON card
+            Button { onMyEEONTap?() } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "sparkles")
+                        .font(.body)
+                        .foregroundStyle(.purple)
+
+                    if AuthService.shared.eeonContext != nil {
+                        Text("Update My EEON")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                    } else {
+                        Text("Set up My EEON to personalize your AI")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(12)
+                .background(Color(.systemGray6))
+                .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
 
             // Quick actions
             VStack(alignment: .leading, spacing: 12) {

@@ -20,17 +20,17 @@ enum ReportType: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var emoji: String {
+    var icon: String {
         switch self {
-        case .ceoReport: return "📊"
-        case .swot: return "🔍"
-        case .goalTracker: return "🎯"
-        case .weeklySummary: return "📅"
-        case .people: return "👥"
-        case .projectStatus: return "📁"
-        case .decisionLog: return "📋"
-        case .actionAudit: return "✅"
-        case .custom: return "✨"
+        case .ceoReport: return "chart.bar.doc.horizontal"
+        case .swot: return "arrow.up.arrow.down"
+        case .goalTracker: return "target"
+        case .weeklySummary: return "calendar"
+        case .people: return "person.2"
+        case .projectStatus: return "folder"
+        case .decisionLog: return "checkmark.seal"
+        case .actionAudit: return "checklist"
+        case .custom: return "text.cursor"
         }
     }
 
