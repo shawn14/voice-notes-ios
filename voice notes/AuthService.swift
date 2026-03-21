@@ -43,6 +43,7 @@ class AuthService {
     private let userIdKey = "appleUserID"
     private let userEmailKey = "appleUserEmail"
     private let userNameKey = "appleUserName"
+    private let eeonContextKey = "eeonContext"
 
     // MARK: - Stored Properties (observable)
 
@@ -53,6 +54,11 @@ class AuthService {
             UserDefaults.standard.set(userName, forKey: userNameKey)
         }
     }
+    var eeonContext: String? {
+        didSet {
+            UserDefaults.standard.set(eeonContext, forKey: eeonContextKey)
+        }
+    }
 
     // MARK: - Init (load from UserDefaults)
 
@@ -61,6 +67,7 @@ class AuthService {
         self.userId = UserDefaults.standard.string(forKey: userIdKey)
         self.userEmail = UserDefaults.standard.string(forKey: userEmailKey)
         self.userName = UserDefaults.standard.string(forKey: userNameKey)
+        self.eeonContext = UserDefaults.standard.string(forKey: eeonContextKey)
     }
 
     // MARK: - Computed Properties
@@ -134,6 +141,7 @@ class AuthService {
         setUserId(nil)
         setUserEmail(nil)
         userName = nil
+        eeonContext = nil
         UsageService.shared.resetAllUsage()
         OnboardingState.set(.needsSignIn)
     }
@@ -146,6 +154,14 @@ class AuthService {
         print("Debug sign in. userId: \(userId ?? "nil"), isSignedIn: \(isSignedIn)")
     }
     #endif
+
+    // MARK: - AI Context
+
+    /// Returns the user's EEON context formatted for system prompt injection, or empty string if not set.
+    var eeonContextPrefix: String {
+        guard let ctx = eeonContext, !ctx.isEmpty else { return "" }
+        return "About the user: \(ctx)\n\n"
+    }
 
     // MARK: - Credential State Check
 

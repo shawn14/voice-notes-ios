@@ -559,7 +559,7 @@ final class IntelligenceService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let systemPrompt = """
-        You are an AI assistant generating a daily brief for a founder's voice notes app.
+        \(AuthService.shared.eeonContextPrefix)You are an AI assistant generating a daily brief for a founder's voice notes app.
         Be direct, actionable, and founder-friendly. Focus on what matters TODAY.
 
         Return JSON with this EXACT structure:

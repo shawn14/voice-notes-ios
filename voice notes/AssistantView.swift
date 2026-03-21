@@ -45,20 +45,26 @@ enum AssistantAction: String, CaseIterable {
     }
 
     var prompt: String {
+        let base: String
         switch self {
         case .prd:
-            return "Create a PRD (Product Requirements Document) based on my recent notes about features, requirements, and discussions."
+            base = "Create a PRD (Product Requirements Document) based on my recent notes about features, requirements, and discussions."
         case .execSummary:
-            return "Write an executive summary of my recent notes - key decisions, progress, and blockers."
+            base = "Write an executive summary of my recent notes - key decisions, progress, and blockers."
         case .todoList:
-            return "Create a prioritized to-do list from all the action items and tasks mentioned in my notes."
+            base = "Create a prioritized to-do list from all the action items and tasks mentioned in my notes."
         case .weeklyUpdate:
-            return "Write a weekly update based on my notes from the past week - what I accomplished, what's in progress, and what's next."
+            base = "Write a weekly update based on my notes from the past week - what I accomplished, what's in progress, and what's next."
         case .meetingNotes:
-            return "Compile and organize my meeting notes into a clean summary with action items."
+            base = "Compile and organize my meeting notes into a clean summary with action items."
         case .decisions:
-            return "List all the decisions I've made recently based on my notes, with context for each."
+            base = "List all the decisions I've made recently based on my notes, with context for each."
         }
+
+        if let ctx = AuthService.shared.eeonContext, !ctx.isEmpty {
+            return "\(base) Tailor this to my role and priorities as described in my profile."
+        }
+        return base
     }
 }
 
@@ -81,6 +87,7 @@ struct AssistantView: View {
     @State private var showingError = false
     @State private var savedMessageId: UUID?
     @State private var showingSaveConfirmation = false
+    @State private var showingMyEEON = false
 
     // Use recent notes as context by default
     private var contextNotes: [Note] {
@@ -190,9 +197,19 @@ struct AssistantView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: clearChat) {
-                        Image(systemName: "arrow.counterclockwise")
+                    HStack(spacing: 16) {
+                        Button { showingMyEEON = true } label: {
+                            Image(systemName: "sparkles")
+                        }
+                        Button(action: clearChat) {
+                            Image(systemName: "arrow.counterclockwise")
+                        }
                     }
+                }
+            }
+            .sheet(isPresented: $showingMyEEON) {
+                NavigationStack {
+                    MyEEONView()
                 }
             }
             .sheet(isPresented: $showingNoteSelector) {
@@ -266,7 +283,7 @@ struct AssistantView: View {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let systemPrompt = """
-        You are an AI assistant for a founder's voice notes app. You have access to the user's notes and can help them:
+        \(AuthService.shared.eeonContextPrefix)You are an AI assistant for a founder's voice notes app. You have access to the user's notes and can help them:
         - Answer questions about their notes
         - Generate documents (PRDs, summaries, to-do lists, etc.)
         - Find specific information across their notes
@@ -388,6 +405,12 @@ struct WelcomeSection: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+
+                if AuthService.shared.eeonContext == nil {
+                    Label("Set up My EEON in Settings to personalize your AI", systemImage: "sparkles")
+                        .font(.caption)
+                        .foregroundStyle(.purple)
+                }
             }
             .padding(.top, 40)
 

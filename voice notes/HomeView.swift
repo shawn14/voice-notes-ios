@@ -188,9 +188,17 @@ struct HomeView: View {
             .padding(.top, 8)
 
             HStack {
-                Text("All Notes")
-                    .font(.largeTitle.weight(.bold))
-                    .foregroundStyle(.white)
+                VStack(alignment: .leading, spacing: 2) {
+                    if authService.isSignedIn, let firstName = authService.displayName.components(separatedBy: " ").first, !firstName.isEmpty {
+                        Text("Hi, \(firstName)")
+                            .font(.largeTitle.weight(.bold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Text("All Notes")
+                            .font(.largeTitle.weight(.bold))
+                            .foregroundStyle(.white)
+                    }
+                }
                 Spacer()
             }
             .padding(.horizontal)
@@ -1758,6 +1766,26 @@ struct SettingsView: View {
                             Text(LanguageSettings.shared.selectedLanguage.displayName)
                                 .font(.body)
                                 .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    NavigationLink {
+                        MyEEONView()
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(.purple)
+                                .frame(width: 44)
+
+                            Text("My EEON")
+                                .font(.body)
+
+                            Spacer()
+
+                            Text(AuthService.shared.eeonContext != nil ? String(AuthService.shared.eeonContext!.prefix(20)) + (AuthService.shared.eeonContext!.count > 20 ? "…" : "") : "Not set")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
                     .padding(.vertical, 4)

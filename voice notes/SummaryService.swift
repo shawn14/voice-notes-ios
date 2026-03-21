@@ -226,8 +226,9 @@ enum SummaryService {
 
     // MARK: - Note Analysis (Notes ≠ Decisions)
 
-    static let analysisPrompt = """
-    You are an AI assistant in a founder-focused voice note app.
+    static var analysisPrompt: String {
+        """
+        \(AuthService.shared.eeonContextPrefix)You are an AI assistant in a founder-focused voice note app.
 
     CORE RULE: Notes are events. Decisions, actions, and commitments are separate objects.
     A note may produce decisions or actions, but it does not own them.
@@ -280,6 +281,7 @@ enum SummaryService {
     - Be precise, minimal, no fluff
     - Return ONLY JSON, no other text
     """
+    }
 
     static func analyzeNote(text: String, apiKey: String) async throws -> NoteAnalysis {
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
@@ -337,8 +339,9 @@ enum SummaryService {
 
     // MARK: - Intent Extraction (Enhanced Analysis)
 
-    static let intentPrompt = """
-    You are an AI assistant in a founder-focused voice note app that turns notes into actionable items.
+    static var intentPrompt: String {
+        """
+        \(AuthService.shared.eeonContextPrefix)You are an AI assistant in a founder-focused voice note app that turns notes into actionable items.
 
     CORE RULES:
     1. Be DECISIVE - pick ONE intent, don't hedge
@@ -425,6 +428,7 @@ enum SummaryService {
     - mentionedPeople: Array of proper names mentioned. Exclude "I", "me", "myself". Empty array if none.
     - Return ONLY JSON, no other text
     """
+    }
 
     static func extractIntent(text: String, apiKey: String) async throws -> IntentAnalysis {
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
