@@ -1487,34 +1487,39 @@ struct SettingsView: View {
         Section {
             accountRow
 
-            HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(usage.isPro ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: usage.isPro ? "sparkles" : "star.fill")
-                        .foregroundStyle(usage.isPro ? .blue : .orange)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Plan: \(usage.isPro ? "Pro" : "Free")")
-                        .font(.body.weight(.medium))
-                    if usage.isPro {
-                        Text("All features unlocked")
+            Button {
+                if !usage.isPro { showingPaywall = true }
+            } label: {
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(usage.isPro ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: usage.isPro ? "sparkles" : "star.fill")
+                            .foregroundStyle(usage.isPro ? .blue : .orange)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Plan: \(usage.isPro ? "Pro" : "Free")")
+                            .font(.body.weight(.medium))
+                        if usage.isPro {
+                            Text("All features unlocked")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("Upgrade for unlimited AI")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    if !usage.isPro {
+                        Image(systemName: "chevron.right")
                             .font(.caption)
-                            .foregroundStyle(.green)
-                    } else {
-                        Text("Upgrade for unlimited AI")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.tertiary)
                     }
                 }
-                Spacer()
-                if !usage.isPro {
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
             }
+            .buttonStyle(.plain)
             .padding(.vertical, 4)
 
             if !usage.isPro {
@@ -1720,23 +1725,20 @@ struct SettingsView: View {
 
                 // MARK: - Preferences Section
                 Section {
-                    NavigationLink {
-                        Text("Audio Quality Settings")
-                    } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "waveform.circle")
-                                .foregroundStyle(.blue)
-                                .frame(width: 44)
+                    // TODO: Add audio quality picker when multiple quality options are supported
+                    HStack(spacing: 16) {
+                        Image(systemName: "waveform.circle")
+                            .foregroundStyle(.blue)
+                            .frame(width: 44)
 
-                            Text("Audio Quality")
-                                .font(.body)
+                        Text("Audio Quality")
+                            .font(.body)
 
-                            Spacer()
+                        Spacer()
 
-                            Text("High")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("High")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
 

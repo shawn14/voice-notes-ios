@@ -31,6 +31,7 @@ struct AIHomeView: View {
     @State private var showingSettings = false
     @State private var showingAllNotes = false
     @State private var showingPeopleView = false
+    @State private var showingProjectBrowser = false
     @State private var showPaywall = false
     @State private var showSignIn = false
 
@@ -148,6 +149,9 @@ struct AIHomeView: View {
             }
             .sheet(isPresented: $showingPeopleView) {
                 PeopleView()
+            }
+            .sheet(isPresented: $showingProjectBrowser) {
+                ProjectBrowserView()
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView(onDismiss: { showPaywall = false })
@@ -385,13 +389,26 @@ struct AIHomeView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
                 Spacer()
+
+                Button {
+                    showingProjectBrowser = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("See All")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.blue)
+                }
             }
             .padding(.horizontal)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(activeTopics.prefix(4)) { topic in
-                        TopicCard(topic: topic)
+                        topicDestination(for: topic) {
+                            TopicCard(topic: topic)
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -483,7 +500,8 @@ struct AIHomeView: View {
                     icon: project.icon,
                     color: .blue,
                     noteCount: projectNotes.count,
-                    recentActivity: projectNotes.first?.updatedAt ?? Date()
+                    recentActivity: projectNotes.first?.updatedAt ?? Date(),
+                    topicType: .project
                 )
                 topics.append(topic)
             }
@@ -508,7 +526,8 @@ struct AIHomeView: View {
                             icon: "tag.fill",
                             color: .blue,
                             noteCount: tagNotes.count,
-                            recentActivity: tagNotes.first?.updatedAt ?? Date()
+                            recentActivity: tagNotes.first?.updatedAt ?? Date(),
+                            topicType: .tag
                         )
                         topics.append(topic)
                     }
@@ -517,6 +536,30 @@ struct AIHomeView: View {
         }
 
         return topics.sorted { $0.recentActivity > $1.recentActivity }
+    }
+
+    @ViewBuilder
+    private func topicDestination<Content: View>(for topic: TopicGroup, @ViewBuilder content: () -> Content) -> some View {
+        switch topic.topicType {
+        case .project:
+            if let project = projects.first(where: { $0.id == topic.id }) {
+                NavigationLink(destination: ProjectDetailView(project: project)) {
+                    content()
+                }
+                .buttonStyle(.plain)
+            } else {
+                content()
+            }
+        case .tag:
+            if let tag = tags.first(where: { $0.id == topic.id }) {
+                NavigationLink(destination: TagNotesView(tag: tag)) {
+                    content()
+                }
+                .buttonStyle(.plain)
+            } else {
+                content()
+            }
+        }
     }
 
     // MARK: - Recording Methods
@@ -687,6 +730,11 @@ struct AIHomeView: View {
 
 // MARK: - Topic Group Model
 
+enum TopicType {
+    case project
+    case tag
+}
+
 struct TopicGroup: Identifiable {
     let id: UUID
     let name: String
@@ -694,6 +742,7 @@ struct TopicGroup: Identifiable {
     let color: Color
     let noteCount: Int
     let recentActivity: Date
+    var topicType: TopicType = .project
 }
 
 // MARK: - Today's Focus Card
@@ -701,55 +750,63 @@ struct TopicGroup: Identifiable {
 struct TodaysFocusCard: View {
     let brief: DailyBrief
 
+    @State private var completedActionIds: Set<UUID> = []
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Main summary
+            // Header summary
             Text(brief.whatMattersToday)
                 .font(.subheadline)
                 .foregroundStyle(.white)
                 .lineLimit(3)
 
-            // Highlights
-            if !brief.highlights.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(brief.highlights.prefix(3), id: \.self) { highlight in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundStyle(.green)
-                            Text(highlight)
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                                .lineLimit(2)
+            // Actionable checklist
+            if !brief.suggestedActions.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(brief.suggestedActions) { action in
+                        let isCompleted = completedActionIds.contains(action.id)
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                if isCompleted {
+                                    completedActionIds.remove(action.id)
+                                } else {
+                                    completedActionIds.insert(action.id)
+                                }
+                            }
+                        } label: {
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
+                                    .font(.body)
+                                    .foregroundStyle(isCompleted ? .green : .gray)
+
+                                Text(action.content)
+                                    .font(.subheadline)
+                                    .foregroundStyle(isCompleted ? .gray : .white)
+                                    .strikethrough(isCompleted, color: .gray)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                            }
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
 
-            // Top priority action
-            if let firstAction = brief.suggestedActions.first {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.right.circle.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(.blue)
-                    Text(firstAction.content)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                }
-                .padding(.top, 4)
-            }
-
-            // Warnings
+            // Warnings banner
             if !brief.warnings.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
-                    Text("\(brief.warnings.count) item\(brief.warnings.count == 1 ? "" : "s") need attention")
+                    Text(brief.warnings.prefix(2).map(\.content).joined(separator: " · "))
                         .font(.caption)
                         .foregroundStyle(.orange)
+                        .lineLimit(2)
                 }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
             }
         }
         .padding(16)
@@ -933,9 +990,15 @@ struct TopicCard: View {
                 .foregroundStyle(.white)
                 .lineLimit(2)
 
-            Text(topic.recentActivity.formatted(date: .abbreviated, time: .omitted))
-                .font(.caption)
-                .foregroundStyle(.gray)
+            HStack {
+                Text(topic.recentActivity.formatted(date: .abbreviated, time: .omitted))
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.gray.opacity(0.5))
+            }
         }
         .padding(12)
         .frame(width: 140)
