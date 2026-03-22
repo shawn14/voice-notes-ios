@@ -642,7 +642,13 @@ struct CommitmentRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: { commitment.isCompleted.toggle() }) {
+            Button(action: {
+                if commitment.isCompleted {
+                    commitment.markIncomplete()
+                } else {
+                    commitment.markComplete()
+                }
+            }) {
                 Image(systemName: commitment.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(commitment.isCompleted ? .green : .secondary)
             }
@@ -672,7 +678,13 @@ struct ActionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: { action.isCompleted.toggle() }) {
+            Button(action: {
+                if action.isCompleted {
+                    action.markIncomplete()
+                } else {
+                    action.markComplete()
+                }
+            }) {
                 Image(systemName: action.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(action.isCompleted ? .green : (urgent ? .orange : .secondary))
             }

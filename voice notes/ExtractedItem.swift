@@ -57,6 +57,7 @@ final class ExtractedAction {
     var isBlocked: Bool = false
     var priority: String = "Normal"  // Urgent, High, Normal, Low
     var createdAt: Date = Date()
+    var completedAt: Date?  // When the action was marked complete
     var sourceNoteId: UUID?
 
     init(content: String, owner: String = "Me", deadline: String = "TBD", priority: String = "Normal", sourceNoteId: UUID? = nil) {
@@ -68,7 +69,20 @@ final class ExtractedAction {
         self.isBlocked = false
         self.priority = priority
         self.createdAt = Date()
+        self.completedAt = nil
         self.sourceNoteId = sourceNoteId
+    }
+    
+    /// Mark action as complete and log completion time
+    func markComplete() {
+        isCompleted = true
+        completedAt = Date()
+    }
+    
+    /// Mark action as incomplete (uncomplete)
+    func markIncomplete() {
+        isCompleted = false
+        completedAt = nil
     }
 
     var requiresAttention: Bool {
@@ -96,6 +110,7 @@ final class ExtractedCommitment {
     var what: String = ""
     var isCompleted: Bool = false
     var createdAt: Date = Date()
+    var completedAt: Date?  // When the commitment was marked complete
     var sourceNoteId: UUID?
     var personName: String?  // Normalized name for linking to MentionedPerson
 
@@ -105,11 +120,24 @@ final class ExtractedCommitment {
         self.what = what
         self.isCompleted = false
         self.createdAt = Date()
+        self.completedAt = nil
         self.sourceNoteId = sourceNoteId
         // Set personName if not a self-reference
         if !ExtractedCommitment.isUserReference(who) {
             self.personName = who.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         }
+    }
+    
+    /// Mark commitment as complete and log completion time
+    func markComplete() {
+        isCompleted = true
+        completedAt = Date()
+    }
+    
+    /// Mark commitment as incomplete (uncomplete)
+    func markIncomplete() {
+        isCompleted = false
+        completedAt = nil
     }
 
     var isUserCommitment: Bool {

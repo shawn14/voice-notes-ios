@@ -1655,6 +1655,32 @@ struct SettingsView: View {
                 // MARK: - Account Section
                 accountSection
 
+                // MARK: - History Section
+                Section {
+                    NavigationLink(destination: CompletedItemsView()) {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Completed Items")
+                                    .font(.body)
+                                Text("History of finished tasks")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("History")
+                }
+
                 // MARK: - Projects Section
                 Section {
                     if projects.isEmpty {
