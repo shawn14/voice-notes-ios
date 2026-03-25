@@ -27,6 +27,9 @@ final class DailyBrief {
     var highlightsData: Data = Data()
     var warningsData: Data = Data()
 
+    // Completed suggested action tracking (JSON-encoded array of content strings)
+    var completedSuggestedActionsData: Data = Data()
+
     // Snapshot metrics
     var openItemCount: Int = 0
     var stalledItemCount: Int = 0
@@ -91,6 +94,43 @@ final class DailyBrief {
         set {
             warningsData = (try? JSONEncoder().encode(newValue)) ?? Data()
         }
+    }
+
+    // MARK: - Completed Suggested Actions
+
+    /// Content strings of completed suggested actions (stable key since UUIDs regenerate on decode)
+    var completedSuggestedActions: Set<String> {
+        get {
+            guard !completedSuggestedActionsData.isEmpty else { return [] }
+            let array = (try? JSONDecoder().decode([String].self, from: completedSuggestedActionsData)) ?? []
+            return Set(array)
+        }
+        set {
+            completedSuggestedActionsData = (try? JSONEncoder().encode(Array(newValue))) ?? Data()
+        }
+    }
+
+    func isSuggestedActionCompleted(_ action: SuggestedAction) -> Bool {
+        completedSuggestedActions.contains(action.content)
+    }
+
+    func toggleSuggestedAction(_ action: SuggestedAction) {
+        var completed = completedSuggestedActions
+        if completed.contains(action.content) {
+            completed.remove(action.content)
+        } else {
+            completed.insert(action.content)
+        }
+        completedSuggestedActions = completed
+    }
+
+    /// All suggested actions that have been completed, with their completion info
+    var completedSuggestedActionItems: [SuggestedAction] {
+        suggestedActions.filter { completedSuggestedActions.contains($0.content) }
+    }
+
+    var incompleteSuggestedActions: [SuggestedAction] {
+        suggestedActions.filter { !completedSuggestedActions.contains($0.content) }
     }
 
     // MARK: - Computed Properties

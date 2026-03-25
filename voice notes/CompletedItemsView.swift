@@ -12,28 +12,38 @@ struct CompletedItemsView: View {
     @Query(filter: #Predicate<ExtractedAction> { $0.isCompleted },
            sort: \ExtractedAction.completedAt, order: .reverse)
     private var completedActions: [ExtractedAction]
-    
+
     @Query(filter: #Predicate<ExtractedCommitment> { $0.isCompleted },
            sort: \ExtractedCommitment.completedAt, order: .reverse)
     private var completedCommitments: [ExtractedCommitment]
-    
+
+    @Query(sort: \DailyBrief.briefDate, order: .reverse)
+    private var dailyBriefs: [DailyBrief]
+
     @State private var selectedTab = 0
-    
+
     private var allCompletedItems: [(date: Date, type: String, content: String, owner: String?)] {
         var items: [(date: Date, type: String, content: String, owner: String?)] = []
-        
+
         for action in completedActions {
             if let completedAt = action.completedAt {
                 items.append((completedAt, "action", action.content, action.owner))
             }
         }
-        
+
         for commitment in completedCommitments {
             if let completedAt = commitment.completedAt {
                 items.append((completedAt, "commitment", commitment.what, commitment.who))
             }
         }
-        
+
+        // Include completed suggested actions from daily briefs
+        for brief in dailyBriefs {
+            for action in brief.completedSuggestedActionItems {
+                items.append((brief.briefDate, "daily_action", action.content, nil))
+            }
+        }
+
         return items.sorted { $0.date > $1.date }
     }
     
@@ -145,7 +155,10 @@ struct CompletedItemRow: View {
                     .foregroundStyle(.primary)
                 
                 HStack(spacing: 8) {
-                    Label(type == "action" ? "Task" : "Commitment", systemImage: type == "action" ? "checkmark.square" : "person.2")
+                    Label(
+                        type == "action" ? "Task" : type == "daily_action" ? "Daily Focus" : "Commitment",
+                        systemImage: type == "action" ? "checkmark.square" : type == "daily_action" ? "sparkles" : "person.2"
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     

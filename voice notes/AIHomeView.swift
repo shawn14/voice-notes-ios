@@ -787,9 +787,7 @@ struct TopicGroup: Identifiable {
 // MARK: - Today's Focus Card
 
 struct TodaysFocusCard: View {
-    let brief: DailyBrief
-
-    @State private var completedActionIds: Set<UUID> = []
+    @Bindable var brief: DailyBrief
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -799,18 +797,14 @@ struct TodaysFocusCard: View {
                 .foregroundStyle(.white)
                 .lineLimit(3)
 
-            // Actionable checklist
+            // Actionable checklist — show incomplete first, then completed
             if !brief.suggestedActions.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(brief.suggestedActions) { action in
-                        let isCompleted = completedActionIds.contains(action.id)
+                        let isCompleted = brief.isSuggestedActionCompleted(action)
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
-                                if isCompleted {
-                                    completedActionIds.remove(action.id)
-                                } else {
-                                    completedActionIds.insert(action.id)
-                                }
+                                brief.toggleSuggestedAction(action)
                             }
                         } label: {
                             HStack(alignment: .top, spacing: 10) {
