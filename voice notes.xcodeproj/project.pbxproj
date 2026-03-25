@@ -55,7 +55,8 @@
 		F5C09500BBBBBB0E007AAAAA /* Exceptions for "VoiceNotesWidget" folder in "VoiceNotesWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"VoiceNotesWidget.entitlements",
+				Info.plist,
+				VoiceNotesWidget.entitlements,
 			);
 			target = F5C09500BBBBBB01007AAAAA /* VoiceNotesWidgetExtension */;
 		};
@@ -544,6 +545,7 @@
 				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VoiceNotesWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Voice Notes Widget";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -573,6 +575,7 @@
 				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VoiceNotesWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Voice Notes Widget";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
