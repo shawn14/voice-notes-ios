@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import WidgetKit
 
 @main
 struct voice_notesApp: App {
@@ -21,6 +22,9 @@ struct voice_notesApp: App {
     @State private var showingSharedNote = false
     @State private var sharedNoteError: String?
     @State private var showingSharedNoteError = false
+
+    // Deep link: auto-start recording
+    @State private var shouldStartRecording = false
 
     init() {
         let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self, DailyBrief.self, ExtractedURL.self, MentionedPerson.self])
@@ -65,7 +69,7 @@ struct voice_notesApp: App {
             Group {
                 switch OnboardingState(rawValue: onboardingState) ?? .needsSignIn {
                 case .completed:
-                    AIHomeView()
+                    AIHomeView(shouldStartRecording: $shouldStartRecording)
                         .task {
                             await authService.checkCredentialState()
                             await subscriptionManager.updateSubscriptionStatus()
@@ -101,9 +105,16 @@ struct voice_notesApp: App {
     }
 
     private func handleIncomingURL(_ url: URL) {
+        guard url.scheme == "voicenotes" else { return }
+
+        // Handle voicenotes://record — deep link from widget
+        if url.host == "record" {
+            shouldStartRecording = true
+            return
+        }
+
         // Handle voicenotes://share/{id}
-        guard url.scheme == "voicenotes",
-              url.host == "share",
+        guard url.host == "share",
               let noteId = url.pathComponents.last, !noteId.isEmpty else {
             return
         }
@@ -135,6 +146,10 @@ struct voice_notesApp: App {
     private func triggerAppActiveRefresh() async {
         let context = container.mainContext
 
+        // Sync widget shared defaults
+        SharedDefaults.updateNoteCount(UsageService.shared.noteCount)
+        SharedDefaults.updateProStatus(UsageService.shared.isPro)
+
         // Fetch all required data
         let notes = (try? context.fetch(FetchDescriptor<Note>())) ?? []
         let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
@@ -143,6 +158,17 @@ struct voice_notesApp: App {
         let actions = (try? context.fetch(FetchDescriptor<ExtractedAction>())) ?? []
         let commitments = (try? context.fetch(FetchDescriptor<ExtractedCommitment>())) ?? []
         let unresolved = (try? context.fetch(FetchDescriptor<UnresolvedItem>())) ?? []
+
+        // Update widget with latest note
+        SharedDefaults.updateTotalNotes(notes.count)
+        if let latestNote = notes.first {
+            SharedDefaults.updateLastNote(
+                preview: latestNote.displayTitle,
+                date: latestNote.updatedAt,
+                intent: latestNote.intentType
+            )
+        }
+        WidgetCenter.shared.reloadAllTimelines()
 
         // Tier 2: Refresh session brief (local computation, no AI)
         await IntelligenceService.shared.refreshSessionBriefIfNeeded(

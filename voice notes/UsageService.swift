@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import WidgetKit
 
 // MARK: - Usage Service
 
@@ -85,16 +86,19 @@ class UsageService {
 
     func incrementNoteCount() {
         noteCount += 1
+        syncToSharedDefaults()
     }
 
     /// Call this when a note is deleted to give back a free slot
     func decrementNoteCount() {
         noteCount = max(0, noteCount - 1)
+        syncToSharedDefaults()
     }
 
     /// Sync note count with actual database count
     func syncNoteCount(actualCount: Int) {
         noteCount = actualCount
+        syncToSharedDefaults()
     }
 
     func shouldShowPaywall() -> Bool {
@@ -132,12 +136,14 @@ class UsageService {
 
     func upgradeToPro() {
         subscriptionStatus = "pro"
+        syncToSharedDefaults()
     }
 
     func downgradeToFree() {
         subscriptionStatus = "free"
         // Reset paywall flag so user can see upgrade prompt again
         hasShownPaywall = false
+        syncToSharedDefaults()
     }
 
     // MARK: - Reset (for testing/sign out)
@@ -148,6 +154,15 @@ class UsageService {
         hasShownPaywall = false
         subscriptionStatus = "free"
         reportGenerationCount = 0
+    }
+
+    // MARK: - Shared Defaults Sync (for Widget)
+
+    /// Sync current usage state to App Group UserDefaults so the widget can read it
+    func syncToSharedDefaults() {
+        SharedDefaults.updateNoteCount(noteCount)
+        SharedDefaults.updateProStatus(isPro)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // Legacy compatibility - these can be removed later

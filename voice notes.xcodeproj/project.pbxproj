@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		F5C09500AAAAAA01007AAAAA /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C09500AAAAAA02007AAAAA /* SnapshotHelper.swift */; };
 		F5C09500AAAAAA03007AAAAA /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C09500AAAAAA04007AAAAA /* ScreenshotTests.swift */; };
+		F5C09500BBBBBB0D007AAAAA /* VoiceNotesWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F5C09500BBBBBB02007AAAAA /* VoiceNotesWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -19,19 +20,59 @@
 			remoteGlobalIDString = F5C094C32F25871F0079962E;
 			remoteInfo = "voice notes";
 		};
+		F5C09500BBBBBB0B007AAAAA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F5C094BC2F25871F0079962E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F5C09500BBBBBB01007AAAAA;
+			remoteInfo = VoiceNotesWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F5C09500BBBBBB0C007AAAAA /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				F5C09500BBBBBB0D007AAAAA /* VoiceNotesWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		F5C094C42F25871F0079962E /* voice notes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "voice notes.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5C09500AAAAAA02007AAAAA /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
 		F5C09500AAAAAA04007AAAAA /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
 		F5C09500AAAAAA06007AAAAA /* voice notes UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "voice notes UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F5C09500BBBBBB02007AAAAA /* VoiceNotesWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = VoiceNotesWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F5C09500BBBBBB0E007AAAAA /* Exceptions for "VoiceNotesWidget" folder in "VoiceNotesWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"VoiceNotesWidget.entitlements",
+			);
+			target = F5C09500BBBBBB01007AAAAA /* VoiceNotesWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F5C094C62F25871F0079962E /* voice notes */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "voice notes";
+			sourceTree = "<group>";
+		};
+		F5C09500BBBBBB03007AAAAA /* VoiceNotesWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F5C09500BBBBBB0E007AAAAA /* Exceptions for "VoiceNotesWidget" folder in "VoiceNotesWidgetExtension" target */,
+			);
+			path = VoiceNotesWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -51,6 +92,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F5C09500BBBBBB05007AAAAA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -58,6 +106,7 @@
 			isa = PBXGroup;
 			children = (
 				F5C094C62F25871F0079962E /* voice notes */,
+				F5C09500BBBBBB03007AAAAA /* VoiceNotesWidget */,
 				F5C09500AAAAAA08007AAAAA /* voice notes UITests */,
 				F5C094C52F25871F0079962E /* Products */,
 			);
@@ -67,6 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				F5C094C42F25871F0079962E /* voice notes.app */,
+				F5C09500BBBBBB02007AAAAA /* VoiceNotesWidgetExtension.appex */,
 				F5C09500AAAAAA06007AAAAA /* voice notes UITests.xctest */,
 			);
 			name = Products;
@@ -91,10 +141,12 @@
 				F5C094C02F25871F0079962E /* Sources */,
 				F5C094C12F25871F0079962E /* Frameworks */,
 				F5C094C22F25871F0079962E /* Resources */,
+				F5C09500BBBBBB0C007AAAAA /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				F5C09500BBBBBB0A007AAAAA /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				F5C094C62F25871F0079962E /* voice notes */,
@@ -124,6 +176,26 @@
 			productReference = F5C09500AAAAAA06007AAAAA /* voice notes UITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		F5C09500BBBBBB01007AAAAA /* VoiceNotesWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F5C09500BBBBBB09007AAAAA /* Build configuration list for PBXNativeTarget "VoiceNotesWidgetExtension" */;
+			buildPhases = (
+				F5C09500BBBBBB04007AAAAA /* Sources */,
+				F5C09500BBBBBB05007AAAAA /* Frameworks */,
+				F5C09500BBBBBB06007AAAAA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F5C09500BBBBBB03007AAAAA /* VoiceNotesWidget */,
+			);
+			name = VoiceNotesWidgetExtension;
+			productName = VoiceNotesWidgetExtension;
+			productReference = F5C09500BBBBBB02007AAAAA /* VoiceNotesWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -140,6 +212,9 @@
 					F5C09500AAAAAA09007AAAAA = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = F5C094C32F25871F0079962E;
+					};
+					F5C09500BBBBBB01007AAAAA = {
+						CreatedOnToolsVersion = 26.2;
 					};
 				};
 			};
@@ -158,6 +233,7 @@
 			projectRoot = "";
 			targets = (
 				F5C094C32F25871F0079962E /* voice notes */,
+				F5C09500BBBBBB01007AAAAA /* VoiceNotesWidgetExtension */,
 				F5C09500AAAAAA09007AAAAA /* voice notes UITests */,
 			);
 		};
@@ -172,6 +248,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		F5C09500AAAAAA0C007AAAAA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F5C09500BBBBBB06007AAAAA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -197,6 +280,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F5C09500BBBBBB04007AAAAA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -204,6 +294,11 @@
 			isa = PBXTargetDependency;
 			target = F5C094C32F25871F0079962E /* voice notes */;
 			targetProxy = F5C09500AAAAAA05007AAAAA /* PBXContainerItemProxy */;
+		};
+		F5C09500BBBBBB0A007AAAAA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F5C09500BBBBBB01007AAAAA /* VoiceNotesWidgetExtension */;
+			targetProxy = F5C09500BBBBBB0B007AAAAA /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -439,6 +534,64 @@
 			};
 			name = Release;
 		};
+		F5C09500BBBBBB07007AAAAA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = VoiceNotesWidget/VoiceNotesWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 27;
+				DEVELOPMENT_TEAM = BYRK5RUS4U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Voice Notes Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		F5C09500BBBBBB08007AAAAA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = VoiceNotesWidget/VoiceNotesWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 27;
+				DEVELOPMENT_TEAM = BYRK5RUS4U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Voice Notes Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -465,6 +618,15 @@
 			buildConfigurations = (
 				F5C09500AAAAAA0E007AAAAA /* Debug */,
 				F5C09500AAAAAA0F007AAAAA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F5C09500BBBBBB09007AAAAA /* Build configuration list for PBXNativeTarget "VoiceNotesWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F5C09500BBBBBB07007AAAAA /* Debug */,
+				F5C09500BBBBBB08007AAAAA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

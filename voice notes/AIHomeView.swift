@@ -9,6 +9,7 @@
 import SwiftUI
 import SwiftData
 import AuthenticationServices
+import WidgetKit
 
 struct AIHomeView: View {
     @Environment(\.modelContext) private var modelContext
@@ -25,8 +26,14 @@ struct AIHomeView: View {
     @Query private var extractedActions: [ExtractedAction]
     @Query private var unresolvedItems: [UnresolvedItem]
 
+    @Binding var shouldStartRecording: Bool
+
     private var authService = AuthService.shared
     private var intelligenceService = IntelligenceService.shared
+
+    init(shouldStartRecording: Binding<Bool>) {
+        self._shouldStartRecording = shouldStartRecording
+    }
 
     @State private var showingSettings = false
     @State private var showingAllNotes = false
@@ -180,6 +187,20 @@ struct AIHomeView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage ?? "Unknown error")
+            }
+            .onChange(of: shouldStartRecording) { _, newValue in
+                if newValue {
+                    shouldStartRecording = false
+                    // Small delay to let the UI settle after launch
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        await MainActor.run {
+                            if !isRecording && !isTranscribing {
+                                toggleRecording()
+                            }
+                        }
+                    }
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -647,6 +668,16 @@ struct AIHomeView: View {
         UsageService.shared.incrementNoteCount()
         try? modelContext.save()
 
+        // Update widget with latest note info
+        let preview = transcript ?? note.displayTitle
+        SharedDefaults.updateLastNote(
+            preview: String(preview.prefix(100)),
+            date: note.createdAt,
+            intent: note.intentType
+        )
+        SharedDefaults.updateTotalNotes(notes.count + 1)
+        WidgetKit.WidgetCenter.shared.reloadAllTimelines()
+
         // AI processing
         if let transcript = transcript, !transcript.isEmpty,
            let apiKey = APIKeys.openAI, !apiKey.isEmpty {
@@ -673,6 +704,14 @@ struct AIHomeView: View {
                         }
                         isTranscribing = false
                         currentAudioFileName = nil
+
+                        // Update widget with AI-generated title
+                        SharedDefaults.updateLastNote(
+                            preview: note.displayTitle,
+                            date: note.createdAt,
+                            intent: note.intentType
+                        )
+                        WidgetKit.WidgetCenter.shared.reloadAllTimelines()
                     }
 
                     await intelligenceService.processNoteSave(
@@ -1244,6 +1283,6 @@ struct AllNotesView: View {
 }
 
 #Preview {
-    AIHomeView()
+    AIHomeView(shouldStartRecording: .constant(false))
         .modelContainer(for: [Note.self, Tag.self, Project.self, DailyBrief.self, MentionedPerson.self, ExtractedURL.self, ExtractedCommitment.self], inMemory: true)
 }
