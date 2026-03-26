@@ -431,17 +431,6 @@ struct AIHomeView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
                 Spacer()
-                Button {
-                    showingProgress = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chart.bar.fill")
-                            .font(.caption)
-                        Text("Progress")
-                            .font(.caption.weight(.medium))
-                    }
-                    .foregroundStyle(.green)
-                }
             }
             .padding(.horizontal)
 
