@@ -41,6 +41,7 @@ struct AIHomeView: View {
     @State private var showingProjectBrowser = false
     @State private var showPaywall = false
     @State private var showSignIn = false
+    @State private var showingProgress = false
 
     // Recording state
     @State private var audioRecorder = AudioRecorder()
@@ -159,6 +160,9 @@ struct AIHomeView: View {
             }
             .sheet(isPresented: $showingProjectBrowser) {
                 ProjectBrowserView()
+            }
+            .sheet(isPresented: $showingProgress) {
+                CompletedItemsView()
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView(onDismiss: { showPaywall = false })
@@ -418,6 +422,17 @@ struct AIHomeView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
                 Spacer()
+                Button {
+                    showingProgress = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.caption)
+                        Text("Progress")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.green)
+                }
             }
             .padding(.horizontal)
 
