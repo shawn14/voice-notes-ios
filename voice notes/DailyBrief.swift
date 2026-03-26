@@ -160,10 +160,15 @@ final class DailyBrief {
 // MARK: - Supporting Types
 
 struct ChangeItem: Codable, Identifiable {
-    var id: UUID = UUID()
+    var id: String { content }
+
     let content: String
     let changeType: ChangeType
     let projectName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case content, changeType, projectName
+    }
 
     enum ChangeType: String, Codable {
         case newNote
@@ -185,11 +190,16 @@ struct ChangeItem: Codable, Identifiable {
 }
 
 struct DriftingItem: Codable, Identifiable {
-    var id: UUID = UUID()
+    var id: String { content }
+
     let content: String
     let daysSinceActivity: Int
     let projectName: String?
     let itemType: String
+
+    enum CodingKeys: String, CodingKey {
+        case content, daysSinceActivity, projectName, itemType
+    }
 
     var urgencyLabel: String {
         if daysSinceActivity >= 14 {
@@ -202,8 +212,10 @@ struct DriftingItem: Codable, Identifiable {
     }
 }
 
-struct SuggestedAction: Codable, Identifiable {
-    var id: UUID = UUID()
+struct SuggestedAction: Codable, Identifiable, Hashable {
+    /// Stable ID derived from content — survives JSON round-trips without regenerating
+    var id: String { content }
+
     let content: String
     let reason: String
     let projectName: String?
@@ -213,6 +225,10 @@ struct SuggestedAction: Codable, Identifiable {
         case high
         case medium
         case low
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case content, reason, projectName, priority
     }
 
     var icon: String {
@@ -225,10 +241,15 @@ struct SuggestedAction: Codable, Identifiable {
 }
 
 struct DailyWarning: Codable, Identifiable {
-    var id: UUID = UUID()
+    var id: String { content }
+
     let type: WarningType
     let content: String
     let daysSinceIssue: Int
+
+    enum CodingKeys: String, CodingKey {
+        case type, content, daysSinceIssue
+    }
 
     enum WarningType: String, Codable {
         case stalled
