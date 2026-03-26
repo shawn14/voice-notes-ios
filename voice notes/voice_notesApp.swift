@@ -105,23 +105,35 @@ struct voice_notesApp: App {
     }
 
     private func handleIncomingURL(_ url: URL) {
-        guard url.scheme == "voicenotes" else { return }
-
-        // Handle voicenotes://record — deep link from widget
-        if url.host == "record" {
-            shouldStartRecording = true
+        // Handle custom scheme: voicenotes://
+        if url.scheme == "voicenotes" {
+            if url.host == "record" {
+                shouldStartRecording = true
+                return
+            }
+            if url.host == "share",
+               let noteId = url.pathComponents.last, !noteId.isEmpty {
+                fetchAndShowSharedNote(id: noteId)
+                return
+            }
             return
         }
 
-        // Handle voicenotes://share/{id}
-        guard url.host == "share",
-              let noteId = url.pathComponents.last, !noteId.isEmpty else {
-            return
+        // Handle Universal Links: https://eeon.com/share/{id}
+        if url.scheme == "https", url.host == "eeon.com" {
+            let components = url.pathComponents // ["/" , "share", "{id}"]
+            if components.count >= 3, components[1] == "share" {
+                let noteId = components[2]
+                fetchAndShowSharedNote(id: noteId)
+                return
+            }
         }
+    }
 
+    private func fetchAndShowSharedNote(id: String) {
         Task {
             do {
-                if let note = try await CloudKitShareService.shared.fetchSharedNote(id: noteId) {
+                if let note = try await CloudKitShareService.shared.fetchSharedNote(id: id) {
                     await MainActor.run {
                         sharedNoteToShow = note
                         showingSharedNote = true

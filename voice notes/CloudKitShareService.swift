@@ -19,9 +19,7 @@ struct SharedNote: Identifiable {
     let expiresAt: Date?
 
     var shareURL: URL? {
-        // Universal Link format: https://yourdomain.com/share/{id}
-        // For now, use a custom URL scheme that can be upgraded later
-        URL(string: "voicenotes://share/\(id)")
+        URL(string: "https://eeon.com/share/\(id)")
     }
 }
 
@@ -151,24 +149,26 @@ actor CloudKitShareService {
 // MARK: - Share URL Generation
 
 extension SharedNote {
-    /// Generate a shareable URL
-    /// In production, this would be a Universal Link to your domain
-    /// For now, uses a custom URL scheme
-    var shareableURL: URL {
-        // Production format would be:
-        // https://voicenotes.app/share/{id}
+    /// App Store URL
+    static let appStoreURL = URL(string: "https://apps.apple.com/app/id6758273499")!
 
-        // Development format (custom scheme):
+    /// Universal Link — opens in-app if installed, falls back to eeon.com in browser
+    var shareableURL: URL {
+        URL(string: "https://eeon.com/share/\(id)")!
+    }
+
+    /// Deep link for in-app handling (custom URL scheme)
+    var deepLinkURL: URL {
         URL(string: "voicenotes://share/\(id)")!
     }
 
-    /// Generate share text with link
+    /// Generate share text with Universal Link
     var shareText: String {
         var text = ""
         if !title.isEmpty {
             text += "\(title)\n\n"
         }
-        text += "Listen to my voice note:\n\(shareableURL.absoluteString)"
+        text += "Listen to my voice note: \(shareableURL.absoluteString)"
         return text
     }
 }

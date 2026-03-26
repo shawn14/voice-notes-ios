@@ -361,13 +361,10 @@ struct SharedNoteContent: View {
                     Text("Want to create your own voice notes?")
                         .font(.headline)
 
-                    Button {
-                        // Link to App Store
-                        // For now, just a placeholder
-                    } label: {
+                    Link(destination: SharedNote.appStoreURL) {
                         HStack {
-                            Image(systemName: "arrow.down.app")
-                            Text("Get the App")
+                            Image(systemName: "arrow.down.app.fill")
+                            Text("Get EEON — Free")
                         }
                         .font(.headline)
                         .foregroundStyle(.white)

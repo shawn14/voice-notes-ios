@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVFoundation
+import UIKit
 
 struct SharedNoteDetailView: View {
     let sharedNote: SharedNote
@@ -90,10 +91,12 @@ struct SharedNoteDetailView: View {
                             .foregroundStyle(.gray)
 
                         Button {
-                            // This would deep link to app store or sign up
-                            dismiss()
+                            UIApplication.shared.open(SharedNote.appStoreURL)
                         } label: {
-                            Text("Get Voice Notes")
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.down.app.fill")
+                                Text("Get EEON — Free")
+                            }
                                 .font(.headline)
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
