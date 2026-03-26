@@ -122,11 +122,17 @@ struct OnboardingPaywallView: View {
         } message: {
             Text(errorMessage ?? "Something went wrong")
         }
-        .onAppear {
+        .task {
+            // Auto-check subscription status — skip paywall if already subscribed
+            await subscriptionManager.updateSubscriptionStatus()
+            if subscriptionManager.isSubscribed {
+                OnboardingState.set(.completed)
+                return
+            }
+
+            // Load products if needed
             if subscriptionManager.products.isEmpty {
-                Task {
-                    await subscriptionManager.loadProducts()
-                }
+                await subscriptionManager.loadProducts()
             }
         }
     }

@@ -210,7 +210,17 @@ struct SignInView: View {
     private let pageCount = 3
 
     private func advanceToPaywall() {
-        OnboardingState.set(.needsPaywall)
+        // Check if user already has an active subscription — skip paywall if so
+        Task {
+            await SubscriptionManager.shared.updateSubscriptionStatus()
+            await MainActor.run {
+                if SubscriptionManager.shared.isSubscribed {
+                    OnboardingState.set(.completed)
+                } else {
+                    OnboardingState.set(.needsPaywall)
+                }
+            }
+        }
     }
 
     var body: some View {
