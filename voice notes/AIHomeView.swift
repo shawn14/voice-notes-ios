@@ -272,48 +272,138 @@ struct AIHomeView: View {
     // MARK: - Signed Out View
 
     private var signedOutView: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ScrollView {
+            VStack(spacing: 0) {
+                // Hero section
+                VStack(spacing: 20) {
+                    // Animated mic pulse visual
+                    ZStack {
+                        // Outer pulse rings
+                        ForEach(0..<3, id: \.self) { i in
+                            Circle()
+                                .stroke(Color.red.opacity(0.08 - Double(i) * 0.02), lineWidth: 1)
+                                .frame(width: CGFloat(100 + i * 40), height: CGFloat(100 + i * 40))
+                        }
 
-            Image(systemName: "sparkles")
-                .font(.system(size: 64))
-                .foregroundStyle(.blue)
+                        // Core icon
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.red.opacity(0.2), Color.red.opacity(0.05)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 88, height: 88)
 
-            Text("Your AI-powered notes")
-                .font(.title.weight(.bold))
-                .foregroundStyle(.white)
+                            Image(systemName: "waveform.circle.fill")
+                                .font(.system(size: 44))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.red, .red.opacity(0.7)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        }
+                    }
+                    .padding(.top, 32)
 
-            Text("Record your thoughts and I'll help you\ntrack decisions, commitments, and follow-ups")
-                .font(.body)
-                .foregroundStyle(.gray)
-                .multilineTextAlignment(.center)
+                    VStack(spacing: 10) {
+                        Text("Speak. EEON listens.")
+                            .font(.title.weight(.bold))
+                            .foregroundStyle(.white)
 
-            Button {
-                showSignIn = true
-            } label: {
-                Text("Sign In to Get Started")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 14)
-                    .background(Color.blue)
-                    .cornerRadius(12)
+                        Text("Record a thought, get back clarity.\nDecisions, tasks, and follow-ups — extracted automatically.")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(3)
+                    }
+                    .padding(.horizontal, 24)
+                }
+                .padding(.bottom, 32)
+
+                // Feature cards
+                VStack(spacing: 12) {
+                    WelcomeFeatureRow(
+                        icon: "mic.fill",
+                        iconColor: .red,
+                        title: "Record anything",
+                        subtitle: "Meetings, ideas, reminders — just talk"
+                    )
+
+                    WelcomeFeatureRow(
+                        icon: "sparkles",
+                        iconColor: .blue,
+                        title: "AI extracts what matters",
+                        subtitle: "Decisions, commitments, and action items"
+                    )
+
+                    WelcomeFeatureRow(
+                        icon: "checkmark.circle.fill",
+                        iconColor: .green,
+                        title: "Stay on track",
+                        subtitle: "Daily briefs, progress tracking, nothing slips"
+                    )
+
+                    WelcomeFeatureRow(
+                        icon: "person.2.fill",
+                        iconColor: .purple,
+                        title: "Know who owes what",
+                        subtitle: "People, commitments, and follow-ups at a glance"
+                    )
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
+
+                // Sign in CTA
+                VStack(spacing: 16) {
+                    Button {
+                        showSignIn = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "apple.logo")
+                                .font(.system(size: 18))
+                            Text("Sign In to Get Started")
+                                .font(.headline)
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(.white.opacity(0.12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(.white.opacity(0.15), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .padding(.horizontal, 20)
+
+                    Text("5 free notes · No credit card required")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                .padding(.bottom, 24)
+
+                // Spacer for bottom bar
+                Color.clear.frame(height: 100)
+
+                #if DEBUG
+                Button {
+                    OnboardingState.set(.needsSignIn)
+                } label: {
+                    Text("Reset Onboarding")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.orange.opacity(0.5))
+                }
+                .padding(.bottom, 8)
+                #endif
             }
-
-            Spacer()
-
-            #if DEBUG
-            Button {
-                OnboardingState.set(.needsSignIn)
-            } label: {
-                Text("Reset Onboarding")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.orange)
-            }
-            .padding(.bottom, 8)
-            #endif
         }
-        .padding()
     }
 
     // MARK: - Today's Focus Section
@@ -852,6 +942,48 @@ struct TodaysFocusCard: View {
             )
         )
         .cornerRadius(16)
+    }
+}
+
+// MARK: - Welcome Feature Row (signed-out screen)
+
+struct WelcomeFeatureRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(iconColor.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(iconColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+
+            Spacer()
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(.systemGray6).opacity(0.25))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.04), lineWidth: 1)
+                )
+        )
     }
 }
 
