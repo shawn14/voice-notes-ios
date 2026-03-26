@@ -48,17 +48,43 @@ struct voice_notesApp: App {
                 container = try ModelContainer(for: schema, configurations: [localConfig])
                 cleanupDuplicateTags(in: container.mainContext)
             } catch {
-                // Last resort - delete store and recreate
-                print("Migration failed, recreating store: \(error)")
-
-                let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-                let url = config.url
-                try? FileManager.default.removeItem(at: url)
+                // Last resort — back up the old store before recreating
+                // Previous code deleted the store here which destroyed all local notes
+                print("Migration failed, attempting safe recovery: \(error)")
 
                 do {
-                    container = try ModelContainer(for: schema)
+                    // Back up the old store so data isn't permanently lost
+                    let defaultConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+                    let storeURL = defaultConfig.url
+                    let timestamp = Int(Date().timeIntervalSince1970)
+                    let backupURL = storeURL.deletingLastPathComponent()
+                        .appendingPathComponent("default-backup-\(timestamp).store")
+                    try? FileManager.default.copyItem(at: storeURL, to: backupURL)
+                    print("Backed up store to: \(backupURL.path)")
+
+                    // Remove old store files
+                    for ext in ["", ".wal", ".shm"] {
+                        let fileURL = ext.isEmpty ? storeURL : URL(fileURLWithPath: storeURL.path + ext)
+                        try? FileManager.default.removeItem(at: fileURL)
+                    }
+
+                    // Recreate WITH CloudKit so notes sync back from iCloud
+                    let freshConfig = ModelConfiguration(
+                        schema: schema,
+                        isStoredInMemoryOnly: false,
+                        cloudKitDatabase: .private("iCloud.aivoiceeeon")
+                    )
+                    container = try ModelContainer(for: schema, configurations: [freshConfig])
+                    print("Recovery succeeded — notes will re-sync from CloudKit")
                 } catch {
-                    fatalError("Failed to create ModelContainer: \(error)")
+                    // Absolute last resort — in-memory so app doesn't crash
+                    print("All storage options failed, using in-memory: \(error)")
+                    do {
+                        let memConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                        container = try ModelContainer(for: schema, configurations: [memConfig])
+                    } catch {
+                        fatalError("Failed to create ModelContainer: \(error)")
+                    }
                 }
             }
         }
