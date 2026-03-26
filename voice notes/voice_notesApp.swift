@@ -119,8 +119,8 @@ struct voice_notesApp: App {
             return
         }
 
-        // Handle Universal Links: https://eeon.com/share/{id}
-        if url.scheme == "https", url.host == "eeon.com" {
+        // Handle Universal Links: https://eeon.com/share/{id} or https://www.eeon.com/share/{id}
+        if url.scheme == "https", (url.host == "eeon.com" || url.host == "www.eeon.com") {
             let components = url.pathComponents // ["/" , "share", "{id}"]
             if components.count >= 3, components[1] == "share" {
                 let noteId = components[2]

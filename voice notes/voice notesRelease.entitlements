@@ -5,6 +5,7 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:eeon.com</string>
+		<string>applinks:www.eeon.com</string>
 	</array>
 	<key>com.apple.security.application-groups</key>
 	<array>
