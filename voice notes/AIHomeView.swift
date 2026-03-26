@@ -229,6 +229,15 @@ struct AIHomeView: View {
             Spacer()
 
             if authService.isSignedIn {
+                Button {
+                    showingProgress = true
+                } label: {
+                    Image(systemName: "chart.bar.fill")
+                        .font(.title3)
+                        .foregroundStyle(.green)
+                }
+                .padding(.trailing, 6)
+
                 NavigationLink(destination: ReportsView()) {
                     Image(systemName: "sparkles")
                         .font(.title3)
