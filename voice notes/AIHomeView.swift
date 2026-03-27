@@ -51,6 +51,11 @@ struct AIHomeView: View {
     @State private var errorMessage: String?
     @State private var showingError = false
 
+    // Post-capture state
+    @State private var completedNote: Note?
+    @State private var navigateToNote: Note?
+    @State private var navigateTransformType: AITransformType?
+
     // Today's daily brief
     private var todaysBrief: DailyBrief? {
         let today = Calendar.current.startOfDay(for: Date())
@@ -147,6 +152,28 @@ struct AIHomeView: View {
                 if isTranscribing {
                     HomeTranscribingOverlay()
                 }
+
+                // Post-capture transform card
+                if let note = completedNote {
+                    PostCaptureCard(
+                        note: note,
+                        onTransform: { type in
+                            navigateTransformType = type
+                            navigateToNote = note
+                            completedNote = nil
+                        },
+                        onViewNote: {
+                            navigateToNote = note
+                            navigateTransformType = nil
+                            completedNote = nil
+                        },
+                        onDismiss: {
+                            withAnimation {
+                                completedNote = nil
+                            }
+                        }
+                    )
+                }
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showingSettings) {
@@ -191,6 +218,18 @@ struct AIHomeView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage ?? "Unknown error")
+            }
+            .navigationDestination(item: $navigateToNote) { note in
+                NoteDetailView(
+                    note: note,
+                    initialTab: navigateTransformType != nil ? .transform : .insights,
+                    autoTransform: navigateTransformType
+                )
+            }
+            .onChange(of: navigateToNote) { oldValue, newValue in
+                if newValue == nil {
+                    navigateTransformType = nil
+                }
             }
             .onChange(of: shouldStartRecording) { _, newValue in
                 if newValue {
@@ -707,6 +746,7 @@ struct AIHomeView: View {
     private func startRecording() {
         do {
             currentAudioFileName = try audioRecorder.startRecording()
+            completedNote = nil  // Dismiss any post-capture card
             isRecording = true
         } catch {
             errorMessage = "Could not start recording: \(error.localizedDescription)"
@@ -807,6 +847,7 @@ struct AIHomeView: View {
                         }
                         isTranscribing = false
                         currentAudioFileName = nil
+                        completedNote = note
 
                         // Update widget with AI-generated title
                         SharedDefaults.updateLastNote(
