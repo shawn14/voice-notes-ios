@@ -56,7 +56,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				VoiceNotesWidget.entitlements,
 			);
 			target = F5C09500BBBBBB01007AAAAA /* VoiceNotesWidgetExtension */;
 		};
@@ -433,7 +432,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "voice notes/voice notes.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 36;
+				CURRENT_PROJECT_VERSION = 37;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -450,7 +449,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -471,7 +470,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "voice notes/voice notesRelease.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 36;
+				CURRENT_PROJECT_VERSION = 37;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -488,7 +487,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -505,10 +504,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 36;
+				CURRENT_PROJECT_VERSION = 37;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -522,10 +521,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 36;
+				CURRENT_PROJECT_VERSION = 37;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -542,7 +541,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = VoiceNotesWidget/VoiceNotesWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 36;
+				CURRENT_PROJECT_VERSION = 37;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VoiceNotesWidget/Info.plist;
@@ -553,7 +552,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.widget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -572,7 +571,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = VoiceNotesWidget/VoiceNotesWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 36;
+				CURRENT_PROJECT_VERSION = 37;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VoiceNotesWidget/Info.plist;
@@ -583,7 +582,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.widget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
