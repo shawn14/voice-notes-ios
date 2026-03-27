@@ -66,12 +66,15 @@ struct NoteDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @Bindable var note: Note
+    var initialTab: NoteTab = .insights
+    var autoTransform: AITransformType? = nil
+
     @Query private var allProjects: [Project]
     @Query private var allDecisions: [ExtractedDecision]
     @Query private var allActions: [ExtractedAction]
     @Query private var allExtractedURLs: [ExtractedURL]
 
-    @State private var selectedTab: NoteTab = .insights
+    @State private var selectedTab: NoteTab
     @State private var audioRecorder = AudioRecorder()
     @State private var showingDeleteConfirm = false
     @State private var showingShareSheet = false
@@ -92,6 +95,13 @@ struct NoteDetailView: View {
     @State private var isProcessingImage = false
     @State private var selectedImageForFullscreen: String?
     @State private var showingFullscreenImage = false
+
+    init(note: Note, initialTab: NoteTab = .insights, autoTransform: AITransformType? = nil) {
+        self.note = note
+        self.initialTab = initialTab
+        self.autoTransform = autoTransform
+        self._selectedTab = State(initialValue: initialTab)
+    }
 
     // Computed summary from transcript
     private var summary: String {
@@ -227,6 +237,13 @@ struct NoteDetailView: View {
             Button("OK") { aiError = nil }
         } message: {
             Text(aiError ?? "Unknown error")
+        }
+        .onAppear {
+            if let transform = autoTransform {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    generateAIContent(type: transform)
+                }
+            }
         }
     }
 
