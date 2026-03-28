@@ -130,6 +130,10 @@ final class Note {
     // People mentioned (JSON-encoded names)
     var mentionedPeopleJSON: String?
 
+    // Active rewrite (transform output)
+    var activeRewriteText: String?     // The transformed content (nil = no transform applied)
+    var activeRewriteType: String?     // "Summary", "Tweet", "PRD", etc.
+
     @Relationship(deleteRule: .nullify, inverse: \Tag.notes)
     var tagsOptional: [Tag]?
 

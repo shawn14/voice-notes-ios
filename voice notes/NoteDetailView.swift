@@ -86,9 +86,8 @@ struct NoteDetailView: View {
     @State private var showingCustomPrompt = false
     @State private var customPromptText = ""
     @State private var isGeneratingAI = false
-    @State private var aiOutput: String?
-    @State private var aiOutputType: AITransformType?
     @State private var aiError: String?
+    @State private var showingOriginal = false
 
     // Image attachment state
     @State private var selectedPhotoItem: PhotosPickerItem?
@@ -239,7 +238,8 @@ struct NoteDetailView: View {
             Text(aiError ?? "Unknown error")
         }
         .onAppear {
-            if let transform = autoTransform {
+            if let transform = autoTransform,
+               note.activeRewriteType != transform.rawValue {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     generateAIContent(type: transform)
                 }
@@ -365,14 +365,51 @@ struct NoteDetailView: View {
 
     private var insightsView: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Main content card - shows transcript preview or content
-            if !note.content.isEmpty || note.transcript != nil {
-                VStack(alignment: .leading, spacing: 12) {
-                    let displayText = !note.content.isEmpty ? note.content : (note.transcript ?? "")
-                    Text(String(displayText.prefix(300)) + (displayText.count > 300 ? "..." : ""))
+            // Main content card - shows rewrite (primary) or transcript
+            if note.activeRewriteText != nil || !note.content.isEmpty || note.transcript != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    // Toggle between rewrite and original
+                    if let rewriteType = note.activeRewriteType, note.activeRewriteText != nil {
+                        HStack {
+                            HStack(spacing: 4) {
+                                if let type = AITransformType(rawValue: rewriteType) {
+                                    Image(systemName: type.icon)
+                                        .font(.caption2)
+                                }
+                                Text(rewriteType)
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.2))
+                            .foregroundStyle(.blue)
+                            .cornerRadius(6)
+
+                            Spacer()
+
+                            Button {
+                                showingOriginal.toggle()
+                            } label: {
+                                Text(showingOriginal ? "View Rewrite" : "View Original")
+                                    .font(.caption)
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                    }
+
+                    // Content
+                    let displayText: String = {
+                        if let rewrite = note.activeRewriteText, !showingOriginal {
+                            return rewrite
+                        }
+                        return !note.content.isEmpty ? note.content : (note.transcript ?? "")
+                    }()
+
+                    Text(showingOriginal ? displayText : (String(displayText.prefix(500)) + (displayText.count > 500 ? "..." : "")))
                         .font(.body)
                         .foregroundStyle(.white.opacity(0.9))
                         .lineSpacing(4)
+                        .textSelection(.enabled)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -564,10 +601,10 @@ struct NoteDetailView: View {
                             Text(type.rawValue)
                                 .font(.caption)
                         }
-                        .foregroundStyle(aiOutputType == type ? .white : .blue)
+                        .foregroundStyle(note.activeRewriteType == type.rawValue ? .white : .blue)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(aiOutputType == type ? Color.blue : Color.blue.opacity(0.15))
+                        .background(note.activeRewriteType == type.rawValue ? Color.blue : Color.blue.opacity(0.15))
                         .cornerRadius(12)
                     }
                     .disabled(isGeneratingAI)
@@ -579,20 +616,22 @@ struct NoteDetailView: View {
                 VStack(spacing: 12) {
                     ProgressView()
                         .tint(.blue)
-                    Text("Generating \(aiOutputType?.rawValue ?? "")...")
+                    Text("Generating...")
                         .font(.subheadline)
                         .foregroundStyle(.gray)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
-            } else if let output = aiOutput, let type = aiOutputType {
+            } else if let output = note.activeRewriteText, let typeRaw = note.activeRewriteType, !output.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Image(systemName: type.icon)
-                            .foregroundStyle(.blue)
-                        Text(type.rawValue)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.blue)
+                        if let type = AITransformType(rawValue: typeRaw) {
+                            Image(systemName: type.icon)
+                                .foregroundStyle(.blue)
+                            Text(type.rawValue)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.blue)
+                        }
 
                         Spacer()
 
@@ -606,6 +645,20 @@ struct NoteDetailView: View {
                             }
                             .font(.caption)
                             .foregroundStyle(.blue)
+                        }
+
+                        // Clear button
+                        Button {
+                            note.activeRewriteText = nil
+                            note.activeRewriteType = nil
+                            note.updatedAt = Date()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "xmark.circle")
+                                Text("Clear")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.red.opacity(0.7))
                         }
                     }
 
@@ -779,7 +832,6 @@ struct NoteDetailView: View {
         let prompt = customPrompt ?? type.prompt
 
         isGeneratingAI = true
-        aiOutputType = type
 
         Task {
             do {
@@ -790,14 +842,16 @@ struct NoteDetailView: View {
                 )
 
                 await MainActor.run {
-                    aiOutput = result
+                    note.activeRewriteText = result
+                    note.activeRewriteType = type.rawValue
+                    note.updatedAt = Date()
                     isGeneratingAI = false
+                    selectedTab = .insights
                 }
             } catch {
                 await MainActor.run {
                     aiError = "Failed to generate: \(error.localizedDescription)"
                     isGeneratingAI = false
-                    aiOutputType = nil
                 }
             }
         }
