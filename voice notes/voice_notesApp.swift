@@ -230,6 +230,60 @@ struct voice_notesApp: App {
             commitments: commitments,
             unresolved: unresolved
         )
+
+        // Retry pending transcriptions
+        let pendingNotes = notes.filter { $0.transcriptionStatus == "pending" && $0.audioFileName != nil }
+        if !pendingNotes.isEmpty, let apiKey = APIKeys.openAI, !apiKey.isEmpty {
+            let tags = (try? context.fetch(FetchDescriptor<Tag>())) ?? []
+
+            for note in pendingNotes {
+                guard let audioURL = note.audioURL else { continue }
+
+                do {
+                    let service = TranscriptionService(apiKey: apiKey, language: LanguageSettings.shared.selectedLanguage)
+                    let rawTranscript = try await service.transcribe(audioURL: audioURL)
+
+                    // Clean filler words
+                    let transcript: String
+                    do {
+                        transcript = try await SummaryService.cleanFillerWords(from: rawTranscript, apiKey: apiKey)
+                    } catch {
+                        transcript = rawTranscript
+                    }
+
+                    note.transcript = transcript
+                    note.content = transcript
+                    note.transcriptionStatus = "completed"
+                    note.updatedAt = Date()
+                    try? context.save()
+
+                    // Run intelligence pipeline
+                    let title = try? await SummaryService.generateTitle(for: transcript, apiKey: apiKey)
+                    if let title = title {
+                        note.title = title
+                    }
+
+                    await IntelligenceService.shared.processNoteSave(
+                        note: note,
+                        transcript: transcript,
+                        projects: projects,
+                        tags: tags,
+                        context: context
+                    )
+
+                    // Update widget
+                    SharedDefaults.updateLastNote(
+                        preview: note.displayTitle,
+                        date: note.updatedAt,
+                        intent: note.intentType
+                    )
+                    WidgetCenter.shared.reloadAllTimelines()
+                } catch {
+                    // Still offline or API error — leave as pending, will retry next time
+                    continue
+                }
+            }
+        }
     }
 
     /// Removes duplicate tags, keeping one of each name and updating note references

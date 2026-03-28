@@ -134,6 +134,9 @@ final class Note {
     var activeRewriteText: String?     // The transformed content (nil = no transform applied)
     var activeRewriteType: String?     // "Summary", "Tweet", "PRD", etc.
 
+    // Transcription queue status
+    var transcriptionStatus: String = "completed"  // "completed", "pending"
+
     @Relationship(deleteRule: .nullify, inverse: \Tag.notes)
     var tagsOptional: [Tag]?
 

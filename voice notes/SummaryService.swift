@@ -224,6 +224,79 @@ enum SummaryService {
         return NoteSummary(keyPoints: keyPoints, actionItems: actionItems)
     }
 
+    // MARK: - Filler Word Removal
+
+    static func cleanFillerWords(from transcript: String, apiKey: String) async throws -> String {
+        // Skip very short transcripts
+        guard transcript.split(separator: " ").count > 10 else {
+            return transcript
+        }
+
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": "Remove filler words and verbal tics (um, uh, like, you know, so, basically, actually, I mean, right, sort of, kind of, well, yeah, okay so, honestly, literally) from this transcript. Preserve all meaning, tone, and sentence structure. Do not summarize, rephrase, or change the content. Return only the cleaned text."],
+                ["role": "user", "content": transcript]
+            ],
+            "max_tokens": 4096,
+            "temperature": 0.1
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = json["choices"] as? [[String: Any]],
+              let first = choices.first,
+              let message = first["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            // If parsing fails, return original transcript
+            return transcript
+        }
+
+        return content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: - Title Generation
+
+    static func generateTitle(for text: String, apiKey: String) async throws -> String {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": "Generate a concise 3-6 word title for this voice note. No quotes or punctuation."],
+                ["role": "user", "content": String(text.prefix(500))]
+            ],
+            "max_tokens": 20
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = json["choices"] as? [[String: Any]],
+              let first = choices.first,
+              let message = first["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            return "Untitled Note"
+        }
+
+        return content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // MARK: - Note Analysis (Notes ≠ Decisions)
 
     static var analysisPrompt: String {

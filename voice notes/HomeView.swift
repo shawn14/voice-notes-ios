@@ -1202,6 +1202,7 @@ struct HomeBottomBar: View {
     let isTranscribing: Bool
     let onRecord: () -> Void
     var onTypeNote: (() -> Void)? = nil
+    var onImportAudio: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 40) {
@@ -1238,8 +1239,17 @@ struct HomeBottomBar: View {
             }
             .disabled(isTranscribing)
 
-            // Balance spacer on right
-            Color.clear.frame(width: 44, height: 44)
+            // Import audio button (right of record)
+            if let onImport = onImportAudio, !isRecording && !isTranscribing {
+                Button(action: onImport) {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.gray.opacity(0.5))
+                }
+                .frame(width: 44, height: 44)
+            } else {
+                Color.clear.frame(width: 44, height: 44)
+            }
         }
         .padding(.bottom, 30)
     }

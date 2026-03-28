@@ -10,6 +10,8 @@ import SwiftUI
 import SwiftData
 import AuthenticationServices
 import WidgetKit
+import UniformTypeIdentifiers
+import AVFoundation
 
 struct AIHomeView: View {
     @Environment(\.modelContext) private var modelContext
@@ -50,6 +52,9 @@ struct AIHomeView: View {
     @State private var currentAudioFileName: String?
     @State private var errorMessage: String?
     @State private var showingError = false
+
+    // Audio import state
+    @State private var showingAudioImporter = false
 
     // Post-capture state
     @State private var completedNote: Note?
@@ -135,7 +140,8 @@ struct AIHomeView: View {
                     HomeBottomBar(
                         isRecording: isRecording,
                         isTranscribing: isTranscribing,
-                        onRecord: toggleRecording
+                        onRecord: toggleRecording,
+                        onImportAudio: { showingAudioImporter = true }
                     )
                 }
 
@@ -218,6 +224,20 @@ struct AIHomeView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage ?? "Unknown error")
+            }
+            .fileImporter(
+                isPresented: $showingAudioImporter,
+                allowedContentTypes: [.audio],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let sourceURL = urls.first else { return }
+                    importAudioFile(from: sourceURL)
+                case .failure(let error):
+                    errorMessage = "Import failed: \(error.localizedDescription)"
+                    showingError = true
+                }
             }
             .navigationDestination(item: $navigateToNote) { note in
                 NoteDetailView(
@@ -785,22 +805,63 @@ struct AIHomeView: View {
         Task {
             do {
                 let service = TranscriptionService(apiKey: apiKey, language: LanguageSettings.shared.selectedLanguage)
-                let transcript = try await service.transcribe(audioURL: url)
+                let rawTranscript = try await service.transcribe(audioURL: url)
+
+                // Clean filler words (um, uh, like, you know, etc.)
+                let transcript: String
+                do {
+                    transcript = try await SummaryService.cleanFillerWords(from: rawTranscript, apiKey: apiKey)
+                } catch {
+                    // If filler removal fails, use the raw transcript
+                    transcript = rawTranscript
+                }
 
                 await MainActor.run {
                     saveNote(transcript: transcript)
                 }
             } catch {
                 await MainActor.run {
-                    saveNote(transcript: nil)
-                    errorMessage = "Transcription failed: \(error.localizedDescription)"
-                    showingError = true
+                    saveNote(transcript: nil, pending: true)
                 }
             }
         }
     }
 
-    private func saveNote(transcript: String?) {
+    private func importAudioFile(from sourceURL: URL) {
+        guard sourceURL.startAccessingSecurityScopedResource() else {
+            errorMessage = "Could not access the selected file"
+            showingError = true
+            return
+        }
+        defer { sourceURL.stopAccessingSecurityScopedResource() }
+
+        // Copy to Documents directory with UUID filename
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileExtension = sourceURL.pathExtension.isEmpty ? "m4a" : sourceURL.pathExtension
+        let fileName = "\(UUID().uuidString).\(fileExtension)"
+        let destinationURL = documentsPath.appendingPathComponent(fileName)
+
+        do {
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        } catch {
+            errorMessage = "Could not import file: \(error.localizedDescription)"
+            showingError = true
+            return
+        }
+
+        // Verify audio is readable
+        if (try? AVAudioPlayer(contentsOf: destinationURL)) != nil {
+            currentAudioFileName = fileName
+            isTranscribing = true
+            transcribeAndSave(url: destinationURL)
+        } else {
+            errorMessage = "Could not read audio file"
+            showingError = true
+            try? FileManager.default.removeItem(at: destinationURL)
+        }
+    }
+
+    private func saveNote(transcript: String?, pending: Bool = false) {
         let note = Note(
             title: "",
             content: transcript ?? "",
@@ -808,6 +869,9 @@ struct AIHomeView: View {
             audioFileName: currentAudioFileName
         )
         modelContext.insert(note)
+        if pending {
+            note.transcriptionStatus = "pending"
+        }
         UsageService.shared.incrementNoteCount()
         try? modelContext.save()
 
@@ -1300,14 +1364,29 @@ struct AIRecentNoteRow: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
-                Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+                if note.transcriptionStatus == "pending" {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text("Waiting to transcribe...")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                } else {
+                    Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
             }
 
             Spacer()
 
-            if note.intent != .unknown {
+            if note.transcriptionStatus == "pending" {
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else if note.intent != .unknown {
                 Text(note.intentType)
                     .font(.caption2)
                     .foregroundStyle(note.intent.color)
