@@ -30,7 +30,6 @@ struct ReportsView: View {
     @State private var showPaywall = false
     @FocusState private var isInputFocused: Bool
     @State private var lastReportType: ReportType?
-    @State private var showingMyEEON = false
     @State private var personalizedReports: [PersonalizedReport] = PersonalizedReportStore.cached ?? []
 
     var body: some View {
@@ -108,26 +107,10 @@ struct ReportsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: 16) {
-                    Button { showingMyEEON = true } label: {
-                        Image(systemName: "sparkles")
-                    }
                     Button(action: clearChat) {
                         Image(systemName: "arrow.counterclockwise")
                     }
                     .disabled(messages.isEmpty)
-                }
-            }
-        }
-        .sheet(isPresented: $showingMyEEON) {
-            NavigationStack {
-                MyEEONView()
-            }
-        }
-        .onChange(of: showingMyEEON) {
-            if !showingMyEEON {
-                // Reload personalized reports after MyEEON sheet closes
-                personalizedReports = PersonalizedReportStore.cached ?? []
             }
         }
         .alert("Error", isPresented: $showingError) {
@@ -257,36 +240,6 @@ struct ReportsView: View {
                     .padding(.top, 8)
             }
 
-            // My EEON card
-            Button { showingMyEEON = true } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "sparkles")
-                        .font(.body)
-                        .foregroundStyle(.purple)
-
-                    if AuthService.shared.eeonContext != nil {
-                        Text("Update My EEON to customize reports")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.primary)
-                    } else {
-                        Text("Set up My EEON to personalize reports")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.primary)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(12)
-                .background(Color(.systemGray6))
-                .cornerRadius(10)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal)
-            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)

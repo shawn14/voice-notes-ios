@@ -24,7 +24,7 @@ struct UsageExplainerView: View {
 
             // Explanation
             VStack(spacing: 12) {
-                Text("You get 5 free notes to try the app.")
+                Text("You get 10 free notes to try the app.")
                     .font(.body)
                     .foregroundStyle(.primary)
 
@@ -40,7 +40,7 @@ struct UsageExplainerView: View {
                 LimitRow(
                     icon: "note.text",
                     label: "Notes",
-                    value: "5 free",
+                    value: "10 free",
                     valueColor: .orange
                 )
 

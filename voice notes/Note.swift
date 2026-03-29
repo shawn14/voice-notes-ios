@@ -137,6 +137,18 @@ final class Note {
     // Transcription queue status
     var transcriptionStatus: String = "completed"  // "completed", "pending"
 
+    // Semantic search embedding (1536-dim Float array as Data)
+    var embeddingData: Data?
+
+    // AI-extracted topics (JSON array of strings)
+    var topicsJSON: String?
+
+    // Sentiment label (e.g. "positive", "neutral", "negative", "mixed")
+    var emotionalTone: String?
+
+    // AI-enhanced version of the note (cleaned up, expanded, well-structured)
+    var enhancedNoteText: String?
+
     @Relationship(deleteRule: .nullify, inverse: \Tag.notes)
     var tagsOptional: [Tag]?
 
@@ -310,6 +322,38 @@ final class Note {
         var names = imageFileNames
         names.removeAll { $0 == fileName }
         imageFileNames = names
+    }
+
+    // MARK: - Topics
+
+    var topics: [String] {
+        get {
+            guard let json = topicsJSON,
+                  let data = json.data(using: .utf8) else { return [] }
+            return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue),
+                  let json = String(data: data, encoding: .utf8) else {
+                topicsJSON = nil
+                return
+            }
+            topicsJSON = json
+            updatedAt = Date()
+        }
+    }
+
+    // MARK: - Embedding Helpers
+
+    /// Retrieve the embedding as a Float array, or nil if not yet generated.
+    var embedding: [Float]? {
+        guard let data = embeddingData else { return nil }
+        return data.withUnsafeBytes { buffer -> [Float] in
+            guard let pointer = buffer.baseAddress?.assumingMemoryBound(to: Float.self) else {
+                return []
+            }
+            return Array(UnsafeBufferPointer(start: pointer, count: data.count / MemoryLayout<Float>.size))
+        }
     }
 
     // MARK: - Audio Cleanup

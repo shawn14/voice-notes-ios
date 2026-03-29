@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import WidgetKit
+import BackgroundTasks
 
 @main
 struct voice_notesApp: App {
@@ -25,6 +26,9 @@ struct voice_notesApp: App {
 
     // Deep link: auto-start recording
     @State private var shouldStartRecording = false
+
+    // Background task identifier for proactive alerts
+    static let proactiveAlertsTaskId = "com.eeon.proactiveAlerts"
 
     init() {
         let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self, DailyBrief.self, ExtractedURL.self, MentionedPerson.self])
@@ -88,6 +92,8 @@ struct voice_notesApp: App {
                 }
             }
         }
+
+        // Background task for proactive alerts is registered via .backgroundTask(.appRefresh) modifier on the Scene
     }
 
     var body: some Scene {
@@ -128,6 +134,9 @@ struct voice_notesApp: App {
             }
         }
         .modelContainer(container)
+        .backgroundTask(.appRefresh(voice_notesApp.proactiveAlertsTaskId)) {
+            await handleProactiveAlertsBackgroundTask()
+        }
     }
 
     private func handleIncomingURL(_ url: URL) {
@@ -231,6 +240,9 @@ struct voice_notesApp: App {
             unresolved: unresolved
         )
 
+        // Proactive alerts: scan and schedule notifications on foreground
+        await runProactiveAlertScan(context: context)
+
         // Retry pending transcriptions
         let pendingNotes = notes.filter { $0.transcriptionStatus == "pending" && $0.audioFileName != nil }
         if !pendingNotes.isEmpty, let apiKey = APIKeys.openAI, !apiKey.isEmpty {
@@ -271,6 +283,11 @@ struct voice_notesApp: App {
                         context: context
                     )
 
+                    // Generate embedding for semantic search (non-blocking, failure-tolerant)
+                    Task {
+                        await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
+                    }
+
                     // Update widget
                     SharedDefaults.updateLastNote(
                         preview: note.displayTitle,
@@ -283,6 +300,62 @@ struct voice_notesApp: App {
                     continue
                 }
             }
+        }
+    }
+
+    // MARK: - Proactive Alerts
+
+    /// Run proactive alert scan and schedule notifications (foreground)
+    @MainActor
+    private func runProactiveAlertScan(context: ModelContext) async {
+        let alertService = ProactiveAlertService.shared
+        guard alertService.shouldScan else { return }
+
+        // Request notification permission naturally after 3rd note
+        await NotificationScheduler.shared.requestPermissionIfReady()
+
+        let alerts = alertService.generateAlerts(using: context)
+        alertService.recordScan()
+
+        guard !alerts.isEmpty else { return }
+        await NotificationScheduler.shared.scheduleAlerts(alerts)
+
+        // Also ensure daily brief reminder is scheduled if enabled
+        let briefEnabled = UserDefaults.standard.object(forKey: "dailyBriefEnabled") as? Bool ?? true
+        if briefEnabled {
+            let hour = NotificationScheduler.shared.dailyBriefHour
+            let minute = NotificationScheduler.shared.dailyBriefMinute
+            await NotificationScheduler.shared.scheduleDailyBriefReminder(at: hour, minute: minute)
+        }
+
+        // Schedule next background task
+        scheduleProactiveAlertsBackgroundTask()
+    }
+
+    /// Handle the BGAppRefresh task for proactive alerts
+    private func handleProactiveAlertsBackgroundTask() async {
+        let context = ModelContext(container)
+        let alertService = ProactiveAlertService.shared
+        let alerts = alertService.generateAlerts(using: context)
+        alertService.recordScan()
+
+        if !alerts.isEmpty {
+            await NotificationScheduler.shared.scheduleAlerts(alerts)
+        }
+
+        // Re-schedule for tomorrow
+        scheduleProactiveAlertsBackgroundTask()
+    }
+
+    /// Schedule a background app refresh task for the next day
+    private func scheduleProactiveAlertsBackgroundTask() {
+        let request = BGAppRefreshTaskRequest(identifier: voice_notesApp.proactiveAlertsTaskId)
+        // Run once per day — earliest: 6 hours from now
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 6 * 60 * 60)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            print("[ProactiveAlerts] Failed to schedule background task: \(error)")
         }
     }
 

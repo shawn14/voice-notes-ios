@@ -54,7 +54,6 @@ struct HomeView: View {
     private var intelligenceService = IntelligenceService.shared
 
     @State private var searchText = ""
-    @State private var selectedFilter: NoteFilter = .all
     @State private var showingSettings = false
     @State private var showingAssistant = false
     @State private var selectedProject: Project?
@@ -79,8 +78,6 @@ struct HomeView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isProcessingPhoto = false
 
-    // People view
-    @State private var showingPeopleView = false
 
     // Type note (alternative to voice)
     @State private var showingTypeNote = false
@@ -100,23 +97,6 @@ struct HomeView: View {
                 $0.displayTitle.localizedCaseInsensitiveContains(searchText) ||
                 $0.content.localizedCaseInsensitiveContains(searchText)
             }
-        }
-
-        // Apply category filter
-        switch selectedFilter {
-        case .all:
-            break // Show all
-        case .projects:
-            result = result.filter { $0.projectId != nil }
-        case .favorites:
-            result = result.filter { $0.isFavorite }
-        case .recent:
-            // Show notes from last 7 days
-            let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
-            result = result.filter { $0.createdAt >= weekAgo }
-        case .people:
-            // People filter opens PeopleView, so show all here
-            break
         }
 
         // Apply tag filter
@@ -280,57 +260,8 @@ struct HomeView: View {
                     headerView
                     briefAndSearchSection
 
-                    // Filter tabs
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(NoteFilter.allCases, id: \.self) { filter in
-                                FilterTab(
-                                    title: filter.rawValue,
-                                    isSelected: selectedFilter == filter
-                                ) {
-                                    if filter == .people {
-                                        showingPeopleView = true
-                                    } else {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            selectedFilter = filter
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Projects quick access
-                            if projects.filter({ !$0.isArchived }).isEmpty {
-                                // Prompt to create first project
-                                Button(action: { showingAddProjectFromMain = true }) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "plus")
-                                            .font(.caption.weight(.semibold))
-                                        Text("Add Project")
-                                            .font(.subheadline)
-                                    }
-                                    .foregroundStyle(.white.opacity(0.8))
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color.blue.opacity(0.4))
-                                    .cornerRadius(20)
-                                }
-                            } else {
-                                ForEach(projects.filter { !$0.isArchived }.prefix(3)) { project in
-                                    NavigationLink(value: project) {
-                                        Text(project.name)
-                                            .font(.subheadline)
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 10)
-                                            .background(Color(.systemGray5).opacity(0.3))
-                                            .cornerRadius(20)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 16)
-                    }
+                    // Spacer between search and notes list
+                    Spacer().frame(height: 16)
 
                     // Tag filter indicator
                     if let tag = selectedTag {
@@ -513,9 +444,6 @@ struct HomeView: View {
                     showPaywall = false
                 })
             }
-            .sheet(isPresented: $showingPeopleView) {
-                PeopleView()
-            }
             .sheet(isPresented: $showingTypeNote) {
                 TypeNoteSheet(onSave: { text in
                     showingTypeNote = false
@@ -539,9 +467,6 @@ struct HomeView: View {
                 }
             } message: {
                 Text("Projects help organize related notes together.")
-            }
-            .navigationDestination(for: Project.self) { project in
-                ProjectDetailView(project: project)
             }
         }
         .preferredColorScheme(.dark)
@@ -798,6 +723,11 @@ struct HomeView: View {
                         tags: existingTags,
                         context: context
                     )
+
+                    // Generate embedding for semantic search (non-blocking, failure-tolerant)
+                    Task {
+                        await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
+                    }
                 } catch {
                     await MainActor.run {
                         isTranscribing = false
@@ -1372,12 +1302,10 @@ struct ProjectsListView: View {
 
     var body: some View {
         List(projects) { project in
-            NavigationLink(destination: ProjectDetailView(project: project)) {
-                HStack {
-                    Image(systemName: project.icon)
-                        .foregroundStyle(colorFor(project.colorName))
-                    Text(project.name)
-                }
+            HStack {
+                Image(systemName: project.icon)
+                    .foregroundStyle(colorFor(project.colorName))
+                Text(project.name)
             }
         }
         .navigationTitle("Projects")
@@ -1574,31 +1502,6 @@ struct SettingsView: View {
                 // MARK: - Account Section
                 accountSection
 
-                // MARK: - History Section
-                Section {
-                    NavigationLink(destination: CompletedItemsView()) {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.green.opacity(0.15))
-                                    .frame(width: 44, height: 44)
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Completed Items")
-                                    .font(.body)
-                                Text("History of finished tasks")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                        }
-                    }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("History")
-                }
 
                 // MARK: - Projects Section
                 Section {
@@ -1714,29 +1617,12 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.vertical, 4)
-                    NavigationLink {
-                        MyEEONView()
-                    } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "sparkles")
-                                .foregroundStyle(.purple)
-                                .frame(width: 44)
-
-                            Text("My EEON")
-                                .font(.body)
-
-                            Spacer()
-
-                            Text(AuthService.shared.eeonContext != nil ? String(AuthService.shared.eeonContext!.prefix(20)) + (AuthService.shared.eeonContext!.count > 20 ? "…" : "") : "Not set")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                    .padding(.vertical, 4)
                 } header: {
                     Text("Preferences")
                 }
+
+                // MARK: - Notifications Section
+                NotificationSettingsSection()
 
                 // MARK: - Support Section
                 Section {
@@ -2257,6 +2143,102 @@ struct LanguagePickerView: View {
         }
         .navigationTitle("Transcription Language")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Notification Settings Section
+
+struct NotificationSettingsSection: View {
+    @AppStorage("proactiveRemindersEnabled") private var proactiveRemindersEnabled = true
+    @AppStorage("dailyBriefEnabled") private var dailyBriefEnabled = true
+
+    @State private var briefTime: Date = {
+        let scheduler = NotificationScheduler.shared
+        var components = DateComponents()
+        components.hour = scheduler.dailyBriefHour
+        components.minute = scheduler.dailyBriefMinute
+        return Calendar.current.date(from: components) ?? Date()
+    }()
+
+    var body: some View {
+        Section {
+            Toggle(isOn: $proactiveRemindersEnabled) {
+                HStack(spacing: 16) {
+                    Image(systemName: "bell.badge")
+                        .foregroundStyle(.orange)
+                        .frame(width: 44)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Proactive reminders")
+                            .font(.body)
+                        Text("Alerts for stale commitments, overdue actions")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+            .onChange(of: proactiveRemindersEnabled) { _, enabled in
+                if !enabled {
+                    NotificationScheduler.shared.removeAllPendingNotifications()
+                }
+            }
+
+            Toggle(isOn: $dailyBriefEnabled) {
+                HStack(spacing: 16) {
+                    Image(systemName: "sun.horizon")
+                        .foregroundStyle(.yellow)
+                        .frame(width: 44)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Daily brief notification")
+                            .font(.body)
+                        Text("Morning reminder to review your brief")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+            .onChange(of: dailyBriefEnabled) { _, enabled in
+                Task {
+                    if enabled {
+                        let components = Calendar.current.dateComponents([.hour, .minute], from: briefTime)
+                        await NotificationScheduler.shared.scheduleDailyBriefReminder(
+                            at: components.hour ?? 8,
+                            minute: components.minute ?? 0
+                        )
+                    } else {
+                        await NotificationScheduler.shared.scheduleDailyBriefReminder(at: 8, minute: 0)
+                    }
+                }
+            }
+
+            if dailyBriefEnabled {
+                DatePicker(selection: $briefTime, displayedComponents: .hourAndMinute) {
+                    HStack(spacing: 16) {
+                        Image(systemName: "clock")
+                            .foregroundStyle(.blue)
+                            .frame(width: 44)
+
+                        Text("Brief time")
+                            .font(.body)
+                    }
+                }
+                .padding(.vertical, 4)
+                .onChange(of: briefTime) { _, newTime in
+                    let components = Calendar.current.dateComponents([.hour, .minute], from: newTime)
+                    Task {
+                        await NotificationScheduler.shared.scheduleDailyBriefReminder(
+                            at: components.hour ?? 8,
+                            minute: components.minute ?? 0
+                        )
+                    }
+                }
+            }
+        } header: {
+            Text("Notifications")
+        }
     }
 }
 

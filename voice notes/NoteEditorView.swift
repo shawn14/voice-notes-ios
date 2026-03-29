@@ -542,6 +542,17 @@ struct NoteEditorView: View {
                     }
                     note.inferredProjectName = result.inferredProject
 
+                    // Store topics and emotional tone
+                    if !result.topics.isEmpty {
+                        note.topics = result.topics
+                    }
+                    if let tone = result.emotionalTone {
+                        note.emotionalTone = tone
+                    }
+                    if let enhanced = result.enhancedNote, !enhanced.isEmpty {
+                        note.enhancedNoteText = enhanced
+                    }
+
                     // Auto-match inferred project to existing projects
                     if let inferredName = result.inferredProject, !inferredName.isEmpty {
                         // Try to find a matching project using ProjectMatcher
@@ -603,6 +614,11 @@ struct NoteEditorView: View {
                     }
 
                     isAnalyzing = false
+
+                    // Refresh embedding after re-extraction (non-blocking, failure-tolerant)
+                    Task {
+                        await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -1515,51 +1531,7 @@ struct ProjectAssociationView: View {
     }
 }
 
-// Flow layout for tags
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(in: proposal.width ?? 0, spacing: spacing, subviews: subviews)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(in: bounds.width, spacing: spacing, subviews: subviews)
-        for (index, subview) in subviews.enumerated() {
-            subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x,
-                                       y: bounds.minY + result.positions[index].y),
-                         proposal: .unspecified)
-        }
-    }
-
-    struct FlowResult {
-        var size: CGSize = .zero
-        var positions: [CGPoint] = []
-
-        init(in width: CGFloat, spacing: CGFloat, subviews: Subviews) {
-            var x: CGFloat = 0
-            var y: CGFloat = 0
-            var rowHeight: CGFloat = 0
-
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-
-                if x + size.width > width && x > 0 {
-                    x = 0
-                    y += rowHeight + spacing
-                    rowHeight = 0
-                }
-
-                positions.append(CGPoint(x: x, y: y))
-                rowHeight = max(rowHeight, size.height)
-                x += size.width + spacing
-            }
-
-            self.size = CGSize(width: width, height: y + rowHeight)
-        }
-    }
-}
+// FlowLayout is defined in ExtractionChipsView.swift
 
 #Preview {
     NavigationStack {

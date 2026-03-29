@@ -52,6 +52,9 @@ struct IntentAnalysis: Sendable {
     let missingInfo: [MissingInfoExtract]
     let inferredProject: String?
     let mentionedPeople: [String]   // Names of people mentioned
+    let topics: [String]            // 1-5 semantic topic tags
+    let emotionalTone: String?      // Speaker's emotional tone
+    let enhancedNote: String?       // AI-enhanced version of the note
 
     // Include existing analysis fields for combined extraction
     let summary: String
@@ -436,7 +439,10 @@ enum SummaryService {
     4. Missing info: what's incomplete or unclear?
     5. Project inference: what project does this belong to?
     6. People mentioned: names of people referenced (not "I", "me", "myself")
-    7. Standard analysis: summary, key points, decisions, actions, commitments, unresolved
+    7. Topics: 1-5 semantic topic tags describing what this note is ABOUT (e.g. "Q2 planning", "hiring", "product launch")
+    8. Emotional tone: single word describing the speaker's tone
+    9. Enhanced note: a cleaned-up, expanded, well-structured version of what the user said. Not just filler word removal — actually make the thought more complete and organized. Preserve the user's voice and intent.
+    10. Standard analysis: summary, key points, decisions, actions, commitments, unresolved
 
     NEXT STEP TYPES (classify based on what resolution requires):
     - date: Involves picking a date/time ("Pick a date", "Schedule", "Set deadline", "When should we...")
@@ -459,6 +465,9 @@ enum SummaryService {
         ],
         "inferredProject": "StockAlarm",
         "mentionedPeople": ["John", "Sarah"],
+        "topics": ["board meeting", "scheduling", "governance"],
+        "emotionalTone": "decisive",
+        "enhancedNote": "A cleaned-up, well-structured version of the original note with complete thoughts and proper organization.",
         "summary": "Brief description of what this note is about",
         "keyPoints": ["Factual takeaway 1", "Factual takeaway 2"],
         "decisions": [
@@ -499,6 +508,9 @@ enum SummaryService {
     - missingInfo: Array of gaps. Empty array if nothing missing.
     - inferredProject: Best guess at project name. Null if unclear.
     - mentionedPeople: Array of proper names mentioned. Exclude "I", "me", "myself". Empty array if none.
+    - topics: 1-5 short semantic topic tags. These describe what the note is ABOUT, not keywords. E.g. "Q2 planning", "hiring", "product launch", "design team".
+    - emotionalTone: Single word from: confident, uncertain, frustrated, excited, neutral, worried, optimistic, decisive. Pick the best fit.
+    - enhancedNote: A well-structured, cleaned-up version of what the user said. Remove filler, fix grammar, expand incomplete thoughts, organize into clear paragraphs. Preserve the user's voice and intent. Not a summary — the full thought, just better written.
     - Return ONLY JSON, no other text
     """
     }
@@ -518,7 +530,7 @@ enum SummaryService {
                 ["role": "user", "content": text]
             ],
             "temperature": 0.3,
-            "max_tokens": 1500
+            "max_tokens": 2500
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -552,6 +564,9 @@ enum SummaryService {
             },
             inferredProject: parsed.inferredProject,
             mentionedPeople: parsed.mentionedPeople ?? [],
+            topics: parsed.topics ?? [],
+            emotionalTone: parsed.emotionalTone,
+            enhancedNote: parsed.enhancedNote,
             summary: parsed.summary,
             keyPoints: parsed.keyPoints,
             decisions: parsed.decisions.map {
@@ -581,6 +596,9 @@ nonisolated struct IntentAnalysisResponse: Codable, Sendable {
     let missingInfo: [MissingInfoResponse]
     let inferredProject: String?
     let mentionedPeople: [String]?
+    let topics: [String]?
+    let emotionalTone: String?
+    let enhancedNote: String?
     let summary: String
     let keyPoints: [String]
     let decisions: [DecisionResponse]

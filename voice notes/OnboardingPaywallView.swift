@@ -250,7 +250,7 @@ struct OnboardingPaywallView: View {
             Button {
                 OnboardingState.set(.completed)
             } label: {
-                Text("Try 5 free notes first")
+                Text("Try 10 free notes first")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white.opacity(0.5))
                     .underline()

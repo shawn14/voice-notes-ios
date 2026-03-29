@@ -30,19 +30,20 @@ struct PaywallView: View {
                     .padding(.top, 32)
 
                 // Headline
-                Text("You've used your 5 free notes")
+                Text("You've used your 10 free notes")
                     .font(.title2.weight(.bold))
                     .multilineTextAlignment(.center)
 
                 // Subhead
-                Text("Upgrade to keep capturing your thoughts")
+                Text("Upgrade to unlimited memory")
                     .font(.headline)
                     .foregroundStyle(.secondary)
 
                 // Value props
                 VStack(alignment: .leading, spacing: 14) {
-                    FeatureRow(icon: "infinity", text: "Unlimited notes")
+                    FeatureRow(icon: "infinity", text: "Unlimited memory & notes")
                     FeatureRow(icon: "brain.head.profile", text: "AI-powered extraction")
+                    FeatureRow(icon: "tag.fill", text: "Auto-tagged topics & tone")
                     FeatureRow(icon: "folder.fill", text: "Project organization")
                     FeatureRow(icon: "icloud.fill", text: "Sync across devices")
                     FeatureRow(icon: "waveform", text: "Unlimited recording time")

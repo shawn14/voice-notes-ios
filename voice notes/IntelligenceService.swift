@@ -140,6 +140,17 @@ final class IntelligenceService {
                     note.mentionedPeople = result.mentionedPeople
                 }
 
+                // Store topics and emotional tone
+                if !result.topics.isEmpty {
+                    note.topics = result.topics
+                }
+                if let tone = result.emotionalTone {
+                    note.emotionalTone = tone
+                }
+                if let enhanced = result.enhancedNote, !enhanced.isEmpty {
+                    note.enhancedNoteText = enhanced
+                }
+
                 // Persist unresolved items
                 for unresolved in result.unresolved {
                     let item = UnresolvedItem(

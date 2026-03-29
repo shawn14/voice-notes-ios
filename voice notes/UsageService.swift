@@ -2,7 +2,7 @@
 //  UsageService.swift
 //  voice notes
 //
-//  Simple monetization: 5 free notes, then pay
+//  Simple monetization: 10 free notes, then pay
 //
 
 import Foundation
@@ -26,7 +26,7 @@ class UsageService {
 
     // MARK: - Constants
 
-    static let freeNoteLimit = 5
+    static let freeNoteLimit = 10
 
     // MARK: - Core State
 
