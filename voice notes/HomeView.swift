@@ -67,10 +67,6 @@ struct HomeView: View {
     @State private var errorMessage: String?
     @State private var showingError = false
 
-    // First-run clarity flow
-    @State private var showFirstClarity = false
-    @State private var showExtractFallback = false
-    @State private var newlyCreatedNote: Note?
     @State private var showPaywall = false
     @State private var showSignIn = false
     @State private var showingAddProjectFromMain = false
@@ -512,14 +508,6 @@ struct HomeView: View {
             .sheet(isPresented: $showSignIn) {
                 SignInView()
             }
-            .sheet(isPresented: $showFirstClarity) {
-                if let note = newlyCreatedNote {
-                    FirstClarityView(note: note, onComplete: {
-                        showFirstClarity = false
-                        newlyCreatedNote = nil
-                    })
-                }
-            }
             .sheet(isPresented: $showPaywall) {
                 PaywallView(onDismiss: {
                     showPaywall = false
@@ -536,19 +524,6 @@ struct HomeView: View {
                 }, onCancel: {
                     showingTypeNote = false
                 })
-            }
-            .alert("Ready to understand", isPresented: $showExtractFallback) {
-                Button("See what I can do") {
-                    // Navigate to NoteEditorView with the note
-                    // The user can tap Extract there
-                    showExtractFallback = false
-                }
-                Button("Later", role: .cancel) {
-                    showExtractFallback = false
-                    newlyCreatedNote = nil
-                }
-            } message: {
-                Text("Tap Extract to turn this thought into action.")
             }
             .alert("New Project", isPresented: $showingAddProjectFromMain) {
                 TextField("Project name", text: $newProjectName)
@@ -781,16 +756,6 @@ struct HomeView: View {
         // Force save to persist immediately
         try? modelContext.save()
 
-        // Check if this is the first note with transcript -> auto-extract
-        let isFirstNote = UsageService.shared.isFirstNote
-        if isFirstNote && transcript != nil && !transcript!.isEmpty {
-            UsageService.shared.isFirstNote = false
-
-            if UsageService.shared.canExtract {
-                autoExtractAndShowClarity(note: note, transcript: transcript!)
-            }
-        }
-
         // AI processing for title, tags, and Tier 1 intelligence
         if let transcript = transcript, !transcript.isEmpty,
            let apiKey = APIKeys.openAI, !apiKey.isEmpty {
@@ -902,62 +867,6 @@ struct HomeView: View {
     }
 
     // MARK: - Auto-Extract for First Note
-
-    private func autoExtractAndShowClarity(note: Note, transcript: String) {
-        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
-            // No API key - show fallback
-            newlyCreatedNote = note
-            showExtractFallback = true
-            return
-        }
-
-        Task {
-            do {
-                let result = try await SummaryService.extractIntent(text: transcript, apiKey: apiKey)
-
-                await MainActor.run {
-                    // Apply extraction to note
-                    note.intentType = result.intent
-                    note.intentConfidence = result.intentConfidence
-
-                    if let subject = result.subject {
-                        note.extractedSubject = ExtractedSubject(
-                            topic: subject.topic,
-                            action: subject.action
-                        )
-                    }
-
-                    note.suggestedNextStep = result.nextStep
-                    note.nextStepTypeRaw = result.nextStepType
-                    note.missingInfo = result.missingInfo.map {
-                        MissingInfoItem(field: $0.field, description: $0.description)
-                    }
-                    note.inferredProjectName = result.inferredProject
-
-                    // Auto-match inferred project to existing projects
-                    if let inferredName = result.inferredProject, !inferredName.isEmpty {
-                        let textToMatch = "\(inferredName) \(note.content)"
-                        if let match = ProjectMatcher.findMatch(for: textToMatch, in: projects) {
-                            note.projectId = match.project.id
-                        }
-                    }
-
-                    // Track usage
-                    UsageService.shared.useExtraction()
-
-                    // Show FirstClarityView
-                    newlyCreatedNote = note
-                    showFirstClarity = true
-                }
-            } catch {
-                // FAILURE GUARDRAIL: Don't silently fail
-                await MainActor.run {
-                    newlyCreatedNote = note
-                    showExtractFallback = true
-                }
-            }
-        }
-    }
 
     private func trackRecordingUsage(fileName: String, for note: Note? = nil) {
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

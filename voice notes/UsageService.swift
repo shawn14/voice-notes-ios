@@ -165,19 +165,6 @@ class UsageService {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    // Legacy compatibility - these can be removed later
-    var canExtract: Bool { true }  // Always allow extraction now
-    var canResolve: Bool { true }  // Always allow resolution now
-    func useExtraction() { }  // No-op
-    func useResolution() { }  // No-op
-    var freeExtractionsRemaining: Int { 999 }
-    var freeResolutionsRemaining: Int { 999 }
-    var totalExtractionsUsed: Int { 0 }
-    var totalResolutionsUsed: Int { 0 }
-    var isFirstNote: Bool {
-        get { noteCount == 0 }
-        set { }  // No-op
-    }
 }
 
 // MARK: - App Info

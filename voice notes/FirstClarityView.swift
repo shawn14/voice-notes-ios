@@ -68,7 +68,6 @@ struct FirstClarityView: View {
                             selectedDate: $selectedDate,
                             onResolve: { resolution in
                                 note.resolveNextStep(with: resolution)
-                                UsageService.shared.useResolution()
 
                                 if UsageService.shared.shouldShowPaywall() {
                                     showPaywall = true
