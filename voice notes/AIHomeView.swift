@@ -24,6 +24,8 @@ struct AIHomeView: View {
     @Query private var kanbanItems: [KanbanItem]
     @Query private var kanbanMovements: [KanbanMovement]
     @Query private var extractedActions: [ExtractedAction]
+    @Query private var extractedDecisions: [ExtractedDecision]
+    @Query private var mentionedPeople: [MentionedPerson]
     @Query private var unresolvedItems: [UnresolvedItem]
 
     @Binding var shouldStartRecording: Bool
@@ -64,6 +66,7 @@ struct AIHomeView: View {
     // Feed tabs & sorting
     enum FeedTab: String, CaseIterable {
         case all = "All"
+        case ai = "AI"
         case favorites = "Favorites"
         case archive = "Archive"
     }
@@ -78,11 +81,24 @@ struct AIHomeView: View {
         return dailyBriefs.first { $0.briefDate >= today }
     }
 
+    /// Computed AI tab data (only built when AI tab is selected)
+    private var aiTabData: AITabData {
+        AITabBuilder.build(
+            notes: notes,
+            actions: extractedActions,
+            commitments: extractedCommitments,
+            decisions: extractedDecisions,
+            people: mentionedPeople
+        )
+    }
+
     /// Filtered notes based on selected tab and optional tag filter
     private var filteredNotes: [Note] {
         var base: [Note]
         switch selectedTab {
         case .all:
+            base = notes.filter { !$0.isArchived }
+        case .ai:
             base = notes.filter { !$0.isArchived }
         case .favorites:
             base = notes.filter { $0.isFavorite && !$0.isArchived }
@@ -129,6 +145,7 @@ struct AIHomeView: View {
     private var emptyStateIcon: String {
         switch selectedTab {
         case .all: return "waveform.circle"
+        case .ai: return "sparkles"
         case .favorites: return "heart.circle"
         case .archive: return "archivebox"
         }
@@ -137,6 +154,7 @@ struct AIHomeView: View {
     private var emptyStateTitle: String {
         switch selectedTab {
         case .all: return "No notes yet"
+        case .ai: return "AI is thinking"
         case .favorites: return "No favorites yet"
         case .archive: return "Archive is empty"
         }
@@ -145,6 +163,7 @@ struct AIHomeView: View {
     private var emptyStateSubtitle: String {
         switch selectedTab {
         case .all: return "Tap the mic to record your first thought"
+        case .ai: return "Record a few notes and AI will organize them"
         case .favorites: return "Heart a note to see it here"
         case .archive: return "Archived notes will appear here"
         }
@@ -166,8 +185,8 @@ struct AIHomeView: View {
                                 greetingBar
                                     .padding(.horizontal)
 
-                                // 2. Daily Brief card (collapsible)
-                                if todaysBrief != nil || intelligenceService.isRefreshingDaily {
+                                // 2. Daily Brief card (collapsible) — hidden on AI tab
+                                if selectedTab != .ai, todaysBrief != nil || intelligenceService.isRefreshingDaily {
                                     dailyBriefCard
                                         .padding(.horizontal)
                                 }
@@ -587,7 +606,10 @@ struct AIHomeView: View {
                 .padding(.bottom, 8)
             }
 
-            if filteredNotes.isEmpty {
+            if selectedTab == .ai {
+                // AI-organized view
+                AITabView(data: aiTabData, noteCount: notes.filter { !$0.isArchived }.count)
+            } else if filteredNotes.isEmpty {
                 // Empty state
                 VStack(spacing: 12) {
                     Image(systemName: emptyStateIcon)
