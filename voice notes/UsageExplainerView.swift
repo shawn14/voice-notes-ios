@@ -15,7 +15,7 @@ struct UsageExplainerView: View {
             // Icon
             Image(systemName: "note.text")
                 .font(.system(size: 48))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color("EEONAccent"))
                 .padding(.top, 8)
 
             // Headline
@@ -72,10 +72,10 @@ struct UsageExplainerView: View {
             // Pro removes limits
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color("EEONAccent"))
                 Text("Pro = Unlimited notes")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color("EEONAccent"))
             }
             .padding(.top, 4)
 
@@ -89,7 +89,7 @@ struct UsageExplainerView: View {
                     .padding(.vertical, 14)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.blue)
+            .tint(Color("EEONAccent"))
             .padding(.horizontal)
             .padding(.bottom, 20)
         }

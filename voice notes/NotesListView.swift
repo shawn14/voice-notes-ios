@@ -155,7 +155,7 @@ struct NotesListView: View {
                             Button(action: { showingNewNote = true }) {
                                 Image(systemName: "square.and.pencil")
                                     .font(.title2)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color("EEONTextPrimary"))
                                     .frame(width: 50, height: 50)
                                     .background(Color(.systemGray))
                                     .clipShape(Circle())
@@ -190,7 +190,7 @@ struct NotesListView: View {
 
                                     Image(systemName: "mic.fill")
                                         .font(.system(size: 28, weight: .semibold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(Color("EEONTextPrimary"))
                                 }
                             }
                             .onAppear {
@@ -405,7 +405,7 @@ struct RecordingOverlay: View {
     var body: some View {
         ZStack {
             // Dimmed background
-            Color.black.opacity(0.7)
+            Color("EEONBackground").opacity(0.85)
                 .ignoresSafeArea()
 
             VStack(spacing: 30) {
@@ -420,7 +420,7 @@ struct RecordingOverlay: View {
 
                         Text("Transcribing...")
                             .font(.title2.bold())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                     }
                 } else {
                     // Recording state
@@ -442,7 +442,7 @@ struct RecordingOverlay: View {
                     // Timer
                     Text(recordingTime)
                         .font(.system(size: 64, weight: .light, design: .monospaced))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color("EEONTextPrimary"))
 
                     Text("Recording...")
                         .font(.title3)
@@ -459,7 +459,7 @@ struct RecordingOverlay: View {
                             VStack(spacing: 8) {
                                 Image(systemName: "xmark")
                                     .font(.title)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color("EEONTextPrimary"))
                                     .frame(width: 60, height: 60)
                                     .background(Color.white.opacity(0.2))
                                     .clipShape(Circle())

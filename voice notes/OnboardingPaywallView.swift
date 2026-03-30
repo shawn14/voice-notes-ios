@@ -21,10 +21,10 @@ struct OnboardingPaywallView: View {
     var body: some View {
         ZStack {
             // Rich layered atmospheric background
-            Color.black.ignoresSafeArea()
+            Color("EEONBackground").ignoresSafeArea()
 
             RadialGradient(
-                colors: [Color.blue.opacity(0.3), Color.blue.opacity(0.06), Color.clear],
+                colors: [Color("EEONAccent").opacity(0.2), Color("EEONAccent").opacity(0.04), Color.clear],
                 center: .top,
                 startRadius: 20,
                 endRadius: 500
@@ -46,18 +46,18 @@ struct OnboardingPaywallView: View {
                     // Pro badge icon
                     ZStack {
                         Circle()
-                            .fill(Color.white.opacity(0.04))
+                            .fill(Color("EEONTextPrimary").opacity(0.04))
                             .frame(width: 80, height: 80)
 
                         Circle()
-                            .fill(Color.white.opacity(0.06))
+                            .fill(Color("EEONTextPrimary").opacity(0.06))
                             .frame(width: 56, height: 56)
 
                         Image(systemName: "crown.fill")
                             .font(.system(size: 24, weight: .medium))
                             .foregroundStyle(
                                 LinearGradient(
-                                    colors: [.white, .white.opacity(0.7)],
+                                    colors: [Color("EEONAccent"), Color("EEONAccent").opacity(0.7)],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 )
@@ -69,12 +69,12 @@ struct OnboardingPaywallView: View {
                     VStack(spacing: 12) {
                         Text("Go unlimited.")
                             .font(.system(size: 38, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                             .tracking(-0.5)
 
                         Text("Everything you just saw,\nwithout limits.")
                             .font(.system(size: 17))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(Color("EEONTextSecondary"))
                             .multilineTextAlignment(.center)
                             .lineSpacing(5)
                     }
@@ -93,7 +93,7 @@ struct OnboardingPaywallView: View {
                     .padding(.vertical, 20)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white.opacity(0.04))
+                            .fill(Color("EEONCardBackground").opacity(0.6))
                     )
                     .padding(.horizontal, 28)
 
@@ -143,12 +143,12 @@ struct OnboardingPaywallView: View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.white.opacity(0.35))
+                .foregroundStyle(Color("EEONTextSecondary"))
                 .frame(width: 24, height: 24)
 
             Text(text)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(Color("EEONTextPrimary").opacity(0.8))
 
             Spacer()
         }
@@ -165,7 +165,7 @@ struct OnboardingPaywallView: View {
             } else if subscriptionManager.products.isEmpty {
                 VStack(spacing: 12) {
                     Text("Unable to load plans")
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("EEONTextSecondary"))
                     Button("Retry") {
                         Task {
                             await subscriptionManager.loadProducts()
@@ -231,7 +231,7 @@ struct OnboardingPaywallView: View {
                 HStack(spacing: 8) {
                     if isPurchasing {
                         ProgressView()
-                            .tint(.black)
+                            .tint(.white)
                     } else {
                         Text("Start Pro")
                             .font(.body.weight(.bold))
@@ -239,8 +239,8 @@ struct OnboardingPaywallView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
-                .background(Color.white)
-                .foregroundStyle(.black)
+                .background(Color("EEONAccent"))
+                .foregroundStyle(.white)
                 .cornerRadius(14)
             }
             .disabled(isPurchasing || subscriptionManager.products.isEmpty)
@@ -252,7 +252,7 @@ struct OnboardingPaywallView: View {
             } label: {
                 Text("Try 10 free notes first")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color("EEONTextSecondary"))
                     .underline()
             }
 
@@ -266,7 +266,7 @@ struct OnboardingPaywallView: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(.white.opacity(0.35))
+            .foregroundStyle(Color("EEONTextSecondary").opacity(0.6))
             .padding(.top, 2)
         }
     }
@@ -277,14 +277,14 @@ struct OnboardingPaywallView: View {
         VStack(spacing: 6) {
             Text("Cancel anytime. Payment charged to Apple ID.")
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(Color("EEONTextSecondary").opacity(0.5))
 
             HStack(spacing: 16) {
                 Link("Terms", destination: URL(string: "https://eeon.com/terms")!)
                 Link("Privacy", destination: URL(string: "https://eeon.com/privacy")!)
             }
             .font(.caption2)
-            .foregroundStyle(.white.opacity(0.3))
+            .foregroundStyle(Color("EEONTextSecondary").opacity(0.5))
         }
         .padding(.bottom, 16)
     }
@@ -340,12 +340,12 @@ struct PlanOption: View {
                 // Selection indicator
                 ZStack {
                     Circle()
-                        .stroke(isSelected ? Color.white : Color.white.opacity(0.15), lineWidth: 1.5)
+                        .stroke(isSelected ? Color("EEONAccent") : Color("EEONTextSecondary").opacity(0.3), lineWidth: 1.5)
                         .frame(width: 22, height: 22)
 
                     if isSelected {
                         Circle()
-                            .fill(Color.white)
+                            .fill(Color("EEONAccent"))
                             .frame(width: 12, height: 12)
                     }
                 }
@@ -354,17 +354,17 @@ struct PlanOption: View {
                     HStack(spacing: 8) {
                         Text(title)
                             .font(.body.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
 
                         if let badge = badge {
                             Text(badge)
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(.black)
+                                .foregroundStyle(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
                                 .background(
                                     Capsule()
-                                        .fill(Color.white)
+                                        .fill(Color("EEONAccent"))
                                 )
                         }
                     }
@@ -372,7 +372,7 @@ struct PlanOption: View {
                     if let subtitle = subtitle {
                         Text(subtitle)
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.4))
+                            .foregroundStyle(Color("EEONTextSecondary"))
                     }
                 }
 
@@ -381,21 +381,21 @@ struct PlanOption: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(price)
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color("EEONTextPrimary"))
                     Text("/\(period)")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.35))
+                        .foregroundStyle(Color("EEONTextSecondary"))
                 }
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 18)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white.opacity(isSelected ? 0.08 : 0.03))
+                    .fill(Color("EEONCardBackground").opacity(isSelected ? 0.8 : 0.4))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(isSelected ? Color.white.opacity(0.25) : Color.white.opacity(0.06), lineWidth: 1)
+                    .stroke(isSelected ? Color("EEONAccent").opacity(0.5) : Color("EEONDivider").opacity(0.3), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

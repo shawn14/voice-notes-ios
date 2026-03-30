@@ -38,28 +38,28 @@ struct DailyBriefHeader: View {
                     if isGenerating {
                         Text("Preparing your daily brief...")
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                     } else if error != nil {
                         Text("Couldn't load brief")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.orange)
                         Text("Tap to retry")
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                     } else if let brief = brief {
                         Text(briefSummary(brief))
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                             .lineLimit(2)
 
                         HStack(spacing: 8) {
                             Text(brief.freshnessLabel)
                                 .font(.caption)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("EEONTextSecondary"))
 
                             if brief.stalledItemCount > 0 {
                                 Text("•")
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                                 Text("\(brief.stalledItemCount) needs attention")
                                     .font(.caption)
                                     .foregroundStyle(.orange)
@@ -74,7 +74,7 @@ struct DailyBriefHeader: View {
                                     .foregroundStyle(.blue)
                                 Text(firstAction.content)
                                     .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.8))
+                                    .foregroundStyle(Color("EEONTextPrimary").opacity(0.8))
                                     .lineLimit(1)
                             }
                             .padding(.top, 4)
@@ -82,16 +82,16 @@ struct DailyBriefHeader: View {
                     } else if let session = sessionBrief {
                         Text(sessionSummary(session))
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                             .lineLimit(2)
 
                         Text(session.freshnessLabel)
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                     } else {
                         Text("Your daily brief will appear here")
                             .font(.subheadline)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                     }
                 }
 
@@ -101,7 +101,7 @@ struct DailyBriefHeader: View {
                 if brief != nil || sessionBrief != nil {
                     Image(systemName: "chevron.right")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("EEONTextSecondary"))
                 }
             }
             .padding(16)
@@ -205,7 +205,7 @@ struct FreshnessIndicator: View {
 
 #Preview {
     ZStack {
-        Color.black.ignoresSafeArea()
+        Color("EEONBackground").ignoresSafeArea()
         VStack(spacing: 16) {
             DailyBriefHeader(
                 brief: nil as DailyBrief?,

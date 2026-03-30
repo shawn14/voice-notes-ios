@@ -64,6 +64,7 @@ enum AITransformType: String, CaseIterable, Identifiable {
 struct NoteDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) var colorScheme
 
     @Bindable var note: Note
     var initialTab: NoteTab = .insights
@@ -154,8 +155,8 @@ struct NoteDetailView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Dark background
-            Color.black.ignoresSafeArea()
+            // Background
+            Color.eeonBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Content
@@ -185,10 +186,10 @@ struct NoteDetailView: View {
                         if isGeneratingAI || isRewriting {
                             HStack(spacing: 12) {
                                 ProgressView()
-                                    .tint(.blue)
+                                    .tint(.eeonAccentAI)
                                 Text(isRewriting ? "Rewriting..." : "Transforming...")
                                     .font(.subheadline)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(.eeonTextSecondary)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 20)
@@ -229,7 +230,7 @@ struct NoteDetailView: View {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
                         .font(.body.weight(.medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.eeonTextPrimary)
                         .frame(width: 32, height: 32)
                         .background(Color(.systemGray5).opacity(0.5))
                         .clipShape(Circle())
@@ -241,7 +242,7 @@ struct NoteDetailView: View {
                     // Share button
                     Button(action: { showingShareSheet = true }) {
                         Image(systemName: "square.and.arrow.up")
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.eeonTextPrimary)
                     }
 
                     // More menu
@@ -325,7 +326,7 @@ struct NoteDetailView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.eeonTextPrimary)
                     }
                 }
             }
@@ -430,18 +431,18 @@ struct NoteDetailView: View {
                             // Show elapsed / total while playing
                             Text(formatDuration(audioRecorder.currentTime))
                                 .font(.caption.monospacedDigit())
-                                .foregroundStyle(.white.opacity(0.9))
+                                .foregroundStyle(.eeonTextPrimary.opacity(0.9))
                         } else {
                             Text(formatDuration(audioRecorder.duration > 0 ? audioRecorder.duration : note.audioDuration))
                                 .font(.caption.monospacedDigit())
-                                .foregroundStyle(.white.opacity(0.9))
+                                .foregroundStyle(.eeonTextPrimary.opacity(0.9))
                         }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(
                         Capsule()
-                            .fill(audioRecorder.isPlaying ? Color.blue : Color(.systemGray4))
+                            .fill(audioRecorder.isPlaying ? Color.eeonAccentAI : Color(.systemGray4))
                     )
                 }
             }
@@ -449,7 +450,7 @@ struct NoteDetailView: View {
             // Date
             Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
                 .font(.subheadline)
-                .foregroundStyle(.gray)
+                .foregroundStyle(.eeonTextSecondary)
 
             // Intent badge
             if note.intent != .unknown {
@@ -476,7 +477,7 @@ struct NoteDetailView: View {
         HStack(alignment: .top, spacing: 12) {
             Text(note.displayTitle)
                 .font(.title.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.eeonTextPrimary)
                 .lineLimit(4)
 
             Spacer()
@@ -488,7 +489,7 @@ struct NoteDetailView: View {
             }) {
                 Image(systemName: note.isFavorite ? "heart.fill" : "heart")
                     .font(.title3)
-                    .foregroundStyle(note.isFavorite ? .red : .gray.opacity(0.5))
+                    .foregroundStyle(note.isFavorite ? .eeonAccent : .eeonTextTertiary)
             }
             .padding(.top, 4)
         }
@@ -556,7 +557,7 @@ struct NoteDetailView: View {
         .padding(2)
         .background(
             Capsule()
-                .fill(Color(.systemGray6).opacity(0.3))
+                .fill(Color.eeonCard)
         )
     }
 
@@ -575,7 +576,7 @@ struct NoteDetailView: View {
         if !displayText.isEmpty {
             Text(displayText)
                 .font(.body.leading(.loose))
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(.eeonTextPrimary)
                 .lineSpacing(6)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -589,10 +590,10 @@ struct NoteDetailView: View {
             HStack {
                 if let type = AITransformType(rawValue: typeRaw) {
                     Image(systemName: type.icon)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.eeonAccentAI)
                     Text(type.rawValue)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.eeonAccentAI)
                 }
 
                 Spacer()
@@ -605,7 +606,7 @@ struct NoteDetailView: View {
                         Text("Copy")
                     }
                     .font(.caption)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.eeonAccentAI)
                 }
 
                 Button {
@@ -624,12 +625,13 @@ struct NoteDetailView: View {
 
             Text(output)
                 .font(.body)
-                .foregroundStyle(.white)
+                .foregroundStyle(.eeonTextPrimary)
                 .textSelection(.enabled)
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6).opacity(0.3))
+                .background(Color.eeonCard)
                 .cornerRadius(12)
+                .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, y: 2)
         }
     }
 
@@ -639,15 +641,15 @@ struct NoteDetailView: View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.right.circle.fill")
                 .font(.title3)
-                .foregroundStyle(.blue)
+                .foregroundStyle(.eeonAccentAI)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Next Step")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.eeonTextSecondary)
                 Text(nextStep)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.eeonTextPrimary)
             }
 
             Spacer()
@@ -657,11 +659,11 @@ struct NoteDetailView: View {
             } label: {
                 Image(systemName: "checkmark.circle")
                     .font(.title2)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.eeonAccentAI)
             }
         }
         .padding()
-        .background(Color.blue.opacity(0.1))
+        .background(Color.eeonAccentAI.opacity(0.1))
         .cornerRadius(12)
     }
 
@@ -686,9 +688,9 @@ struct NoteDetailView: View {
                     let count = noteDecisions.count + noteActions.count + noteCommitments.count + note.mentionedPeople.count + note.topics.count
                     Text("\(count) items")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.eeonTextSecondary)
                 }
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(.eeonTextSecondary)
             }
 
             if showingExtractions {
@@ -711,7 +713,7 @@ struct NoteDetailView: View {
                     }
                 )
                 .padding()
-                .background(Color(.systemGray6).opacity(0.2))
+                .background(Color.eeonCard)
                 .cornerRadius(12)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -735,19 +737,19 @@ struct NoteDetailView: View {
                     Spacer()
                     Text("\(transcript.split(separator: " ").count) words")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.eeonTextSecondary)
                 }
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(.eeonTextSecondary)
             }
 
             if showingTranscript {
                 Text(transcript)
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.eeonTextPrimary.opacity(0.8))
                     .lineSpacing(4)
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.systemGray6).opacity(0.2))
+                    .background(Color.eeonCard)
                     .cornerRadius(12)
                     .textSelection(.enabled)
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -774,7 +776,7 @@ struct NoteDetailView: View {
             } label: {
                 Image(systemName: "doc.on.doc")
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.eeonTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
@@ -785,7 +787,7 @@ struct NoteDetailView: View {
             } label: {
                 Image(systemName: "number")
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.eeonTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
@@ -797,7 +799,7 @@ struct NoteDetailView: View {
                 ZStack {
                     Circle()
                         .fill(
-                            isRewriting ? Color.gray : Color.blue
+                            isRewriting ? Color.eeonTextSecondary : Color.eeonAccentAI
                         )
                         .frame(width: 48, height: 48)
 
@@ -811,7 +813,7 @@ struct NoteDetailView: View {
                             .foregroundStyle(.white)
                     }
                 }
-                .shadow(color: .blue.opacity(0.3), radius: 8, y: 2)
+                .shadow(color: .eeonAccentAI.opacity(0.3), radius: 8, y: 2)
             }
             .disabled(isRewriting)
             .frame(maxWidth: .infinity)
@@ -823,7 +825,7 @@ struct NoteDetailView: View {
             } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.eeonTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
@@ -880,7 +882,7 @@ struct NoteDetailView: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.eeonTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
@@ -889,7 +891,7 @@ struct NoteDetailView: View {
         .padding(.vertical, 4)
         .background(
             Rectangle()
-                .fill(Color(.systemGray6).opacity(0.95))
+                .fill(Color.eeonBackgroundSecondary)
         )
     }
 
@@ -1097,7 +1099,7 @@ struct ProjectPickerSheet: View {
                 } label: {
                     HStack {
                         Image(systemName: "folder")
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.eeonTextSecondary)
                         Text("No Project")
                         Spacer()
                         if selectedProjectId == nil {
@@ -1153,14 +1155,14 @@ struct ImageGalleryView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "photo.on.rectangle.angled")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.eeonAccentAI)
                 Text("Attachments")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.eeonTextSecondary)
                 Spacer()
                 Text("\(imageFileNames.count) image\(imageFileNames.count == 1 ? "" : "s")")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.eeonTextSecondary)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -1176,7 +1178,7 @@ struct ImageGalleryView: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6).opacity(0.3))
+        .background(Color.eeonCard)
         .cornerRadius(12)
     }
 }
@@ -1216,7 +1218,7 @@ struct ImageThumbnailView: View {
                 .frame(width: 100, height: 100)
                 .overlay {
                     Image(systemName: "photo")
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.eeonTextSecondary)
                 }
         }
     }
@@ -1272,7 +1274,7 @@ struct FullscreenImageView: View {
                     Button(action: onDismiss) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title)
-                            .foregroundStyle(.white.opacity(0.8))
+                            .foregroundStyle(.eeonTextPrimary.opacity(0.8))
                     }
                     .padding()
                 }
@@ -1322,14 +1324,14 @@ struct URLPreviewCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(extractedURL.displayTitle)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.eeonTextPrimary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
 
                     if let description = extractedURL.urlDescription, !description.isEmpty {
                         Text(description)
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.eeonTextSecondary)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                     }
@@ -1346,7 +1348,7 @@ struct URLPreviewCard: View {
                     .foregroundStyle(.blue)
             }
             .padding(12)
-            .background(Color(.systemGray6).opacity(0.5))
+            .background(Color.eeonCard)
             .cornerRadius(12)
         }
         .buttonStyle(.plain)

@@ -114,6 +114,7 @@ struct AssistantView: View {
                 }
 
                 Divider()
+                    .overlay(Color.eeonDivider)
 
                 // Input area
                 HStack(spacing: 12) {
@@ -123,7 +124,7 @@ struct AssistantView: View {
                         .lineLimit(1...5)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Color(.systemGray6))
+                        .background(Color.eeonCard)
                         .cornerRadius(20)
                         .onSubmit {
                             sendQuery(inputText)
@@ -133,12 +134,12 @@ struct AssistantView: View {
                     Button(action: { sendQuery(inputText) }) {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.title)
-                            .foregroundColor(inputText.isEmpty || isLoading ? .gray : .blue)
+                            .foregroundColor(inputText.isEmpty || isLoading ? .eeonTextTertiary : .eeonAccentAI)
                     }
                     .disabled(inputText.isEmpty || isLoading)
                 }
                 .padding()
-                .background(Color(.systemBackground))
+                .background(Color.eeonBackground)
             }
             .navigationTitle("Ask EEON")
             .navigationBarTitleDisplayMode(.inline)
@@ -278,7 +279,7 @@ struct RAGWelcomeSection: View {
             VStack(spacing: 8) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 40))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.eeonAccentAI)
 
                 Text("Ask EEON")
                     .font(.title2.bold())
@@ -308,7 +309,7 @@ struct RAGWelcomeSection: View {
                                 .foregroundStyle(.secondary)
                         }
                         .padding(12)
-                        .background(Color(.systemGray6))
+                        .background(Color.eeonCard)
                         .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
@@ -331,7 +332,7 @@ struct TypingIndicator: View {
         HStack(spacing: 4) {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
-                    .fill(Color.blue.opacity(index <= dotCount ? 1.0 : 0.3))
+                    .fill(Color.eeonAccentAI.opacity(index <= dotCount ? 1.0 : 0.3))
                     .frame(width: 8, height: 8)
             }
         }
@@ -359,8 +360,8 @@ struct RAGMessageBubble: View {
                 Text(message.content)
                     .font(.body)
                     .padding(12)
-                    .background(message.role == .user ? Color.blue : Color(.systemGray6))
-                    .foregroundStyle(message.role == .user ? .white : .primary)
+                    .background(message.role == .user ? Color.eeonAccent.opacity(0.15) : Color.eeonCard)
+                    .foregroundStyle(message.role == .user ? .eeonTextPrimary : .eeonTextPrimary)
                     .cornerRadius(16)
 
                 // Source notes (assistant only)
@@ -383,8 +384,8 @@ struct RAGMessageBubble: View {
                                     }
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(Color.blue.opacity(0.1))
-                                    .foregroundStyle(.blue)
+                                    .background(Color.eeonAccentAI.opacity(0.1))
+                                    .foregroundStyle(.eeonAccentAI)
                                     .cornerRadius(12)
                                 }
                                 .buttonStyle(.plain)
@@ -410,11 +411,11 @@ struct RAGMessageBubble: View {
                                     Spacer()
                                     Image(systemName: "arrow.right.circle")
                                         .font(.caption)
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(.eeonAccentAI)
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
-                                .background(Color(.systemGray6))
+                                .background(Color.eeonCard)
                                 .cornerRadius(8)
                             }
                             .buttonStyle(.plain)
@@ -436,7 +437,7 @@ struct RAGMessageBubble: View {
                                 Text(isSaved ? "Saved" : "Save as Note")
                                     .font(.caption2)
                             }
-                            .foregroundColor(isSaved ? .green : .blue)
+                            .foregroundColor(isSaved ? .green : .eeonAccentAI)
                         }
                         .disabled(isSaved)
                     }

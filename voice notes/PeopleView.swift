@@ -29,16 +29,16 @@ struct PeopleView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color("EEONBackground").ignoresSafeArea()
 
                 if filteredPeople.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "person.2.crop.square.stack")
                             .font(.system(size: 48))
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                         Text("No people yet")
                             .font(.headline)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                         Text("When you mention names in your notes,\nthey'll appear here automatically")
                             .font(.subheadline)
                             .foregroundStyle(.gray.opacity(0.7))
@@ -79,12 +79,11 @@ struct PeopleView: View {
                         }
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                     }
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 }
 
@@ -109,18 +108,18 @@ struct PersonRow: View {
 
                 Text(person.initials)
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(person.displayName)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
 
                 HStack(spacing: 12) {
                     Label("\(person.mentionCount)", systemImage: "quote.bubble")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("EEONTextSecondary"))
 
                     if person.openCommitmentCount > 0 {
                         Label("\(person.openCommitmentCount) open", systemImage: "checkmark.circle")
@@ -135,7 +134,7 @@ struct PersonRow: View {
             if person.isArchived {
                 Image(systemName: "archivebox")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color("EEONTextSecondary"))
             }
         }
         .padding(.vertical, 8)
@@ -169,7 +168,7 @@ struct PersonDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color("EEONBackground").ignoresSafeArea()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -188,12 +187,12 @@ struct PersonDetailView: View {
 
                             Text(person.initials)
                                 .font(.largeTitle.weight(.semibold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
                         }
 
                         Text(person.displayName)
                             .font(.title2.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -214,20 +213,20 @@ struct PersonDetailView: View {
                         HStack {
                             Text("First mentioned")
                                 .font(.caption)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("EEONTextSecondary"))
                             Spacer()
                             Text(person.firstMentionedAt.formatted(date: .abbreviated, time: .omitted))
                                 .font(.caption)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
                         }
                         HStack {
                             Text("Last mentioned")
                                 .font(.caption)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("EEONTextSecondary"))
                             Spacer()
                             Text(person.lastMentionedAt.formatted(date: .abbreviated, time: .omitted))
                                 .font(.caption)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
                         }
                     }
                     .padding()
@@ -239,7 +238,7 @@ struct PersonDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Open Commitments")
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
 
                             ForEach(openCommitments) { commitment in
                                 PersonCommitmentRow(commitment: commitment) {
@@ -255,7 +254,7 @@ struct PersonDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Completed")
                                 .font(.headline)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("EEONTextSecondary"))
 
                             ForEach(completedCommitments.prefix(5)) { commitment in
                                 HStack {
@@ -263,7 +262,7 @@ struct PersonDetailView: View {
                                         .foregroundStyle(.green)
                                     Text(commitment.what)
                                         .font(.subheadline)
-                                        .foregroundStyle(.gray)
+                                        .foregroundStyle(Color("EEONTextSecondary"))
                                         .strikethrough()
                                 }
                                 .padding()
@@ -279,7 +278,7 @@ struct PersonDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Related Notes (\(relatedNotes.count))")
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
 
                             ForEach(relatedNotes.prefix(5)) { note in
                                 NavigationLink(destination: NoteDetailView(note: note)) {
@@ -289,16 +288,16 @@ struct PersonDetailView: View {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(note.displayTitle)
                                                 .font(.subheadline)
-                                                .foregroundStyle(.white)
+                                                .foregroundStyle(Color("EEONTextPrimary"))
                                                 .lineLimit(1)
                                             Text(note.createdAt.formatted(date: .abbreviated, time: .omitted))
                                                 .font(.caption)
-                                                .foregroundStyle(.gray)
+                                                .foregroundStyle(Color("EEONTextSecondary"))
                                         }
                                         Spacer()
                                         Image(systemName: "chevron.right")
                                             .font(.caption)
-                                            .foregroundStyle(.gray)
+                                            .foregroundStyle(Color("EEONTextSecondary"))
                                     }
                                     .padding()
                                     .background(Color(.systemGray6).opacity(0.3))
@@ -331,10 +330,10 @@ struct StatItem: View {
                 .foregroundStyle(color)
             Text(value)
                 .font(.title3.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color("EEONTextPrimary"))
             Text(label)
                 .font(.caption)
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color("EEONTextSecondary"))
         }
         .frame(maxWidth: .infinity)
     }
@@ -354,7 +353,7 @@ struct PersonCommitmentRow: View {
 
             Text(commitment.what)
                 .font(.subheadline)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color("EEONTextPrimary"))
 
             Spacer()
         }

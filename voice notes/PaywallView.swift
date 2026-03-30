@@ -26,7 +26,7 @@ struct PaywallView: View {
                 // Icon
                 Image(systemName: "note.text.badge.plus")
                     .font(.system(size: 48))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color("EEONAccent"))
                     .padding(.top, 32)
 
                 // Headline
@@ -108,7 +108,7 @@ struct PaywallView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(Color.blue)
+                .background(Color("EEONAccent"))
                 .foregroundStyle(.white)
                 .cornerRadius(12)
                 .padding(.horizontal)
@@ -140,7 +140,7 @@ struct PaywallView: View {
                     }
                 }
                 .font(.subheadline)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color("EEONAccent"))
 
                 // Dismiss - low friction
                 Button("Maybe Later") {
@@ -214,7 +214,7 @@ struct FeatureRow: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.body)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color("EEONAccent"))
                 .frame(width: 24)
 
             Text(text)
@@ -282,14 +282,14 @@ struct ProductOptionCard: View {
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
-                    .foregroundStyle(isSelected ? .blue : .secondary)
+                    .foregroundStyle(isSelected ? Color("EEONAccent") : .secondary)
             }
             .padding()
-            .background(isSelected ? Color.blue.opacity(0.1) : Color(.secondarySystemBackground))
+            .background(isSelected ? Color("EEONAccent").opacity(0.1) : Color(.secondarySystemBackground))
             .cornerRadius(12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? Color("EEONAccent") : Color.clear, lineWidth: 2)
             )
         }
         .buttonStyle(.plain)

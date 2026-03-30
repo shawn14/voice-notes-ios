@@ -156,7 +156,7 @@ struct HomeView: View {
                     } else {
                         Image(systemName: "person.circle")
                             .font(.title2)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                     }
                 }
             }
@@ -168,11 +168,11 @@ struct HomeView: View {
                     if authService.isSignedIn, let firstName = authService.displayName.components(separatedBy: " ").first, !firstName.isEmpty {
                         Text("Hi, \(firstName)")
                             .font(.largeTitle.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                     } else {
                         Text("All Notes")
                             .font(.largeTitle.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                     }
                 }
                 Spacer()
@@ -238,9 +238,9 @@ struct HomeView: View {
             if authService.isSignedIn {
                 HStack {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("EEONTextSecondary"))
                     TextField("Search", text: $searchText)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color("EEONTextPrimary"))
                 }
                 .padding(12)
                 .background(Color(.systemGray6).opacity(0.3))
@@ -254,7 +254,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color("EEONBackground").ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     headerView
@@ -272,7 +272,7 @@ struct HomeView: View {
 
                             Text(tag.name)
                                 .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
 
                             Spacer()
 
@@ -283,7 +283,7 @@ struct HomeView: View {
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.body)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                             }
                         }
                         .padding(.horizontal, 16)
@@ -304,14 +304,14 @@ struct HomeView: View {
                                     .foregroundStyle(.blue)
                                 Text("Sign in to see your notes")
                                     .font(.headline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color("EEONTextPrimary"))
                                 Text("Your notes are safely stored in iCloud")
                                     .font(.subheadline)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                                 Button(action: { showSignIn = true }) {
                                     Text("Sign In")
                                         .font(.headline)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(Color("EEONTextPrimary"))
                                         .padding(.horizontal, 32)
                                         .padding(.vertical, 12)
                                         .background(Color.blue)
@@ -324,10 +324,10 @@ struct HomeView: View {
                             VStack(spacing: 12) {
                                 Image(systemName: "waveform")
                                     .font(.system(size: 48))
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                                 Text("No notes yet")
                                     .font(.headline)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                                 Text("Tap the record button to get started")
                                     .font(.subheadline)
                                     .foregroundStyle(.gray.opacity(0.7))
@@ -397,7 +397,7 @@ struct HomeView: View {
                                     Text("Sign In")
                                 }
                                 .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
                                 .background(Color.blue)
@@ -469,7 +469,6 @@ struct HomeView: View {
                 Text("Projects help organize related notes together.")
             }
         }
-        .preferredColorScheme(.dark)
         .onChange(of: selectedPhotoItem) { _, newItem in
             guard let newItem = newItem else { return }
             processSelectedPhoto(newItem)
@@ -907,29 +906,29 @@ struct HomeNoteRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(note.displayTitle)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
                     .lineLimit(1)
 
                 HStack(spacing: 8) {
                     Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("EEONTextSecondary"))
 
                     // Duration (if audio)
                     if note.hasAudio {
                         Text("•")
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                         Text(formattedDuration(note.audioDuration))
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                     }
 
                     // Intent badge
                     if note.intent != .unknown {
                         Text("•")
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                         HStack(spacing: 4) {
                             Image(systemName: note.intent.icon)
                                 .font(.caption2)
@@ -1002,7 +1001,7 @@ struct HomeNoteRow: View {
 
                         Text(nextStep)
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                             .lineLimit(1)
 
                         Spacer()
@@ -1119,7 +1118,7 @@ struct TypeNoteSheet: View {
                     Button("Cancel") {
                         onCancel()
                     }
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color("EEONTextSecondary"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -1172,7 +1171,7 @@ struct UserAvatarView: View {
 
             Text(initials)
                 .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color("EEONTextPrimary"))
         }
     }
 }
@@ -1269,7 +1268,7 @@ struct HomeRecordingOverlay: View {
 
                 Text(audioRecorder.formattedTime)
                     .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -1518,11 +1517,11 @@ struct HomeTranscribingOverlay: View {
 
                 Text("Understanding your note...")
                     .font(.title2.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
 
                 Text("Transcribing and finding insights")
                     .font(.subheadline)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color("EEONTextSecondary"))
             }
         }
     }

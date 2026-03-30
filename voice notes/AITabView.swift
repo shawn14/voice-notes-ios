@@ -56,19 +56,19 @@ struct AITabView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [.blue, .purple],
+                        colors: [Color("EEONAccent"), .purple],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
 
-            Text("Keep recording")
+            Text("Almost there")
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(.eeonTextPrimary)
 
-            Text("Once you have 5+ notes, EEON will organize your thoughts into threads, surface action items, and track commitments — all automatically.")
+            Text("Record a few more notes and EEON will start connecting the dots.")
                 .font(.subheadline)
-                .foregroundStyle(.gray)
+                .foregroundStyle(.eeonTextSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
         }
@@ -83,13 +83,13 @@ struct AITabView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.green)
 
-            Text("All clear")
+            Text("Nothing slipping through")
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(.eeonTextPrimary)
 
-            Text("No action items, stale commitments, or unresolved threads right now. Nice work.")
+            Text("No overdue actions, no stale commitments. You're on top of it.")
                 .font(.subheadline)
-                .foregroundStyle(.gray)
+                .foregroundStyle(.eeonTextSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
         }
@@ -120,7 +120,7 @@ struct AITabView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.text)
                                 .font(.subheadline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.eeonTextPrimary)
                                 .lineLimit(2)
 
                             HStack(spacing: 6) {
@@ -129,19 +129,19 @@ struct AITabView: View {
                                     .foregroundStyle(colorForAIAttentionType(item.type))
 
                                 Text("\u{00B7}")
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(.eeonTextSecondary)
 
                                 Text(item.sourceNoteTitle)
                                     .font(.caption2)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(.eeonTextSecondary)
                                     .lineLimit(1)
 
                                 if item.ageDays > 0 {
                                     Text("\u{00B7}")
-                                        .foregroundStyle(.gray)
+                                        .foregroundStyle(.eeonTextSecondary)
                                     Text("\(item.ageDays)d ago")
                                         .font(.caption2)
-                                        .foregroundStyle(.gray)
+                                        .foregroundStyle(.eeonTextSecondary)
                                 }
                             }
                         }
@@ -150,7 +150,7 @@ struct AITabView: View {
 
                         Image(systemName: "chevron.right")
                             .font(.caption2)
-                            .foregroundStyle(.gray.opacity(0.5))
+                            .foregroundStyle(.eeonTextTertiary)
                             .padding(.top, 4)
                     }
                     .padding(.vertical, 8)
@@ -175,32 +175,32 @@ struct AITabView: View {
                     HStack {
                         Text(thread.topic)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.eeonTextPrimary)
 
                         Spacer()
 
                         Text("\(thread.noteCount) notes")
                             .font(.caption2)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.eeonTextSecondary)
                     }
 
                     ForEach(thread.recentNotes, id: \.id) { noteRef in
                         NavigationLink(destination: NoteByIdDestination(noteId: noteRef.id)) {
                             HStack(spacing: 8) {
                                 Circle()
-                                    .fill(Color.blue.opacity(0.4))
+                                    .fill(Color.eeonAccentAI.opacity(0.4))
                                     .frame(width: 4, height: 4)
 
                                 Text(noteRef.title)
                                     .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.7))
+                                    .foregroundStyle(.eeonTextSecondary)
                                     .lineLimit(1)
 
                                 Spacer()
 
                                 Text(relativeDate(noteRef.date))
                                     .font(.caption2)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(.eeonTextSecondary)
                             }
                         }
                         .buttonStyle(.plain)
@@ -236,7 +236,7 @@ struct AITabView: View {
 
                         Text(person.name)
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.eeonTextPrimary)
 
                         Spacer()
 
@@ -254,10 +254,10 @@ struct AITabView: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "circle")
                                     .font(.system(size: 6))
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(.eeonTextSecondary)
                                 Text(commitment)
                                     .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.6))
+                                    .foregroundStyle(.eeonTextTertiary)
                                     .lineLimit(1)
                             }
                             .padding(.leading, 36)
@@ -291,7 +291,7 @@ struct AITabView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(decision.content)
                                 .font(.subheadline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.eeonTextPrimary)
                                 .lineLimit(2)
 
                             HStack(spacing: 6) {
@@ -302,12 +302,12 @@ struct AITabView: View {
                                         .lineLimit(1)
 
                                     Text("\u{00B7}")
-                                        .foregroundStyle(.gray)
+                                        .foregroundStyle(.eeonTextSecondary)
                                 }
 
                                 Text(relativeDate(decision.date))
                                     .font(.caption2)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(.eeonTextSecondary)
                             }
                         }
 
@@ -315,7 +315,7 @@ struct AITabView: View {
 
                         Image(systemName: "chevron.right")
                             .font(.caption2)
-                            .foregroundStyle(.gray.opacity(0.5))
+                            .foregroundStyle(.eeonTextTertiary)
                             .padding(.top, 4)
                     }
                     .padding(.vertical, 8)
@@ -347,13 +347,13 @@ struct AITabView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.noteTitle)
                                 .font(.subheadline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.eeonTextPrimary)
                                 .lineLimit(1)
 
                             if let step = item.unresolvedStep {
                                 Text(step)
                                     .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.5))
+                                    .foregroundStyle(.eeonTextTertiary)
                                     .lineLimit(1)
                             }
 
@@ -366,7 +366,7 @@ struct AITabView: View {
 
                         Image(systemName: "chevron.right")
                             .font(.caption2)
-                            .foregroundStyle(.gray.opacity(0.5))
+                            .foregroundStyle(.eeonTextTertiary)
                             .padding(.top, 4)
                     }
                     .padding(.vertical, 8)
@@ -425,9 +425,9 @@ struct NoteByIdDestination: View {
             VStack(spacing: 12) {
                 Image(systemName: "doc.questionmark")
                     .font(.largeTitle)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.eeonTextSecondary)
                 Text("Note not found")
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.eeonTextSecondary)
             }
         }
     }
@@ -436,6 +436,7 @@ struct NoteByIdDestination: View {
 // MARK: - Collapsible Section Component
 
 struct AITabSection<Content: View>: View {
+    @Environment(\.colorScheme) var colorScheme
     let icon: String
     let iconColor: Color
     let title: String
@@ -477,21 +478,21 @@ struct AITabSection<Content: View>: View {
 
                     Text(title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.eeonTextPrimary)
 
                     Text("\(count)")
                         .font(.caption2.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(.eeonTextTertiary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.white.opacity(0.08))
+                        .background(Color.eeonDivider)
                         .cornerRadius(4)
 
                     Spacer()
 
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption2)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.eeonTextSecondary)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
@@ -509,7 +510,8 @@ struct AITabSection<Content: View>: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color.white.opacity(0.04))
+                .fill(Color.eeonCard)
         )
+        .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, y: 2)
     }
 }

@@ -19,7 +19,7 @@ struct SharedNoteDetailView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color("EEONBackground").ignoresSafeArea()
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -27,13 +27,13 @@ struct SharedNoteDetailView: View {
                         if !sharedNote.title.isEmpty {
                             Text(sharedNote.title)
                                 .font(.title.weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
                         }
 
                         // Date
                         Text("Shared \(sharedNote.createdAt.formatted(date: .abbreviated, time: .shortened))")
                             .font(.subheadline)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
 
                         // Expiration
                         if let expiresAt = sharedNote.expiresAt {
@@ -45,29 +45,29 @@ struct SharedNoteDetailView: View {
                         // Content
                         Text(sharedNote.content)
                             .font(.body)
-                            .foregroundStyle(.white.opacity(0.9))
+                            .foregroundStyle(Color("EEONTextPrimary").opacity(0.9))
                             .padding(.top, 8)
 
                         // Audio player
                         if sharedNote.audioURL != nil {
                             VStack(spacing: 16) {
                                 Divider()
-                                    .background(Color.gray.opacity(0.3))
+                                    .background(Color("EEONDivider"))
 
                                 HStack {
                                     Button(action: togglePlayback) {
                                         Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
                                             .font(.system(size: 48))
-                                            .foregroundStyle(.blue)
+                                            .foregroundStyle(Color("EEONAccent"))
                                     }
 
                                     VStack(alignment: .leading) {
                                         Text("Audio Recording")
                                             .font(.headline)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(Color("EEONTextPrimary"))
                                         Text("Tap to listen")
                                             .font(.caption)
-                                            .foregroundStyle(.gray)
+                                            .foregroundStyle(Color("EEONTextSecondary"))
                                     }
 
                                     Spacer()
@@ -88,7 +88,7 @@ struct SharedNoteDetailView: View {
                     VStack(spacing: 12) {
                         Text("Want to create your own voice notes?")
                             .font(.subheadline)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
 
                         Button {
                             UIApplication.shared.open(SharedNote.appStoreURL)
@@ -101,14 +101,14 @@ struct SharedNoteDetailView: View {
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.blue)
+                                .background(Color("EEONAccent"))
                                 .cornerRadius(12)
                         }
                     }
                     .padding()
                     .background(
                         LinearGradient(
-                            colors: [.clear, .black],
+                            colors: [.clear, Color("EEONBackground")],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -122,7 +122,6 @@ struct SharedNoteDetailView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
         .onDisappear {
             audioPlayer?.stop()
         }

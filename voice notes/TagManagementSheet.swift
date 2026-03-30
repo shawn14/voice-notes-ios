@@ -32,7 +32,7 @@ struct TagManagementSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color("EEONBackground").ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Built-in filters
@@ -41,24 +41,24 @@ struct TagManagementSheet: View {
                             HStack {
                                 Image(systemName: name == "All" ? "tray.full" : "archivebox")
                                     .font(.body)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                                     .frame(width: 28)
 
                                 Text(name)
                                     .font(.body)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color("EEONTextPrimary"))
 
                                 Spacer()
 
                                 Text(builtInCount(for: name))
                                     .font(.subheadline)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                             }
                             .padding(.horizontal, 20)
                             .padding(.vertical, 14)
 
                             Divider()
-                                .background(Color.white.opacity(0.08))
+                                .background(Color("EEONDivider"))
                         }
                     }
 
@@ -74,7 +74,7 @@ struct TagManagementSheet: View {
                                     if renamingTag?.id == tag.id {
                                         TextField("Tag name", text: $renameText)
                                             .font(.body)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(Color("EEONTextPrimary"))
                                             .textFieldStyle(.plain)
                                             .onSubmit {
                                                 commitRename(tag: tag)
@@ -82,7 +82,7 @@ struct TagManagementSheet: View {
                                     } else {
                                         Text(tag.name)
                                             .font(.body)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(Color("EEONTextPrimary"))
                                             .onTapGesture {
                                                 if isEditing {
                                                     renamingTag = tag
@@ -95,7 +95,7 @@ struct TagManagementSheet: View {
 
                                     Text("\(noteCount(for: tag))")
                                         .font(.subheadline)
-                                        .foregroundStyle(.gray)
+                                        .foregroundStyle(Color("EEONTextSecondary"))
 
                                     if isEditing {
                                         Button {
@@ -110,7 +110,7 @@ struct TagManagementSheet: View {
                                 .padding(.vertical, 12)
 
                                 Divider()
-                                    .background(Color.white.opacity(0.08))
+                                    .background(Color("EEONDivider"))
                             }
                         }
                     }
@@ -121,14 +121,14 @@ struct TagManagementSheet: View {
                     } label: {
                         HStack {
                             Image(systemName: "plus.circle.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color("EEONAccent"))
                             Text("Add a tag")
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color("EEONAccent"))
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color(.systemGray6).opacity(0.2))
+                        .background(Color("EEONCardBackground"))
                         .cornerRadius(12)
                     }
                     .padding(.horizontal, 20)
@@ -148,7 +148,7 @@ struct TagManagementSheet: View {
                         }
                     } label: {
                         Image(systemName: isEditing ? "checkmark" : "pencil")
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -156,7 +156,7 @@ struct TagManagementSheet: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                     }
                 }
             }
@@ -172,7 +172,6 @@ struct TagManagementSheet: View {
                 Text("Enter a name for the new tag.")
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func builtInCount(for name: String) -> String {
@@ -227,7 +226,7 @@ struct NoteTagPickerSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color("EEONBackground").ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 0) {
@@ -236,7 +235,7 @@ struct NoteTagPickerSheet: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("CURRENT TAGS")
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                                     .padding(.horizontal, 20)
 
                                 FlowLayout(spacing: 8) {
@@ -244,18 +243,18 @@ struct NoteTagPickerSheet: View {
                                         HStack(spacing: 4) {
                                             Text(tag.name)
                                                 .font(.subheadline)
-                                                .foregroundStyle(.blue)
+                                                .foregroundStyle(Color("EEONAccent"))
                                             Button {
                                                 removeTag(tag)
                                             } label: {
                                                 Image(systemName: "xmark.circle.fill")
                                                     .font(.caption)
-                                                    .foregroundStyle(.gray)
+                                                    .foregroundStyle(Color("EEONTextSecondary"))
                                             }
                                         }
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 6)
-                                        .background(Color.blue.opacity(0.12))
+                                        .background(Color("EEONAccent").opacity(0.12))
                                         .cornerRadius(8)
                                     }
                                 }
@@ -264,7 +263,7 @@ struct NoteTagPickerSheet: View {
                             .padding(.vertical, 16)
 
                             Divider()
-                                .background(Color.white.opacity(0.08))
+                                .background(Color("EEONDivider"))
                         }
 
                         // AI-suggested topics
@@ -272,7 +271,7 @@ struct NoteTagPickerSheet: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("SUGGESTED FROM AI")
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                                     .padding(.horizontal, 20)
 
                                 FlowLayout(spacing: 8) {
@@ -301,14 +300,14 @@ struct NoteTagPickerSheet: View {
                             .padding(.vertical, 16)
 
                             Divider()
-                                .background(Color.white.opacity(0.08))
+                                .background(Color("EEONDivider"))
                         }
 
                         // All tags
                         VStack(alignment: .leading, spacing: 8) {
                             Text("ALL TAGS")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("EEONTextSecondary"))
                                 .padding(.horizontal, 20)
                                 .padding(.top, 16)
 
@@ -329,14 +328,14 @@ struct NoteTagPickerSheet: View {
 
                                         Text(tag.name)
                                             .font(.body)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(Color("EEONTextPrimary"))
 
                                         Spacer()
 
                                         if isAssigned {
                                             Image(systemName: "checkmark")
                                                 .font(.subheadline.weight(.semibold))
-                                                .foregroundStyle(.blue)
+                                                .foregroundStyle(Color("EEONAccent"))
                                         }
                                     }
                                     .padding(.horizontal, 20)
@@ -362,7 +361,7 @@ struct NoteTagPickerSheet: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
                 }
             }
             .alert("New Tag", isPresented: $showingAddAlert) {
@@ -376,7 +375,6 @@ struct NoteTagPickerSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func removeTag(_ tag: Tag) {

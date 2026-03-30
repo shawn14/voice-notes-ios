@@ -54,15 +54,15 @@ struct ProjectDetailView: View {
     var body: some View {
         ZStack {
             // Dark background
-            Color.black.ignoresSafeArea()
+            Color("EEONBackground").ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Search bar
                 HStack {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("EEONTextSecondary"))
                     TextField("Search", text: $searchText)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color("EEONTextPrimary"))
                 }
                 .padding(12)
                 .background(Color(.systemGray6).opacity(0.3))
@@ -95,10 +95,10 @@ struct ProjectDetailView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "note.text")
                             .font(.system(size: 48))
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                         Text("No notes in \(selectedColumn.rawValue)")
                             .font(.headline)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                         Text("Record a voice note to get started")
                             .font(.subheadline)
                             .foregroundStyle(.gray.opacity(0.7))
@@ -148,7 +148,7 @@ struct ProjectDetailView: View {
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbarBackground(Color.black, for: .navigationBar)
+        .toolbarBackground(Color("EEONBackground"), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) { }
@@ -384,12 +384,12 @@ struct NoteCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(note.displayTitle)
                         .font(.body.weight(.medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color("EEONTextPrimary"))
                         .lineLimit(1)
 
                     Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("EEONTextSecondary"))
 
                     // AI Insight
                     if let insight = note.aiInsight, !insight.isEmpty {
@@ -498,22 +498,22 @@ struct ProjectRecordingOverlay: View {
 
                     Image(systemName: "mic.fill")
                         .font(.system(size: 32))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color("EEONTextPrimary"))
                 }
 
                 Text("Recording...")
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
 
                 HStack(spacing: 40) {
                     Button(action: onCancel) {
                         VStack(spacing: 8) {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 44))
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("EEONTextSecondary"))
                             Text("Cancel")
                                 .font(.caption)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("EEONTextSecondary"))
                         }
                     }
 
@@ -524,7 +524,7 @@ struct ProjectRecordingOverlay: View {
                                 .foregroundStyle(.red)
                             Text("Stop")
                                 .font(.caption)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
                         }
                     }
                 }
@@ -551,7 +551,7 @@ struct ProjectTranscribingOverlay: View {
 
                 Text("Transcribing...")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
             }
         }
     }
@@ -565,5 +565,4 @@ struct ProjectTranscribingOverlay: View {
         ProjectDetailView(project: project)
     }
     .modelContainer(for: [Project.self, Note.self], inMemory: true)
-    .preferredColorScheme(.dark)
 }

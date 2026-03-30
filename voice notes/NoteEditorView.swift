@@ -151,7 +151,7 @@ struct NoteEditorView: View {
                         .cornerRadius(8)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                                .stroke(Color("EEONDivider"), lineWidth: 1)
                         )
                         .overlay(
                             Group {
@@ -283,7 +283,7 @@ struct NoteEditorView: View {
                         .cornerRadius(8)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                                .stroke(Color("EEONDivider"), lineWidth: 1)
                         )
                 }
 

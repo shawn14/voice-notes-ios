@@ -109,7 +109,7 @@ struct CompletedItemsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color("EEONBackground").ignoresSafeArea()
 
                 if allCompletedItems.isEmpty && totalOpen == 0 {
                     emptyState
@@ -144,7 +144,6 @@ struct CompletedItemsView: View {
             }
             .navigationTitle("Progress")
             .navigationBarTitleDisplayMode(.large)
-            .preferredColorScheme(.dark)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
@@ -198,7 +197,7 @@ struct CompletedItemsView: View {
             HStack {
                 Text("Completion Rate")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
                 Spacer()
                 Text("\(Int(completionRate * 100))%")
                     .font(.title3.weight(.bold))
@@ -235,7 +234,7 @@ struct CompletedItemsView: View {
                 Spacer()
                 Label("\(totalOpen) open", systemImage: "circle")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color("EEONTextSecondary"))
             }
         }
         .padding(16)
@@ -263,7 +262,7 @@ struct CompletedItemsView: View {
         return VStack(alignment: .leading, spacing: 12) {
             Text("Last 7 Days")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color("EEONTextPrimary"))
 
             HStack(alignment: .bottom, spacing: 8) {
                 ForEach(Array(days.enumerated()), id: \.offset) { _, day in
@@ -282,7 +281,7 @@ struct CompletedItemsView: View {
 
                         Text(day.label)
                             .font(.system(size: 9))
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -300,13 +299,13 @@ struct CompletedItemsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("History")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color("EEONTextPrimary"))
 
             ForEach(groupedByDate.prefix(10), id: \.date) { group in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(formatDateHeader(group.date))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color("EEONTextSecondary"))
                         .textCase(.uppercase)
 
                     ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
@@ -318,7 +317,7 @@ struct CompletedItemsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.content)
                                     .font(.subheadline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color("EEONTextPrimary"))
                                     .lineLimit(2)
 
                                 HStack(spacing: 6) {
@@ -333,7 +332,7 @@ struct CompletedItemsView: View {
                                     if let owner = item.owner, owner != "Me" && !owner.isEmpty {
                                         Text(owner)
                                             .font(.caption)
-                                            .foregroundStyle(.gray)
+                                            .foregroundStyle(Color("EEONTextSecondary"))
                                     }
                                 }
                             }
@@ -366,11 +365,11 @@ struct CompletedItemsView: View {
 
             Text("No completed items yet")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color("EEONTextPrimary"))
 
             Text("Check off tasks in Today's Focus\nand they'll show up here.")
                 .font(.subheadline)
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color("EEONTextSecondary"))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -430,10 +429,10 @@ struct MomentumStat: View {
                 .foregroundStyle(color)
             Text(value)
                 .font(.title3.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color("EEONTextPrimary"))
             Text(label)
                 .font(.system(size: 10))
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color("EEONTextSecondary"))
         }
         .frame(maxWidth: .infinity)
     }

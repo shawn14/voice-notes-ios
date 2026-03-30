@@ -23,7 +23,7 @@ struct FirstClarityView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 36))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color("EEONAccent"))
 
                         Text("Your thought, clarified")
                             .font(.title2.weight(.bold))
@@ -78,7 +78,7 @@ struct FirstClarityView: View {
                         )
                     }
                     .padding(20)
-                    .background(Color.blue.opacity(0.1))
+                    .background(Color("EEONAccent").opacity(0.1))
                     .cornerRadius(16)
                     .padding(.horizontal)
 

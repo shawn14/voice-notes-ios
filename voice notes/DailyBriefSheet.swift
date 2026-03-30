@@ -46,7 +46,7 @@ struct DailyBriefSheet: View {
                 }
                 .padding()
             }
-            .background(Color.black)
+            .background(Color("EEONBackground"))
             .navigationTitle("Daily Brief")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -55,7 +55,6 @@ struct DailyBriefSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 }
 
@@ -73,12 +72,12 @@ private struct HeroSection: View {
 
                 Text("Here's what matters today")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
             }
 
             Text(brief.whatMattersToday)
                 .font(.body)
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(Color("EEONTextPrimary").opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 16) {
@@ -86,7 +85,7 @@ private struct HeroSection: View {
 
                 Text(brief.freshnessLabel)
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(Color("EEONTextSecondary"))
             }
         }
         .padding()
@@ -133,7 +132,7 @@ private struct HighlightsSection: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Key Highlights")
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color("EEONTextPrimary"))
 
             ForEach(highlights, id: \.self) { highlight in
                 HStack(alignment: .top, spacing: 12) {
@@ -143,7 +142,7 @@ private struct HighlightsSection: View {
 
                     Text(highlight)
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(Color("EEONTextPrimary").opacity(0.9))
                 }
             }
         }
@@ -165,7 +164,7 @@ private struct PrioritiesSection: View {
                     .foregroundStyle(.blue)
                 Text("Focus Areas")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
             }
 
             ForEach(actions) { action in
@@ -178,11 +177,11 @@ private struct PrioritiesSection: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(action.content)
                                 .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color("EEONTextPrimary"))
 
                             Text(action.reason)
                                 .font(.caption)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("EEONTextSecondary"))
 
                             if let project = action.projectName {
                                 Text(project)
@@ -221,7 +220,7 @@ private struct WarningsSection: View {
                     .foregroundStyle(.orange)
                 Text("Needs Attention")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
             }
 
             ForEach(warnings) { warning in
@@ -233,11 +232,11 @@ private struct WarningsSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(warning.content)
                             .font(.subheadline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("EEONTextPrimary"))
 
                         Text("\(warning.daysSinceIssue) days")
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color("EEONTextSecondary"))
                     }
                 }
                 .padding(.vertical, 4)
@@ -270,7 +269,7 @@ private struct SessionIntelligenceSection: View {
                     .foregroundStyle(.purple)
                 Text("Live Status")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
             }
 
             // Top Active Projects
@@ -278,7 +277,7 @@ private struct SessionIntelligenceSection: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Active Projects")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(Color("EEONTextSecondary"))
 
                     ForEach(session.topActiveProjects) { project in
                         HStack(spacing: 12) {
@@ -288,11 +287,11 @@ private struct SessionIntelligenceSection: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(project.name)
                                     .font(.subheadline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color("EEONTextPrimary"))
 
                                 Text(project.activityLabel)
                                     .font(.caption)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(Color("EEONTextSecondary"))
                             }
 
                             Spacer()
@@ -361,7 +360,7 @@ private struct StatBadge: View {
 
             Text(label)
                 .font(.caption)
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color("EEONTextSecondary"))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
@@ -379,7 +378,7 @@ private struct MetricsFooter: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Snapshot")
                 .font(.caption.weight(.medium))
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color("EEONTextSecondary"))
 
             HStack(spacing: 16) {
                 FooterStat(label: "Open Items", value: "\(brief.openItemCount)")
@@ -401,11 +400,11 @@ private struct FooterStat: View {
         VStack(spacing: 2) {
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color("EEONTextPrimary"))
 
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color("EEONTextSecondary"))
         }
         .frame(maxWidth: .infinity)
     }

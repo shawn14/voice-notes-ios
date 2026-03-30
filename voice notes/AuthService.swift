@@ -243,7 +243,7 @@ struct SignInView: View {
                 HStack(spacing: 6) {
                     ForEach(0..<pageCount, id: \.self) { index in
                         Capsule()
-                            .fill(index == currentPage ? Color.white.opacity(0.9) : Color.white.opacity(0.15))
+                            .fill(index == currentPage ? Color("EEONTextPrimary").opacity(0.9) : Color("EEONTextPrimary").opacity(0.15))
                             .frame(width: index == currentPage ? 28 : 8, height: 3)
                             .animation(.spring(response: 0.35), value: currentPage)
                     }
@@ -284,7 +284,7 @@ struct SignInView: View {
 
                     Button("Skip") { advanceToPaywall() }
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(Color("EEONTextSecondary").opacity(0.6))
                         .padding(.top, 2)
                 }
                 .padding(.horizontal, 28)
@@ -315,7 +315,7 @@ struct SignInView: View {
 
     private var backgroundGradient: some View {
         ZStack {
-            Color.black
+            Color("EEONBackground")
 
             switch currentPage {
             case 0:
@@ -387,19 +387,19 @@ struct SignInView: View {
 
                 Image(systemName: "mic.fill")
                     .font(.system(size: 44, weight: .light))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
             }
             .padding(.bottom, 44)
 
             VStack(spacing: 14) {
                 Text("Just talk.")
                     .font(.system(size: 38, weight: .bold, design: .default))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
                     .tracking(-0.5)
 
                 Text("We turn your voice into\norganized, searchable notes.")
                     .font(.system(size: 17))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color("EEONTextSecondary"))
                     .multilineTextAlignment(.center)
                     .lineSpacing(5)
             }
@@ -416,7 +416,7 @@ struct SignInView: View {
             .padding(.vertical, 20)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.04))
+                    .fill(Color("EEONTextPrimary").opacity(0.04))
             )
             .padding(.horizontal, 28)
 
@@ -440,22 +440,22 @@ struct SignInView: View {
 
                 Image(systemName: "sparkle")
                     .font(.system(size: 22))
-                    .foregroundStyle(.white.opacity(0.25))
+                    .foregroundStyle(Color("EEONTextSecondary").opacity(0.4))
                     .offset(x: -44, y: -34)
 
                 Image(systemName: "sparkle")
                     .font(.system(size: 16))
-                    .foregroundStyle(.white.opacity(0.18))
+                    .foregroundStyle(Color("EEONTextSecondary").opacity(0.3))
                     .offset(x: 48, y: -42)
 
                 Image(systemName: "sparkle")
                     .font(.system(size: 13))
-                    .foregroundStyle(.white.opacity(0.12))
+                    .foregroundStyle(Color("EEONTextSecondary").opacity(0.2))
                     .offset(x: 52, y: 22)
 
                 Image(systemName: "sparkles")
                     .font(.system(size: 56, weight: .light))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
             }
             .frame(height: 130)
             .padding(.bottom, 40)
@@ -463,12 +463,12 @@ struct SignInView: View {
             VStack(spacing: 14) {
                 Text("AI does the rest.")
                     .font(.system(size: 38, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
                     .tracking(-0.5)
 
                 Text("Decisions, actions, commitments —\nextracted from every note.")
                     .font(.system(size: 17))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color("EEONTextSecondary"))
                     .multilineTextAlignment(.center)
                     .lineSpacing(5)
             }
@@ -484,7 +484,7 @@ struct SignInView: View {
             .padding(.vertical, 20)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.04))
+                    .fill(Color("EEONTextPrimary").opacity(0.04))
             )
             .padding(.horizontal, 28)
 
@@ -526,13 +526,13 @@ struct SignInView: View {
             VStack(spacing: 14) {
                 Text("Your command\ncenter.")
                     .font(.system(size: 38, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color("EEONTextPrimary"))
                     .tracking(-0.5)
                     .multilineTextAlignment(.center)
 
                 Text("CEO reports, SWOT analysis,\ngoal tracking — one tap away.")
                     .font(.system(size: 17))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color("EEONTextSecondary"))
                     .multilineTextAlignment(.center)
                     .lineSpacing(5)
             }
@@ -548,7 +548,7 @@ struct SignInView: View {
             .padding(.vertical, 20)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.04))
+                    .fill(Color("EEONTextPrimary").opacity(0.04))
             )
             .padding(.horizontal, 28)
 
@@ -562,12 +562,12 @@ struct SignInView: View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.white.opacity(0.35))
+                .foregroundStyle(Color("EEONTextSecondary"))
                 .frame(width: 24, height: 24)
 
             Text(text)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(Color("EEONTextPrimary").opacity(0.8))
 
             Spacer()
         }

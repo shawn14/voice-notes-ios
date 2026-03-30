@@ -197,7 +197,7 @@ struct ShareOptionsView: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.blue)
+                .background(Color("EEONAccent"))
                 .cornerRadius(12)
             }
             .disabled(isSharing)
@@ -370,7 +370,7 @@ struct SharedNoteContent: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue)
+                        .background(Color("EEONAccent"))
                         .cornerRadius(12)
                     }
                 }

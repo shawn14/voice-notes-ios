@@ -22,7 +22,7 @@ enum ChipCategory {
         case .action: return .orange
         case .commitment: return .blue
         case .person: return .purple
-        case .topic: return .gray
+        case .topic: return Color("EEONTextSecondary")
         }
     }
 

@@ -15,6 +15,7 @@ import AVFoundation
 
 struct AIHomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) var colorScheme
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Query(sort: \Project.sortOrder) private var projects: [Project]
@@ -153,26 +154,26 @@ struct AIHomeView: View {
 
     private var emptyStateTitle: String {
         switch selectedTab {
-        case .all: return "No notes yet"
-        case .ai: return "AI is thinking"
-        case .favorites: return "No favorites yet"
-        case .archive: return "Archive is empty"
+        case .all: return "Your memory starts here"
+        case .ai: return "Almost there"
+        case .favorites: return "Your greatest hits"
+        case .archive: return "Clean slate"
         }
     }
 
     private var emptyStateSubtitle: String {
         switch selectedTab {
-        case .all: return "Tap the mic to record your first thought"
-        case .ai: return "Record a few notes and AI will organize them"
-        case .favorites: return "Heart a note to see it here"
-        case .archive: return "Archived notes will appear here"
+        case .all: return "Hit the mic and say what's on your mind. EEON will remember it for you."
+        case .ai: return "Record a few more notes and EEON will start connecting the dots."
+        case .favorites: return "Tap the heart on any note to pin it here."
+        case .archive: return "Archived notes live here. Out of sight, never out of reach."
         }
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color.eeonBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     if !authService.isSignedIn {
@@ -300,7 +301,6 @@ struct AIHomeView: View {
                 trackSession()
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - 1. Greeting Bar
@@ -310,11 +310,11 @@ struct AIHomeView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(greeting)
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.eeonTextPrimary)
 
                 Text(todayDateString)
                     .font(.subheadline)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.eeonTextSecondary)
             }
 
             Spacer()
@@ -325,7 +325,7 @@ struct AIHomeView: View {
             } label: {
                 Image(systemName: "tag")
                     .font(.system(size: 16))
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.eeonTextSecondary)
             }
             .padding(.trailing, 8)
 
@@ -338,7 +338,7 @@ struct AIHomeView: View {
                 } else {
                     Image(systemName: "person.circle")
                         .font(.title2)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.eeonTextSecondary)
                 }
             }
         }
@@ -386,12 +386,12 @@ struct AIHomeView: View {
                                 .tint(.blue)
                             Text("Preparing your brief...")
                                 .font(.subheadline)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(.eeonTextSecondary)
                         }
                     } else {
                         Text("Daily Brief")
                             .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.eeonTextPrimary)
                     }
 
                     Spacer()
@@ -399,7 +399,7 @@ struct AIHomeView: View {
                     if !intelligenceService.isRefreshingDaily {
                         Image(systemName: isBriefExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.eeonTextSecondary)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -412,7 +412,7 @@ struct AIHomeView: View {
                 if let brief = todaysBrief, !brief.whatMattersToday.isEmpty {
                     Text(brief.whatMattersToday)
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(.eeonTextPrimary.opacity(0.8))
                         .lineLimit(3)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 14)
@@ -422,14 +422,14 @@ struct AIHomeView: View {
             // Expanded: full executive brief
             if isBriefExpanded, let brief = todaysBrief {
                 Divider()
-                    .background(Color.white.opacity(0.1))
+                    .background(Color.eeonDivider)
 
                 VStack(alignment: .leading, spacing: 10) {
                     // Executive summary text
                     if !brief.whatMattersToday.isEmpty {
                         Text(brief.whatMattersToday)
                             .font(.subheadline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.eeonTextPrimary)
                             .lineSpacing(3)
                     }
 
@@ -495,7 +495,7 @@ struct AIHomeView: View {
             } label: {
                 Image(systemName: "square.and.pencil")
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.eeonTextSecondary)
             }
             .frame(maxWidth: .infinity)
 
@@ -505,7 +505,7 @@ struct AIHomeView: View {
             }) {
                 ZStack {
                     Circle()
-                        .fill(Color.red)
+                        .fill(Color.eeonAccent)
                         .frame(width: 64, height: 64)
 
                     if isTranscribing {
@@ -527,16 +527,16 @@ struct AIHomeView: View {
             } label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.eeonTextSecondary)
             }
             .frame(maxWidth: .infinity)
         }
         .padding(.top, 10)
         .padding(.bottom, 24)
         .background(
-            Color.black
+            Color.eeonBackground
                 .ignoresSafeArea()
-                .shadow(color: .black.opacity(0.5), radius: 8, y: -4)
+                .shadow(color: Color.eeonTextPrimary.opacity(0.15), radius: 8, y: -4)
         )
     }
 
@@ -555,10 +555,10 @@ struct AIHomeView: View {
                         VStack(spacing: 6) {
                             Text(tab.rawValue)
                                 .font(.subheadline.weight(selectedTab == tab ? .semibold : .regular))
-                                .foregroundStyle(selectedTab == tab ? .white : .gray)
+                                .foregroundStyle(selectedTab == tab ? .eeonTextPrimary : .eeonTextSecondary)
 
                             Rectangle()
-                                .fill(selectedTab == tab ? Color.white : Color.clear)
+                                .fill(selectedTab == tab ? Color.eeonAccent : Color.clear)
                                 .frame(height: 2)
                         }
                     }
@@ -573,7 +573,7 @@ struct AIHomeView: View {
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.eeonTextSecondary)
                         .padding(.horizontal, 12)
                 }
             }
@@ -591,7 +591,7 @@ struct AIHomeView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.caption2)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.eeonTextSecondary)
                     }
                 }
                 .padding(.horizontal, 10)
@@ -610,15 +610,15 @@ struct AIHomeView: View {
                 VStack(spacing: 12) {
                     Image(systemName: emptyStateIcon)
                         .font(.system(size: 48))
-                        .foregroundStyle(.gray.opacity(0.5))
+                        .foregroundStyle(.eeonTextTertiary)
 
                     Text(emptyStateTitle)
                         .font(.headline)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.eeonTextSecondary)
 
                     Text(emptyStateSubtitle)
                         .font(.subheadline)
-                        .foregroundStyle(.gray.opacity(0.7))
+                        .foregroundStyle(.eeonTextTertiary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
@@ -668,7 +668,7 @@ struct AIHomeView: View {
                         } header: {
                             Text(month)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(.eeonTextSecondary)
                                 .textCase(.uppercase)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal)
@@ -690,7 +690,7 @@ struct AIHomeView: View {
                     ZStack {
                         ForEach(0..<3, id: \.self) { i in
                             Circle()
-                                .stroke(Color.red.opacity(0.08 - Double(i) * 0.02), lineWidth: 1)
+                                .stroke(Color.eeonAccent.opacity(0.08 - Double(i) * 0.02), lineWidth: 1)
                                 .frame(width: CGFloat(100 + i * 40), height: CGFloat(100 + i * 40))
                         }
 
@@ -698,7 +698,7 @@ struct AIHomeView: View {
                             Circle()
                                 .fill(
                                     LinearGradient(
-                                        colors: [Color.red.opacity(0.2), Color.red.opacity(0.05)],
+                                        colors: [Color.eeonAccent.opacity(0.2), Color.eeonAccent.opacity(0.05)],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
@@ -709,7 +709,7 @@ struct AIHomeView: View {
                                 .font(.system(size: 44))
                                 .foregroundStyle(
                                     LinearGradient(
-                                        colors: [.red, .red.opacity(0.7)],
+                                        colors: [.eeonAccent, .eeonAccent.opacity(0.7)],
                                         startPoint: .top,
                                         endPoint: .bottom
                                     )
@@ -721,11 +721,11 @@ struct AIHomeView: View {
                     VStack(spacing: 10) {
                         Text("Speak. EEON listens.")
                             .font(.title.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.eeonTextPrimary)
 
                         Text("Record a thought, get back clarity.\nDecisions, tasks, and follow-ups -- extracted automatically.")
                             .font(.subheadline)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.eeonTextSecondary)
                             .multilineTextAlignment(.center)
                             .lineSpacing(3)
                     }
@@ -737,14 +737,14 @@ struct AIHomeView: View {
                 VStack(spacing: 12) {
                     WelcomeFeatureRow(
                         icon: "mic.fill",
-                        iconColor: .red,
+                        iconColor: .eeonAccent,
                         title: "Record anything",
                         subtitle: "Meetings, ideas, reminders -- just talk"
                     )
 
                     WelcomeFeatureRow(
                         icon: "sparkles",
-                        iconColor: .blue,
+                        iconColor: .eeonAccentAI,
                         title: "AI extracts what matters",
                         subtitle: "Decisions, commitments, and action items"
                     )
@@ -770,15 +770,15 @@ struct AIHomeView: View {
                             Text("Sign In to Get Started")
                                 .font(.headline)
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.eeonTextPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(.white.opacity(0.12))
+                                .fill(Color.eeonCard)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 14)
-                                        .stroke(.white.opacity(0.15), lineWidth: 1)
+                                        .stroke(Color.eeonDivider, lineWidth: 1)
                                 )
                         )
                     }
@@ -786,7 +786,7 @@ struct AIHomeView: View {
 
                     Text("10 free notes \u{00B7} No credit card required")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.eeonTextSecondary)
                 }
                 .padding(.bottom, 24)
 
@@ -1115,10 +1115,10 @@ struct WelcomeFeatureRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.eeonTextPrimary)
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(.eeonTextSecondary)
             }
 
             Spacer()
@@ -1126,10 +1126,10 @@ struct WelcomeFeatureRow: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color(.systemGray6).opacity(0.25))
+                .fill(Color.eeonCard)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.white.opacity(0.04), lineWidth: 1)
+                        .stroke(Color.eeonDivider, lineWidth: 1)
                 )
         )
     }
@@ -1138,6 +1138,7 @@ struct WelcomeFeatureRow: View {
 // MARK: - Note Feed Card (compact for 2-column grid)
 
 struct NoteFeedCard: View {
+    @Environment(\.colorScheme) var colorScheme
     let note: Note
 
     private var preview: String {
@@ -1157,19 +1158,19 @@ struct NoteFeedCard: View {
             // Title
             Text(note.displayTitle)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.eeonTextPrimary)
                 .lineLimit(2)
 
             // Date
             Text(note.createdAt.formatted(date: .abbreviated, time: .omitted))
                 .font(.caption2)
-                .foregroundStyle(.gray)
+                .foregroundStyle(.eeonTextSecondary)
 
             // 1-line preview
             if !preview.isEmpty {
                 Text(preview)
                     .font(.caption)
-                    .foregroundStyle(.gray.opacity(0.8))
+                    .foregroundStyle(.eeonTextTertiary)
                     .lineLimit(2)
             }
 
@@ -1203,8 +1204,9 @@ struct NoteFeedCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemGray6).opacity(0.2))
+        .background(Color.eeonCard)
         .cornerRadius(12)
+        .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, y: 2)
     }
 }
 
