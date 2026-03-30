@@ -185,11 +185,7 @@ struct AIHomeView: View {
                                 greetingBar
                                     .padding(.horizontal)
 
-                                // 2. Daily Brief card (collapsible) — hidden on AI tab
-                                if selectedTab != .ai, todaysBrief != nil || intelligenceService.isRefreshingDaily {
-                                    dailyBriefCard
-                                        .padding(.horizontal)
-                                }
+                                // Daily brief removed — AI tab handles organization
 
                                 // Free tier warning
                                 if authService.isSignedIn && !UsageService.shared.isPro {
