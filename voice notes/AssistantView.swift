@@ -279,7 +279,7 @@ struct RAGWelcomeSection: View {
             VStack(spacing: 8) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 40))
-                    .foregroundStyle(.eeonAccentAI)
+                    .foregroundStyle(Color("EEONAccent"))
 
                 Text("Ask EEON")
                     .font(.title2.bold())

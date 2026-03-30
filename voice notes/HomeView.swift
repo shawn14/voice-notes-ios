@@ -1506,12 +1506,12 @@ struct HomeTranscribingOverlay: View {
                 // Animated sparkles icon
                 ZStack {
                     Circle()
-                        .fill(Color.blue.opacity(0.2))
+                        .fill(Color("EEONAccent").opacity(0.15))
                         .frame(width: 100, height: 100)
 
                     Image(systemName: "sparkles")
                         .font(.system(size: 40))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color("EEONAccent"))
                         .symbolEffect(.pulse)
                 }
 
