@@ -186,35 +186,31 @@ struct AIHomeView: View {
                 Color.eeonBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    if !authService.isSignedIn {
-                        signedOutView
-                    } else {
-                        // Main scrollable content
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 16) {
-                                // 1. Greeting bar
-                                greetingBar
-                                    .padding(.horizontal)
+                    // Main scrollable content
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // 1. Greeting bar
+                            greetingBar
+                                .padding(.horizontal)
 
-                                // Daily brief removed — AI tab handles organization
+                            // Daily brief removed — AI tab handles organization
 
-                                // Free tier warning
-                                if authService.isSignedIn && !UsageService.shared.isPro {
-                                    let remaining = UsageService.shared.freeNotesRemaining
-                                    if remaining <= 2 && remaining > 0 {
-                                        freeNotesWarning(remaining: remaining)
-                                            .padding(.horizontal)
-                                    }
+                            // Free tier warning
+                            if !UsageService.shared.isPro {
+                                let remaining = UsageService.shared.freeNotesRemaining
+                                if remaining <= 2 && remaining > 0 {
+                                    freeNotesWarning(remaining: remaining)
+                                        .padding(.horizontal)
                                 }
-
-                                // 3. Note feed with tabs
-                                noteFeed
-
-                                // Spacer so content doesn't show behind bottom bar
-                                Color.clear.frame(height: 20)
                             }
-                            .padding(.top, 8)
+
+                            // 3. Note feed with tabs
+                            noteFeed
+
+                            // Spacer so content doesn't show behind bottom bar
+                            Color.clear.frame(height: 20)
                         }
+                        .padding(.top, 8)
                     }
                 }
                 .safeAreaInset(edge: .bottom) {
@@ -908,10 +904,6 @@ struct AIHomeView: View {
         if isRecording {
             stopRecording()
         } else {
-            if !authService.isSignedIn {
-                showSignIn = true
-                return
-            }
             if !UsageService.shared.canCreateNote {
                 showPaywall = true
                 return
