@@ -369,10 +369,24 @@ struct AIHomeView: View {
         } else {
             timeGreeting = "Good evening"
         }
-        // Add first name if signed in
+        // Add first name if signed in and name looks real
         if authService.isSignedIn, let fullName = authService.userName {
-            let firstName = fullName.split(separator: " ").first.map(String.init) ?? fullName
-            return "\(timeGreeting), \(firstName)"
+            let firstName = String(fullName.split(separator: " ").first ?? Substring(fullName))
+            let trimmed = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Only show name if it looks like a real name:
+            // - 2+ characters
+            // - starts with uppercase letter
+            // - only letters (no numbers, special chars)
+            // - not generic placeholders
+            let isValidName = trimmed.count >= 2
+                && trimmed.first?.isUppercase == true
+                && trimmed.allSatisfy({ $0.isLetter })
+                && !["Test", "User", "Name", "None", "Null", "Admin", "Default"].contains(trimmed)
+
+            if isValidName {
+                return "\(timeGreeting), \(trimmed)"
+            }
         }
         return timeGreeting
     }
