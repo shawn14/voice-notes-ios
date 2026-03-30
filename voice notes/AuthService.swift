@@ -336,29 +336,9 @@ struct SignInView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Coral waveform icon
-            ZStack {
-                // Outer glow
-                Circle()
-                    .fill(Color("EEONAccent").opacity(0.06))
-                    .frame(width: 180, height: 180)
-                    .blur(radius: 20)
-
-                // Inner ring
-                Circle()
-                    .fill(Color("EEONAccent").opacity(0.10))
-                    .frame(width: 120, height: 120)
-
-                // Waveform bars
-                HStack(alignment: .center, spacing: 4) {
-                    ForEach(Array([0.4, 0.7, 1.0, 0.8, 0.5, 0.9, 0.6, 0.3, 0.75].enumerated()), id: \.offset) { _, scale in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color("EEONAccent"))
-                            .frame(width: 4, height: CGFloat(scale) * 44)
-                    }
-                }
-            }
-            .padding(.bottom, 48)
+            Text("🎙️")
+                .font(.system(size: 100))
+                .padding(.bottom, 48)
 
             VStack(spacing: 14) {
                 Text("Talk. Your AI\nremembers.")
@@ -384,36 +364,21 @@ struct SignInView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Recording mockup with waveform bars
-            ZStack {
-                // Glow
-                Circle()
-                    .fill(Color("EEONAccent").opacity(0.05))
-                    .frame(width: 160, height: 160)
-                    .blur(radius: 20)
+            Text("✍️")
+                .font(.system(size: 100))
+                .padding(.bottom, 24)
 
-                VStack(spacing: 16) {
-                    // Waveform visualization
-                    HStack(alignment: .center, spacing: 3) {
-                        ForEach(Array([0.3, 0.5, 0.8, 0.6, 1.0, 0.7, 0.9, 0.4, 0.6, 0.8, 0.5, 0.3].enumerated()), id: \.offset) { _, scale in
-                            RoundedRectangle(cornerRadius: 1.5)
-                                .fill(Color("EEONAccent").opacity(0.7))
-                                .frame(width: 3, height: CGFloat(scale) * 36)
-                        }
-                    }
-
-                    // Mock transcript lines
-                    VStack(alignment: .leading, spacing: 6) {
-                        mockTranscriptLine(width: 140)
-                        mockTranscriptLine(width: 100)
-                        mockTranscriptLine(width: 120)
-                    }
-                }
-                .padding(24)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color("EEONTextPrimary").opacity(0.04))
-                )
+            // Transcript lines appearing
+            VStack(alignment: .leading, spacing: 8) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color("EEONTextPrimary").opacity(0.15))
+                    .frame(width: 180, height: 10)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color("EEONTextPrimary").opacity(0.10))
+                    .frame(width: 140, height: 10)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color("EEONTextPrimary").opacity(0.06))
+                    .frame(width: 160, height: 10)
             }
             .padding(.bottom, 40)
 
@@ -423,7 +388,7 @@ struct SignInView: View {
                     .foregroundStyle(Color("EEONTextPrimary"))
                     .tracking(-0.5)
 
-                Text("Your words appear in real-time.\nAI removes filler and enhances\nyour thoughts into clear notes.")
+                Text("Your words appear in real-time.\nAI turns rambling into clear notes.")
                     .font(.system(size: 17))
                     .foregroundStyle(Color("EEONTextSecondary"))
                     .multilineTextAlignment(.center)
@@ -441,46 +406,23 @@ struct SignInView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Chat bubble illustration
-            ZStack {
-                Circle()
-                    .fill(Color("EEONAccent").opacity(0.05))
-                    .frame(width: 160, height: 160)
-                    .blur(radius: 20)
+            Text("🧠")
+                .font(.system(size: 100))
+                .padding(.bottom, 24)
 
-                VStack(spacing: 12) {
-                    // User question bubble
-                    HStack {
-                        Spacer()
-                        Text("What did I promise Sarah?")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18)
-                                    .fill(Color("EEONAccent"))
-                            )
-                    }
-
-                    // AI response bubble
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("You promised to send the proposal by Friday and review her draft.")
-                                .font(.system(size: 13))
-                                .foregroundStyle(Color("EEONTextPrimary").opacity(0.9))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18)
-                                .fill(Color("EEONTextPrimary").opacity(0.06))
-                        )
-                        Spacer()
-                    }
-                }
-                .padding(.horizontal, 20)
-                .frame(maxWidth: 280)
+            // Chat bubble mockup
+            HStack {
+                Spacer()
+                Text("What did I promise Sarah?")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(
+                        Capsule()
+                            .fill(Color("EEONAccent"))
+                    )
+                Spacer()
             }
             .padding(.bottom, 40)
 
@@ -490,7 +432,7 @@ struct SignInView: View {
                     .foregroundStyle(Color("EEONTextPrimary"))
                     .tracking(-0.5)
 
-                Text("Search across all your notes\nwith AI that remembers everything.")
+                Text("Search across all your notes.\nGet cited answers instantly.")
                     .font(.system(size: 17))
                     .foregroundStyle(Color("EEONTextSecondary"))
                     .multilineTextAlignment(.center)
@@ -508,24 +450,15 @@ struct SignInView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Organized sections illustration
-            ZStack {
-                Circle()
-                    .fill(Color("EEONAccent").opacity(0.05))
-                    .frame(width: 160, height: 160)
-                    .blur(radius: 20)
+            Text("🎯")
+                .font(.system(size: 100))
+                .padding(.bottom, 24)
 
-                VStack(spacing: 8) {
-                    organizeRow(icon: "flame.fill", label: "Active Threads", count: "3", color: Color("EEONAccent"))
-                    organizeRow(icon: "exclamationmark.triangle.fill", label: "Needs Attention", count: "2", color: .orange)
-                    organizeRow(icon: "person.2.fill", label: "People", count: "5", color: .blue)
-                }
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color("EEONTextPrimary").opacity(0.04))
-                )
-                .frame(maxWidth: 260)
+            // Simple organized rows
+            VStack(spacing: 12) {
+                organizeRow(color: Color("EEONAccent"), label: "Active Threads", count: "3")
+                organizeRow(color: .orange, label: "Needs Attention", count: "2")
+                organizeRow(color: .blue, label: "People", count: "5")
             }
             .padding(.bottom, 40)
 
@@ -536,7 +469,7 @@ struct SignInView: View {
                     .tracking(-0.5)
                     .multilineTextAlignment(.center)
 
-                Text("AI tracks your decisions,\ncommitments, and action items.\nGet reminded when things go stale.")
+                Text("AI tracks decisions, commitments,\nand action items.")
                     .font(.system(size: 17))
                     .foregroundStyle(Color("EEONTextSecondary"))
                     .multilineTextAlignment(.center)
@@ -550,35 +483,23 @@ struct SignInView: View {
 
     // MARK: - Helper Views
 
-    private func mockTranscriptLine(width: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 3)
-            .fill(Color("EEONTextPrimary").opacity(0.12))
-            .frame(width: width, height: 8)
-    }
-
-    private func organizeRow(icon: String, label: String, count: String, color: Color) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundStyle(color)
-                .frame(width: 24, height: 24)
+    private func organizeRow(color: Color, label: String, count: String) -> some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(color)
+                .frame(width: 10, height: 10)
 
             Text(label)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(Color("EEONTextPrimary").opacity(0.8))
 
             Spacer()
 
             Text(count)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Color("EEONTextSecondary"))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    Capsule()
-                        .fill(Color("EEONTextPrimary").opacity(0.06))
-                )
         }
+        .frame(maxWidth: 240)
     }
 }
 
