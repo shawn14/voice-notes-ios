@@ -246,24 +246,6 @@ struct NoteDetailView: View {
 
                     // More menu
                     Menu {
-                        // AI Transform options
-                        Menu {
-                            ForEach(AITransformType.allCases) { type in
-                                Button {
-                                    if type == .custom {
-                                        showingCustomPrompt = true
-                                    } else {
-                                        generateAIContent(type: type)
-                                    }
-                                } label: {
-                                    Label(type.rawValue, systemImage: type.icon)
-                                }
-                                .disabled(isGeneratingAI)
-                            }
-                        } label: {
-                            Label("Transform", systemImage: "wand.and.stars")
-                        }
-
                         // Project assignment
                         Button {
                             showingProjectPicker = true
@@ -808,32 +790,36 @@ struct NoteDetailView: View {
                     .padding(.vertical, 12)
             }
 
-            // 3. Rewrite button (center, prominent)
+            // 3. AI Magic button (center, prominent)
             Button {
                 showingRewriteSheet = true
             } label: {
-                HStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: isRewriting ? [.gray] : [.purple, .blue],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 48, height: 48)
+
                     if isRewriting {
                         ProgressView()
                             .tint(.white)
-                            .scaleEffect(0.7)
+                            .scaleEffect(0.8)
                     } else {
                         Image(systemName: "sparkles")
-                            .font(.subheadline)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.white)
                     }
-                    Text("Rewrite")
-                        .font(.subheadline.weight(.semibold))
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 9)
-                .background(
-                    Capsule()
-                        .fill(isRewriting ? Color.gray : Color(.systemGray2))
-                )
+                .shadow(color: .purple.opacity(0.3), radius: 8, y: 2)
             }
             .disabled(isRewriting)
             .frame(maxWidth: .infinity)
+            .offset(y: -6)
 
             // 4. Share button
             Button {
@@ -848,24 +834,6 @@ struct NoteDetailView: View {
 
             // 5. More menu
             Menu {
-                // AI Transform options (legacy)
-                Menu {
-                    ForEach(AITransformType.allCases) { type in
-                        Button {
-                            if type == .custom {
-                                showingCustomPrompt = true
-                            } else {
-                                generateAIContent(type: type)
-                            }
-                        } label: {
-                            Label(type.rawValue, systemImage: type.icon)
-                        }
-                        .disabled(isGeneratingAI)
-                    }
-                } label: {
-                    Label("Transform", systemImage: "wand.and.stars")
-                }
-
                 // Project assignment
                 Button {
                     showingProjectPicker = true
