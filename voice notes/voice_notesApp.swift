@@ -24,6 +24,7 @@ struct voice_notesApp: App {
     @State private var showingSharedNote = false
     @State private var sharedNoteError: String?
     @State private var showingSharedNoteError = false
+    @State private var isLoadingSharedNote = false
 
     // Deep link: auto-start recording
     @State private var shouldStartRecording = false
@@ -124,14 +125,39 @@ struct voice_notesApp: App {
                 handleIncomingURL(url)
             }
             .sheet(isPresented: $showingSharedNote) {
-                if let note = sharedNoteToShow {
-                    SharedNoteDetailView(sharedNote: note)
+                sharedNoteToShow = nil
+                isLoadingSharedNote = false
+                sharedNoteError = nil
+            } content: {
+                NavigationStack {
+                    Group {
+                        if isLoadingSharedNote {
+                            VStack(spacing: 16) {
+                                ProgressView()
+                                    .scaleEffect(1.2)
+                                Text("Loading shared note...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else if let note = sharedNoteToShow {
+                            SharedNoteDetailView(sharedNote: note)
+                        } else if let error = sharedNoteError {
+                            ContentUnavailableView(
+                                "Couldn't Open Link",
+                                systemImage: "exclamationmark.triangle",
+                                description: Text(error)
+                            )
+                        }
+                    }
+                    .toolbar {
+                        if isLoadingSharedNote || sharedNoteError != nil {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { showingSharedNote = false }
+                            }
+                        }
+                    }
                 }
-            }
-            .alert("Couldn't Open Link", isPresented: $showingSharedNoteError) {
-                Button("OK") { }
-            } message: {
-                Text(sharedNoteError ?? "Unknown error")
             }
             .preferredColorScheme(appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : nil)
         }
@@ -168,23 +194,29 @@ struct voice_notesApp: App {
     }
 
     private func fetchAndShowSharedNote(id: String) {
+        // Show sheet immediately with loading state
+        sharedNoteToShow = nil
+        sharedNoteError = nil
+        isLoadingSharedNote = true
+        showingSharedNote = true
+
         Task {
             do {
                 if let note = try await CloudKitShareService.shared.fetchSharedNote(id: id) {
                     await MainActor.run {
                         sharedNoteToShow = note
-                        showingSharedNote = true
+                        isLoadingSharedNote = false
                     }
                 } else {
                     await MainActor.run {
                         sharedNoteError = "This note has expired or been deleted."
-                        showingSharedNoteError = true
+                        isLoadingSharedNote = false
                     }
                 }
             } catch {
                 await MainActor.run {
                     sharedNoteError = "Couldn't load the shared note: \(error.localizedDescription)"
-                    showingSharedNoteError = true
+                    isLoadingSharedNote = false
                 }
             }
         }

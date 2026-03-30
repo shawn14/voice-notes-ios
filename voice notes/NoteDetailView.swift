@@ -79,6 +79,7 @@ struct NoteDetailView: View {
     @State private var audioRecorder = AudioRecorder()
     @State private var showingDeleteConfirm = false
     @State private var showingShareSheet = false
+    @State private var showingTextShareSheet = false
     @State private var showingProjectPicker = false
     @State private var isGeneratingSummary = false
 
@@ -128,6 +129,20 @@ struct NoteDetailView: View {
         self.note = note
         self.initialTab = initialTab
         self.autoTransform = autoTransform
+    }
+
+    /// Formatted text for sharing via system share sheet
+    private var shareableText: String {
+        var parts: [String] = []
+        if !note.title.isEmpty {
+            parts.append(note.title)
+        }
+        let body = note.enhancedNoteText ?? note.transcript ?? note.content
+        if !body.isEmpty {
+            parts.append(body)
+        }
+        parts.append("Shared from EEON")
+        return parts.joined(separator: "\n\n")
     }
 
     // Computed summary from transcript
@@ -239,14 +254,23 @@ struct NoteDetailView: View {
 
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 12) {
-                    // Share button
-                    Button(action: { showingShareSheet = true }) {
+                    // Share button — shares note text directly
+                    Button(action: { showingTextShareSheet = true }) {
                         Image(systemName: "square.and.arrow.up")
                             .foregroundStyle(.eeonTextPrimary)
                     }
 
                     // More menu
                     Menu {
+                        // Share as CloudKit link
+                        Button {
+                            showingShareSheet = true
+                        } label: {
+                            Label("Share as Link", systemImage: "link")
+                        }
+
+                        Divider()
+
                         // Project assignment
                         Button {
                             showingProjectPicker = true
@@ -354,6 +378,9 @@ struct NoteDetailView: View {
         }
         .sheet(isPresented: $showingShareSheet) {
             ShareNoteView(note: note)
+        }
+        .sheet(isPresented: $showingTextShareSheet) {
+            ActivityViewControllerRepresentable(activityItems: [shareableText])
         }
         .sheet(isPresented: $showingAssistant) {
             NavigationStack {
@@ -819,9 +846,9 @@ struct NoteDetailView: View {
             .frame(maxWidth: .infinity)
             .offset(y: -6)
 
-            // 4. Share button
+            // 4. Share button — shares note text directly
             Button {
-                showingShareSheet = true
+                showingTextShareSheet = true
             } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.body)
@@ -832,6 +859,15 @@ struct NoteDetailView: View {
 
             // 5. More menu
             Menu {
+                // Share as CloudKit link
+                Button {
+                    showingShareSheet = true
+                } label: {
+                    Label("Share as Link", systemImage: "link")
+                }
+
+                Divider()
+
                 // Project assignment
                 Button {
                     showingProjectPicker = true
@@ -1365,6 +1401,19 @@ struct URLPreviewCard: View {
                 .foregroundStyle(.blue)
         }
     }
+}
+
+// MARK: - Activity View Controller (UIKit wrapper for sharing text)
+
+struct ActivityViewControllerRepresentable: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    var applicationActivities: [UIActivity]? = nil
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Preview
