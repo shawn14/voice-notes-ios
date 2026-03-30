@@ -53,7 +53,7 @@ struct RewriteTemplatePickerSheet: View {
                 .padding(.top, 8)
             }
             .background(Color(.systemBackground))
-            .navigationTitle("Rewrite")
+            .navigationTitle("AI")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

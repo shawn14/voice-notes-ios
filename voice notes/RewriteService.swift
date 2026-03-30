@@ -41,8 +41,8 @@ struct RewriteTemplate: Identifiable, Hashable {
 enum RewriteTemplateCatalog {
     static let magic = RewriteTemplate(
         id: "magic",
-        name: "Magic",
-        emoji: "\u{1F9DA}", // 🧚
+        name: "Enhance",
+        emoji: "✨",
         section: .general,
         isPro: false,
         systemPrompt: "Rewrite this voice note into clear, well-structured prose. Expand on ideas, remove filler words, fix grammar, and make it read professionally while preserving the original meaning, intent, and voice. Keep a natural tone."
@@ -50,8 +50,8 @@ enum RewriteTemplateCatalog {
 
     static let slightly = RewriteTemplate(
         id: "slightly",
-        name: "Slightly",
-        emoji: "\u{1FAB6}", // 🪶
+        name: "Polish",
+        emoji: "🪶",
         section: .general,
         isPro: true,
         systemPrompt: "Lightly touch up this voice note. Fix only obvious grammar mistakes, remove filler words (um, uh, like, you know), and clean up sentence flow. Make minimal changes — the output should sound almost identical to the original but polished."
@@ -59,8 +59,8 @@ enum RewriteTemplateCatalog {
 
     static let significantly = RewriteTemplate(
         id: "significantly",
-        name: "Significantly",
-        emoji: "\u{1F50D}", // 🔍
+        name: "Expand",
+        emoji: "🔭",
         section: .general,
         isPro: true,
         systemPrompt: "Substantially rewrite and expand this voice note. Improve clarity, add structure, expand on underdeveloped ideas, strengthen arguments, and produce a polished, comprehensive version. The meaning must be preserved but the writing quality should be dramatically improved."
@@ -68,8 +68,8 @@ enum RewriteTemplateCatalog {
 
     static let structured = RewriteTemplate(
         id: "structured",
-        name: "Structured",
-        emoji: "\u{1F3D7}", // 🏗
+        name: "Organize",
+        emoji: "📐",
         section: .textEditing,
         isPro: true,
         systemPrompt: "Rewrite this voice note into a well-structured document with clear headers, sections, and logical organization. Use markdown-style headers (##) to separate sections. Group related ideas together."
@@ -77,8 +77,8 @@ enum RewriteTemplateCatalog {
 
     static let list = RewriteTemplate(
         id: "list",
-        name: "List",
-        emoji: "\u{1F4CB}", // 📋
+        name: "Bullet Points",
+        emoji: "📋",
         section: .textEditing,
         isPro: true,
         systemPrompt: "Convert this voice note into a clean, organized bullet point list. Group related items under headers if appropriate. Each bullet should be concise and actionable. Preserve all key information."
@@ -86,8 +86,8 @@ enum RewriteTemplateCatalog {
 
     static let detailedSummary = RewriteTemplate(
         id: "detailed_summary",
-        name: "Detailed Summary",
-        emoji: "\u{1F4C4}", // 📄
+        name: "Full Summary",
+        emoji: "📄",
         section: .summary,
         isPro: true,
         systemPrompt: "Create a comprehensive summary of this voice note. Cover all key points, decisions, ideas, and action items mentioned. Organize into clear paragraphs. Nothing important should be omitted."
@@ -95,8 +95,8 @@ enum RewriteTemplateCatalog {
 
     static let briefSummary = RewriteTemplate(
         id: "brief_summary",
-        name: "Brief Summary",
-        emoji: "\u{1F4DD}", // 📝
+        name: "Quick Take",
+        emoji: "⚡",
         section: .summary,
         isPro: true,
         systemPrompt: "Summarize this voice note in 2-3 sentences. Capture only the most essential point(s). Be extremely concise."
@@ -113,8 +113,8 @@ enum RewriteTemplateCatalog {
 
     static let linkedInPost = RewriteTemplate(
         id: "linkedin_post",
-        name: "LinkedIn Post",
-        emoji: "\u{1F4BC}", // 💼
+        name: "Professional Post",
+        emoji: "💼",
         section: .contentCreation,
         isPro: true,
         systemPrompt: "Rewrite this voice note as an engaging LinkedIn post. Start with a compelling hook line, use short paragraphs, include relevant insights or lessons, and end with a question or call-to-action. Keep it concise and professional. Add 2-3 relevant hashtags at the end."
@@ -122,18 +122,18 @@ enum RewriteTemplateCatalog {
 
     static let tweet = RewriteTemplate(
         id: "tweet",
-        name: "Tweet",
-        emoji: "\u{1F426}", // 🐦
+        name: "Short Post",
+        emoji: "💬",
         section: .contentCreation,
         isPro: true,
-        systemPrompt: "Rewrite this voice note as a single tweet (max 280 characters). Make it punchy, engaging, and shareable. Capture the core idea in the most compelling way possible."
+        systemPrompt: "Rewrite this voice note as a single short post (max 280 characters). Make it punchy, engaging, and shareable. Capture the core idea in the most compelling way possible."
     )
 
-    // Favorites section shows magic by default
+    // Favorites section shows enhance by default
     static let favoriteMagic = RewriteTemplate(
         id: "favorite_magic",
-        name: "Magic",
-        emoji: "\u{1F9DA}", // 🧚
+        name: "Enhance",
+        emoji: "✨",
         section: .favorites,
         isPro: false,
         systemPrompt: magic.systemPrompt
