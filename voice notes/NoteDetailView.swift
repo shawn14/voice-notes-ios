@@ -2,7 +2,7 @@
 //  NoteDetailView.swift
 //  voice notes
 //
-//  Simplified note detail view - clean Wave-inspired design
+//  Simplified note detail view - clean Letterly-inspired design
 //
 
 import SwiftUI
@@ -98,6 +98,9 @@ struct NoteDetailView: View {
     // Transcript collapsed state
     @State private var showingTranscript = false
 
+    // Extraction collapsed state
+    @State private var showingExtractions = false
+
     // Tag picker
     @State private var showingTagPicker = false
 
@@ -123,12 +126,10 @@ struct NoteDetailView: View {
         self.note = note
         self.initialTab = initialTab
         self.autoTransform = autoTransform
-        // initialTab preserved for API compatibility but tabs removed
     }
 
     // Computed summary from transcript
     private var summary: String {
-        // If we have extracted subject/next step, build a summary
         var parts: [String] = []
 
         if let subject = note.extractedSubject {
@@ -142,7 +143,6 @@ struct NoteDetailView: View {
             parts.append("Next: \(nextStep)")
         }
 
-        // If no extraction, use content or transcript preview
         if parts.isEmpty {
             let text = !note.content.isEmpty ? note.content : (note.transcript ?? "")
             return text.isEmpty ? "No summary available" : text
@@ -157,30 +157,105 @@ struct NoteDetailView: View {
             Color.black.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Header
-                headerView
-
-                // Content — linear flow: enhanced note → chips → transcript → images/links → delete
+                // Content
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        noteContentSection
+                    VStack(alignment: .leading, spacing: 0) {
+                        // 1. Audio pill + date line
+                        audioPillAndDateRow
+                            .padding(.top, 8)
+                            .padding(.bottom, 20)
+
+                        // 2. Title + favorite
+                        titleRow
+                            .padding(.bottom, 24)
+
+                        // 3. Body text (hero content)
+                        enhancedNoteSection
+                            .padding(.bottom, 20)
+
+                        // 4. Transform output (if any active rewrite)
+                        if let output = note.activeRewriteText, let typeRaw = note.activeRewriteType, !output.isEmpty {
+                            transformOutputSection(output: output, typeRaw: typeRaw)
+                                .padding(.bottom, 20)
+                        }
+
+                        // 5. AI generating indicator
+                        if isGeneratingAI {
+                            HStack(spacing: 12) {
+                                ProgressView()
+                                    .tint(.blue)
+                                Text("Transforming...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.gray)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 20)
+                        }
+
+                        // 6. Next step card (if exists)
+                        if let nextStep = note.suggestedNextStep, !nextStep.isEmpty, !note.isNextStepResolved {
+                            nextStepCard(nextStep: nextStep)
+                                .padding(.bottom, 16)
+                        }
+
+                        // 7. Extraction section (collapsed by default)
+                        if hasExtractions {
+                            extractionSection
+                                .padding(.bottom, 16)
+                        }
+
+                        // 8. Collapsible transcript
+                        if let transcript = note.transcript, !transcript.isEmpty {
+                            transcriptSection(transcript: transcript)
+                                .padding(.bottom, 16)
+                        }
+
+                        // 9. Images (if any)
+                        if note.hasImages {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Attachments")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.gray)
+
+                                ImageGalleryView(
+                                    imageFileNames: note.imageFileNames,
+                                    onImageTap: { fileName in
+                                        selectedImageForFullscreen = fileName
+                                        showingFullscreenImage = true
+                                    },
+                                    onImageDelete: { fileName in
+                                        ImageService.deleteImage(fileName: fileName)
+                                        note.removeImageFileName(fileName)
+                                    }
+                                )
+                            }
+                            .padding(.bottom, 16)
+                        }
+
+                        // 10. Links (if any)
+                        if !noteURLs.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Links")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.gray)
+
+                                ForEach(noteURLs) { extractedURL in
+                                    URLPreviewCard(extractedURL: extractedURL)
+                                }
+                            }
+                            .padding(.bottom, 16)
+                        }
                     }
-                    .padding()
-                    .padding(.bottom, note.audioURL != nil ? 160 : 100) // Space for toolbar + audio player
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 80) // Space for bottom toolbar
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
             }
 
-            // Bottom stack: toolbar + audio player
+            // Bottom toolbar
             VStack(spacing: 0) {
-                // Rewrite toolbar bar
                 bottomToolbar
-
-                // Bottom audio player
-                if note.audioURL != nil {
-                    audioPlayerBar
-                }
             }
 
             // Copied feedback toast
@@ -194,7 +269,7 @@ struct NoteDetailView: View {
                         .padding(.vertical, 10)
                         .background(Color(.systemGray3))
                         .cornerRadius(20)
-                        .padding(.bottom, note.audioURL != nil ? 180 : 120)
+                        .padding(.bottom, 80)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
@@ -203,32 +278,24 @@ struct NoteDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: { dismiss() }) {
-                    Image(systemName: "xmark")
+                    Image(systemName: "chevron.left")
+                        .font(.body.weight(.medium))
                         .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Color(.systemGray5).opacity(0.5))
+                        .clipShape(Circle())
                 }
             }
 
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 12) {
-                    // Photo picker
-                    PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                        if isProcessingImage {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Image(systemName: "photo.badge.plus")
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    .disabled(isProcessingImage)
-
                     // Share button
                     Button(action: { showingShareSheet = true }) {
                         Image(systemName: "square.and.arrow.up")
                             .foregroundStyle(.white)
                     }
 
-                    // More menu (transform, edit, etc.)
+                    // More menu
                     Menu {
                         // AI Transform options
                         Menu {
@@ -262,6 +329,12 @@ struct NoteDetailView: View {
                             Label("Manage Tags", systemImage: "tag")
                         }
 
+                        // Photo picker
+                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                            Label(isProcessingImage ? "Processing..." : "Add Photo", systemImage: "photo.badge.plus")
+                        }
+                        .disabled(isProcessingImage)
+
                         Divider()
 
                         // Favorite toggle
@@ -287,6 +360,28 @@ struct NoteDetailView: View {
                                 note.isArchived ? "Unarchive" : "Archive",
                                 systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
                             )
+                        }
+
+                        Divider()
+
+                        // Audio controls (speed, skip) — moved here from removed player bar
+                        if note.audioURL != nil {
+                            Menu {
+                                ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { rate in
+                                    Button {
+                                        audioRecorder.setPlaybackRate(Float(rate))
+                                    } label: {
+                                        HStack {
+                                            Text(rate == 1.0 ? "1x" : "\(rate, specifier: "%.2g")x")
+                                            if audioRecorder.playbackRate == Float(rate) {
+                                                Image(systemName: "checkmark")
+                                            }
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Label("Playback Speed", systemImage: "speedometer")
+                            }
                         }
 
                         Divider()
@@ -387,65 +482,84 @@ struct NoteDetailView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Audio Pill + Date Row
 
-    private var headerView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(note.displayTitle)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(3)
+    private var audioPillAndDateRow: some View {
+        HStack(spacing: 12) {
+            // Audio pill (tappable play/pause with duration)
+            if note.audioURL != nil {
+                Button(action: togglePlayback) {
+                    HStack(spacing: 6) {
+                        Image(systemName: audioRecorder.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.caption)
+                            .foregroundStyle(.white)
 
-                    HStack(spacing: 8) {
-                        // Date
-                        Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
-
-                        // Intent badge (if not unknown)
-                        if note.intent != .unknown {
-                            HStack(spacing: 4) {
-                                Image(systemName: note.intent.icon)
-                                    .font(.caption2)
-                                Text(note.intentType)
-                                    .font(.caption)
-                            }
-                            .foregroundStyle(note.intent.color)
+                        if audioRecorder.isPlaying {
+                            // Show elapsed / total while playing
+                            Text(formatDuration(audioRecorder.currentTime))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.white.opacity(0.9))
+                        } else {
+                            Text(formatDuration(audioRecorder.duration > 0 ? audioRecorder.duration : note.audioDuration))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.white.opacity(0.9))
                         }
                     }
-
-                    // Project badge if assigned
-                    if let projectId = note.projectId,
-                       let project = allProjects.first(where: { $0.id == projectId }) {
-                        Button(action: { showingProjectPicker = true }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: project.icon)
-                                    .font(.caption)
-                                Text(project.name)
-                                    .font(.caption)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.15))
-                            .foregroundStyle(.blue)
-                            .cornerRadius(8)
-                        }
-                    }
-                }
-
-                Spacer()
-
-                // Favorite button
-                Button(action: { note.isFavorite.toggle() }) {
-                    Image(systemName: note.isFavorite ? "heart.fill" : "heart")
-                        .font(.title2)
-                        .foregroundStyle(note.isFavorite ? .red : .gray)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(audioRecorder.isPlaying ? Color.blue : Color(.systemGray4))
+                    )
                 }
             }
+
+            // Date
+            Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
+                .font(.subheadline)
+                .foregroundStyle(.gray)
+
+            // Intent badge
+            if note.intent != .unknown {
+                HStack(spacing: 4) {
+                    Image(systemName: note.intent.icon)
+                        .font(.caption2)
+                    Text(note.intentType)
+                        .font(.caption.weight(.medium))
+                }
+                .foregroundStyle(note.intent.color)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(note.intent.color.opacity(0.12))
+                .cornerRadius(6)
+            }
+
+            Spacer()
         }
-        .padding()
+    }
+
+    // MARK: - Title Row
+
+    private var titleRow: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(note.displayTitle)
+                .font(.title.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(4)
+
+            Spacer()
+
+            // Favorite button
+            Button(action: {
+                note.isFavorite.toggle()
+                try? modelContext.save()
+            }) {
+                Image(systemName: note.isFavorite ? "heart.fill" : "heart")
+                    .font(.title3)
+                    .foregroundStyle(note.isFavorite ? .red : .gray.opacity(0.5))
+            }
+            .padding(.top, 4)
+        }
     }
 
     // MARK: - Computed Properties
@@ -471,47 +585,143 @@ struct NoteDetailView: View {
         !note.mentionedPeople.isEmpty || !note.topics.isEmpty
     }
 
-    // MARK: - Note Content Section (new linear layout)
+    // MARK: - Enhanced Note Section (Hero Content)
 
-    private var noteContentSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
+    @ViewBuilder
+    private var enhancedNoteSection: some View {
+        if let enhanced = note.enhancedNoteText, !enhanced.isEmpty {
+            Text(enhanced)
+                .font(.body.leading(.loose))
+                .foregroundStyle(.white.opacity(0.95))
+                .lineSpacing(6)
+                .textSelection(.enabled)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6).opacity(0.15))
+                .cornerRadius(14)
+        } else if !note.content.isEmpty {
+            Text(String(note.content.prefix(500)) + (note.content.count > 500 ? "..." : ""))
+                .font(.body.leading(.loose))
+                .foregroundStyle(.white.opacity(0.9))
+                .lineSpacing(5)
+                .textSelection(.enabled)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6).opacity(0.15))
+                .cornerRadius(14)
+        }
+    }
 
-            // 1. Enhanced note text (primary content) or rewrite or content fallback
-            enhancedNoteSection
+    // MARK: - Transform Output Section
 
-            // 2. Next step card (prominent if unresolved)
-            if let nextStep = note.suggestedNextStep, !nextStep.isEmpty, !note.isNextStepResolved {
-                HStack(spacing: 12) {
-                    Image(systemName: "arrow.right.circle.fill")
-                        .font(.title3)
+    private func transformOutputSection(output: String, typeRaw: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                if let type = AITransformType(rawValue: typeRaw) {
+                    Image(systemName: type.icon)
                         .foregroundStyle(.blue)
+                    Text(type.rawValue)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.blue)
+                }
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Next Step")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Text(nextStep)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.white)
+                Spacer()
+
+                Button {
+                    UIPasteboard.general.string = output
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                        Text("Copy")
                     }
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                }
+
+                Button {
+                    note.activeRewriteText = nil
+                    note.activeRewriteType = nil
+                    note.updatedAt = Date()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "xmark.circle")
+                        Text("Clear")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.red.opacity(0.7))
+                }
+            }
+
+            Text(output)
+                .font(.body)
+                .foregroundStyle(.white)
+                .textSelection(.enabled)
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6).opacity(0.3))
+                .cornerRadius(12)
+        }
+    }
+
+    // MARK: - Next Step Card
+
+    private func nextStepCard(nextStep: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.right.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.blue)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Next Step")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.gray)
+                Text(nextStep)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+            }
+
+            Spacer()
+
+            Button {
+                note.resolveNextStep(with: "Completed")
+            } label: {
+                Image(systemName: "checkmark.circle")
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+            }
+        }
+        .padding()
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(12)
+    }
+
+    // MARK: - Extraction Section (Collapsed by Default)
+
+    private var extractionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    showingExtractions.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: showingExtractions ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                    Text("Extractions")
+                        .font(.subheadline.weight(.medium))
 
                     Spacer()
 
-                    Button {
-                        note.resolveNextStep(with: "Completed")
-                    } label: {
-                        Image(systemName: "checkmark.circle")
-                            .font(.title2)
-                            .foregroundStyle(.blue)
-                    }
+                    // Count badge
+                    let count = noteDecisions.count + noteActions.count + noteCommitments.count + note.mentionedPeople.count + note.topics.count
+                    Text("\(count) items")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
                 }
-                .padding()
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(12)
+                .foregroundStyle(.white.opacity(0.7))
             }
 
-            // 3. Extraction chips
-            if hasExtractions {
+            if showingExtractions {
                 ExtractionChipsSection(
                     decisions: noteDecisions,
                     actions: noteActions,
@@ -533,170 +743,45 @@ struct NoteDetailView: View {
                 .padding()
                 .background(Color(.systemGray6).opacity(0.2))
                 .cornerRadius(12)
-            }
-
-            // 4. Transform output (if any active rewrite)
-            if let output = note.activeRewriteText, let typeRaw = note.activeRewriteType, !output.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        if let type = AITransformType(rawValue: typeRaw) {
-                            Image(systemName: type.icon)
-                                .foregroundStyle(.blue)
-                            Text(type.rawValue)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.blue)
-                        }
-
-                        Spacer()
-
-                        Button {
-                            UIPasteboard.general.string = output
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "doc.on.doc")
-                                Text("Copy")
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-                        }
-
-                        Button {
-                            note.activeRewriteText = nil
-                            note.activeRewriteType = nil
-                            note.updatedAt = Date()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "xmark.circle")
-                                Text("Clear")
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.red.opacity(0.7))
-                        }
-                    }
-
-                    Text(output)
-                        .font(.body)
-                        .foregroundStyle(.white)
-                        .textSelection(.enabled)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.systemGray6).opacity(0.3))
-                        .cornerRadius(12)
-                }
-            }
-
-            // 5. AI generating indicator
-            if isGeneratingAI {
-                HStack(spacing: 12) {
-                    ProgressView()
-                        .tint(.blue)
-                    Text("Transforming...")
-                        .font(.subheadline)
-                        .foregroundStyle(.gray)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            }
-
-            // 6. Collapsible transcript
-            if let transcript = note.transcript, !transcript.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            showingTranscript.toggle()
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: showingTranscript ? "chevron.down" : "chevron.right")
-                                .font(.caption)
-                            Text("Show what I said")
-                                .font(.subheadline.weight(.medium))
-                            Spacer()
-                            Text("\(transcript.split(separator: " ").count) words")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                        }
-                        .foregroundStyle(.white.opacity(0.7))
-                    }
-
-                    if showingTranscript {
-                        Text(transcript)
-                            .font(.body)
-                            .foregroundStyle(.white.opacity(0.8))
-                            .lineSpacing(4)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.systemGray6).opacity(0.2))
-                            .cornerRadius(12)
-                            .textSelection(.enabled)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
-            }
-
-            // 7. Images (if any)
-            if note.hasImages {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Attachments")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.gray)
-
-                    ImageGalleryView(
-                        imageFileNames: note.imageFileNames,
-                        onImageTap: { fileName in
-                            selectedImageForFullscreen = fileName
-                            showingFullscreenImage = true
-                        },
-                        onImageDelete: { fileName in
-                            ImageService.deleteImage(fileName: fileName)
-                            note.removeImageFileName(fileName)
-                        }
-                    )
-                }
-            }
-
-            // 8. Links (if any)
-            if !noteURLs.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Links")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.gray)
-
-                    ForEach(noteURLs) { extractedURL in
-                        URLPreviewCard(extractedURL: extractedURL)
-                    }
-                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
 
-    // MARK: - Enhanced Note Section
+    // MARK: - Transcript Section (Collapsed)
 
-    @ViewBuilder
-    private var enhancedNoteSection: some View {
-        // Priority: enhanced note text > rewrite > content > (nothing)
-        if let enhanced = note.enhancedNoteText, !enhanced.isEmpty {
-            // AI-enhanced version is the primary view
-            Text(enhanced)
-                .font(.body.leading(.loose))
-                .foregroundStyle(.white.opacity(0.95))
-                .lineSpacing(5)
-                .textSelection(.enabled)
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6).opacity(0.15))
-                .cornerRadius(12)
-        } else if !note.content.isEmpty {
-            // Fallback to content
-            Text(String(note.content.prefix(500)) + (note.content.count > 500 ? "..." : ""))
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.9))
-                .lineSpacing(4)
-                .textSelection(.enabled)
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6).opacity(0.2))
-                .cornerRadius(12)
+    private func transcriptSection(transcript: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    showingTranscript.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: showingTranscript ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                    Text("Show what I said")
+                        .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Text("\(transcript.split(separator: " ").count) words")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                .foregroundStyle(.white.opacity(0.7))
+            }
+
+            if showingTranscript {
+                Text(transcript)
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.8))
+                    .lineSpacing(4)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.systemGray6).opacity(0.2))
+                    .cornerRadius(12)
+                    .textSelection(.enabled)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
     }
 
@@ -854,97 +939,6 @@ struct NoteDetailView: View {
             Rectangle()
                 .fill(Color(.systemGray6).opacity(0.95))
         )
-    }
-
-    // MARK: - Audio Player
-
-    private var audioPlayerBar: some View {
-        VStack(spacing: 12) {
-            // Seek slider
-            HStack(spacing: 8) {
-                Text(formatDuration(audioRecorder.currentTime))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.gray)
-                    .frame(width: 40, alignment: .trailing)
-
-                Slider(
-                    value: Binding(
-                        get: { audioRecorder.currentTime },
-                        set: { audioRecorder.seek(to: $0) }
-                    ),
-                    in: 0...(audioRecorder.duration > 0 ? audioRecorder.duration : (note.audioDuration ?? 1))
-                )
-                .tint(.blue)
-
-                Text(formatDuration(audioRecorder.duration > 0 ? audioRecorder.duration : note.audioDuration))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.gray)
-                    .frame(width: 40, alignment: .leading)
-            }
-
-            // Controls row
-            HStack(spacing: 20) {
-                // Skip backward 15s
-                Button {
-                    audioRecorder.seek(to: audioRecorder.currentTime - 15)
-                } label: {
-                    Image(systemName: "gobackward.15")
-                        .font(.title3)
-                        .foregroundStyle(.white)
-                }
-
-                // Play/Pause
-                Button(action: togglePlayback) {
-                    Image(systemName: audioRecorder.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                        .frame(width: 52, height: 52)
-                        .background(Color.blue)
-                        .clipShape(Circle())
-                }
-
-                // Skip forward 15s
-                Button {
-                    audioRecorder.seek(to: audioRecorder.currentTime + 15)
-                } label: {
-                    Image(systemName: "goforward.15")
-                        .font(.title3)
-                        .foregroundStyle(.white)
-                }
-
-                Spacer()
-
-                // Speed control
-                Menu {
-                    ForEach([0.5, 0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { rate in
-                        Button {
-                            audioRecorder.setPlaybackRate(Float(rate))
-                        } label: {
-                            HStack {
-                                Text(rate == 1.0 ? "1x" : "\(rate, specifier: "%.2g")x")
-                                if audioRecorder.playbackRate == Float(rate) {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    Text("\(audioRecorder.playbackRate, specifier: "%.2g")x")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.blue)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.blue.opacity(0.15))
-                        .cornerRadius(8)
-                }
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6).opacity(0.95))
-        )
-        .padding()
     }
 
     // MARK: - Rewrite Handling
