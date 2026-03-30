@@ -98,9 +98,26 @@ struct NoteDetailView: View {
     // Transcript collapsed state
     @State private var showingTranscript = false
 
+    // Tag picker
+    @State private var showingTagPicker = false
+
     // Navigation to AssistantView with pre-filled query
     @State private var assistantQuery: String?
     @State private var showingAssistant = false
+
+    // Rewrite sheet state
+    @State private var showingRewriteSheet = false
+    @State private var isRewriting = false
+    @State private var rewriteError: String?
+
+    // Tag assignment sheet state
+    @State private var showingTagSheet = false
+
+    // Copy feedback
+    @State private var showCopiedFeedback = false
+
+    // Paywall for PRO rewrite templates
+    @State private var showingPaywall = false
 
     init(note: Note, initialTab: NoteTab = .insights, autoTransform: AITransformType? = nil) {
         self.note = note
@@ -149,15 +166,37 @@ struct NoteDetailView: View {
                         noteContentSection
                     }
                     .padding()
-                    .padding(.bottom, 100) // Space for audio player
+                    .padding(.bottom, note.audioURL != nil ? 160 : 100) // Space for toolbar + audio player
                 }
 
                 Spacer()
             }
 
-            // Bottom audio player
-            if note.audioURL != nil {
-                audioPlayerBar
+            // Bottom stack: toolbar + audio player
+            VStack(spacing: 0) {
+                // Rewrite toolbar bar
+                bottomToolbar
+
+                // Bottom audio player
+                if note.audioURL != nil {
+                    audioPlayerBar
+                }
+            }
+
+            // Copied feedback toast
+            if showCopiedFeedback {
+                VStack {
+                    Spacer()
+                    Text("Copied!")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color(.systemGray3))
+                        .cornerRadius(20)
+                        .padding(.bottom, note.audioURL != nil ? 180 : 120)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -216,6 +255,40 @@ struct NoteDetailView: View {
                             Label("Assign Project", systemImage: "folder")
                         }
 
+                        // Tag assignment
+                        Button {
+                            showingTagPicker = true
+                        } label: {
+                            Label("Manage Tags", systemImage: "tag")
+                        }
+
+                        Divider()
+
+                        // Favorite toggle
+                        Button {
+                            note.isFavorite.toggle()
+                            try? modelContext.save()
+                        } label: {
+                            Label(
+                                note.isFavorite ? "Unfavorite" : "Favorite",
+                                systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
+                            )
+                        }
+
+                        // Archive toggle
+                        Button {
+                            note.isArchived.toggle()
+                            try? modelContext.save()
+                            if note.isArchived {
+                                dismiss()
+                            }
+                        } label: {
+                            Label(
+                                note.isArchived ? "Unarchive" : "Archive",
+                                systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
+                            )
+                        }
+
                         Divider()
 
                         // Delete
@@ -267,6 +340,9 @@ struct NoteDetailView: View {
                 noteContent: note.transcript ?? note.content
             )
         }
+        .sheet(isPresented: $showingTagPicker) {
+            NoteTagPickerSheet(note: note)
+        }
         .sheet(isPresented: $showingCustomPrompt) {
             CustomPromptSheet(
                 promptText: $customPromptText,
@@ -277,6 +353,14 @@ struct NoteDetailView: View {
                 }
             )
         }
+        .sheet(isPresented: $showingRewriteSheet) {
+            RewriteTemplatePickerSheet { template in
+                handleRewriteTemplate(template)
+            }
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView(onDismiss: { showingPaywall = false })
+        }
         .alert("AI Error", isPresented: .init(
             get: { aiError != nil },
             set: { if !$0 { aiError = nil } }
@@ -284,6 +368,14 @@ struct NoteDetailView: View {
             Button("OK") { aiError = nil }
         } message: {
             Text(aiError ?? "Unknown error")
+        }
+        .alert("Rewrite Error", isPresented: .init(
+            get: { rewriteError != nil },
+            set: { if !$0 { rewriteError = nil } }
+        )) {
+            Button("OK") { rewriteError = nil }
+        } message: {
+            Text(rewriteError ?? "Unknown error")
         }
         .onAppear {
             if let transform = autoTransform,
@@ -608,6 +700,162 @@ struct NoteDetailView: View {
         }
     }
 
+    // MARK: - Bottom Toolbar
+
+    private var bottomToolbar: some View {
+        HStack(spacing: 0) {
+            // 1. Copy button
+            Button {
+                let textToCopy = note.enhancedNoteText ?? note.transcript ?? note.content
+                UIPasteboard.general.string = textToCopy
+                withAnimation {
+                    showCopiedFeedback = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation {
+                        showCopiedFeedback = false
+                    }
+                }
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+
+            // 2. Tags button
+            Button {
+                showingTagPicker = true
+            } label: {
+                Image(systemName: "number")
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+
+            // 3. Rewrite button (center, prominent)
+            Button {
+                showingRewriteSheet = true
+            } label: {
+                HStack(spacing: 6) {
+                    if isRewriting {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(0.7)
+                    } else {
+                        Image(systemName: "sparkles")
+                            .font(.subheadline)
+                    }
+                    Text("Rewrite")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 9)
+                .background(
+                    Capsule()
+                        .fill(isRewriting ? Color.gray : Color(.systemGray2))
+                )
+            }
+            .disabled(isRewriting)
+            .frame(maxWidth: .infinity)
+
+            // 4. Share button
+            Button {
+                showingShareSheet = true
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+
+            // 5. More menu
+            Menu {
+                // AI Transform options (legacy)
+                Menu {
+                    ForEach(AITransformType.allCases) { type in
+                        Button {
+                            if type == .custom {
+                                showingCustomPrompt = true
+                            } else {
+                                generateAIContent(type: type)
+                            }
+                        } label: {
+                            Label(type.rawValue, systemImage: type.icon)
+                        }
+                        .disabled(isGeneratingAI)
+                    }
+                } label: {
+                    Label("Transform", systemImage: "wand.and.stars")
+                }
+
+                // Project assignment
+                Button {
+                    showingProjectPicker = true
+                } label: {
+                    Label("Assign Project", systemImage: "folder")
+                }
+
+                // Photo picker
+                Button {
+                    // Trigger photo picker from menu — uses the existing onChange handler
+                } label: {
+                    Label("Add Photo", systemImage: "photo.badge.plus")
+                }
+
+                // Favorite toggle
+                Button {
+                    note.isFavorite.toggle()
+                    try? modelContext.save()
+                } label: {
+                    Label(
+                        note.isFavorite ? "Unfavorite" : "Favorite",
+                        systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
+                    )
+                }
+
+                // Archive toggle
+                Button {
+                    note.isArchived.toggle()
+                    try? modelContext.save()
+                    if note.isArchived {
+                        dismiss()
+                    }
+                } label: {
+                    Label(
+                        note.isArchived ? "Unarchive" : "Archive",
+                        systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
+                    )
+                }
+
+                Divider()
+
+                // Delete
+                Button(role: .destructive) {
+                    showingDeleteConfirm = true
+                } label: {
+                    Label("Delete Note", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 4)
+        .background(
+            Rectangle()
+                .fill(Color(.systemGray6).opacity(0.95))
+        )
+    }
+
     // MARK: - Audio Player
 
     private var audioPlayerBar: some View {
@@ -697,6 +945,44 @@ struct NoteDetailView: View {
                 .fill(Color(.systemGray6).opacity(0.95))
         )
         .padding()
+    }
+
+    // MARK: - Rewrite Handling
+
+    private func handleRewriteTemplate(_ template: RewriteTemplate) {
+        // Check PRO gating
+        if template.isPro && !SubscriptionManager.shared.isSubscribed {
+            showingPaywall = true
+            return
+        }
+
+        let sourceText = note.transcript ?? note.content
+        guard !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            rewriteError = "No content to rewrite"
+            return
+        }
+
+        isRewriting = true
+
+        Task {
+            do {
+                let result = try await RewriteService.rewrite(
+                    transcript: sourceText,
+                    template: template
+                )
+
+                await MainActor.run {
+                    note.enhancedNoteText = result
+                    note.updatedAt = Date()
+                    isRewriting = false
+                }
+            } catch {
+                await MainActor.run {
+                    rewriteError = error.localizedDescription
+                    isRewriting = false
+                }
+            }
+        }
     }
 
     // MARK: - Actions

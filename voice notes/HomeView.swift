@@ -1184,67 +1184,145 @@ struct HomeRecordingOverlay: View {
     let onCancel: () -> Void
     let audioRecorder: AudioRecorder
 
-    @State private var pulseAnimation = false
+    // Simulated audio levels for waveform bars
+    @State private var barLevels: [CGFloat] = [0.3, 0.5, 0.4, 0.6, 0.35]
+    @State private var waveformTimer: Timer?
+
+    private let usageService = UsageService.shared
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.85)
+            Color.black
                 .ignoresSafeArea()
 
-            VStack(spacing: 32) {
-                // Pulsing mic icon
-                ZStack {
-                    Circle()
-                        .fill(Color.red.opacity(0.3))
-                        .frame(width: 140, height: 140)
-                        .scaleEffect(pulseAnimation ? 1.2 : 1.0)
-                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulseAnimation)
-
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 100, height: 100)
-
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.white)
-                }
-
-                Text(audioRecorder.formattedTime)
-                    .font(.system(size: 48, weight: .light, design: .monospaced))
-                    .foregroundStyle(.white)
-
-                Text("Recording...")
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.7))
-
-                HStack(spacing: 60) {
+            VStack(spacing: 0) {
+                // MARK: - Top bar: close button + timer pill
+                HStack {
                     Button(action: onCancel) {
-                        VStack(spacing: 8) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 56))
-                                .foregroundStyle(.gray)
-                            Text("Cancel")
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(0.1), in: Circle())
+                    }
+
+                    Spacer()
+
+                    // Timer pill
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+
+                        Text(audioRecorder.formattedTime)
+                            .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.1), in: Capsule())
+
+                    Spacer()
+
+                    // Invisible spacer to balance the close button
+                    Color.clear
+                        .frame(width: 36, height: 36)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+
+                Spacer()
+
+                // MARK: - Center: Waveform visualization
+                HStack(alignment: .center, spacing: 12) {
+                    ForEach(0..<5, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.white.opacity(0.25))
+                            .frame(width: 8, height: 40 + barLevels[index] * 120)
+                            .animation(
+                                .spring(response: 0.4, dampingFraction: 0.6),
+                                value: barLevels[index]
+                            )
+                    }
+                }
+                .frame(height: 180)
+
+                Spacer()
+
+                // MARK: - Bottom: Notes remaining + controls
+                VStack(spacing: 32) {
+                    // Notes remaining (only for free users)
+                    if !usageService.isPro {
+                        HStack(spacing: 4) {
+                            Text("\(usageService.freeNotesRemaining) notes left")
                                 .font(.subheadline)
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(.white.opacity(0.5))
+
+                            Text("·")
+                                .foregroundStyle(.white.opacity(0.3))
+
+                            Text("Get PRO")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.7))
                         }
                     }
 
-                    Button(action: onStop) {
-                        VStack(spacing: 8) {
-                            Image(systemName: "stop.circle.fill")
-                                .font(.system(size: 56))
-                                .foregroundStyle(.red)
-                            Text("Stop")
-                                .font(.subheadline)
-                                .foregroundStyle(.white)
+                    // Control buttons
+                    HStack(spacing: 0) {
+                        // Restart button
+                        Button {
+                            onCancel()
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 22, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.7))
+                                .frame(width: 56, height: 56)
+                                .background(Color.white.opacity(0.1), in: Circle())
                         }
+                        .frame(maxWidth: .infinity)
+
+                        // Stop button (center, prominent)
+                        Button(action: onStop) {
+                            ZStack {
+                                Circle()
+                                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 3)
+                                    .frame(width: 72, height: 72)
+
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.red)
+                                    .frame(width: 28, height: 28)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        // Pause button (placeholder — AudioRecorder doesn't support pause)
+                        Color.clear
+                            .frame(width: 56, height: 56)
+                            .frame(maxWidth: .infinity)
                     }
+                    .padding(.horizontal, 40)
                 }
-                .padding(.top, 20)
+                .padding(.bottom, 60)
             }
         }
         .onAppear {
-            pulseAnimation = true
+            startWaveformAnimation()
+        }
+        .onDisappear {
+            waveformTimer?.invalidate()
+            waveformTimer = nil
+        }
+    }
+
+    // MARK: - Simulated waveform animation
+
+    private func startWaveformAnimation() {
+        waveformTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            withAnimation {
+                for i in 0..<barLevels.count {
+                    barLevels[i] = CGFloat.random(in: 0.15...1.0)
+                }
+            }
         }
     }
 }

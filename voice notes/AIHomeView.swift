@@ -2,8 +2,8 @@
 //  AIHomeView.swift
 //  voice notes
 //
-//  EEON v2 Home Screen — simplified, mic-forward layout
-//  Greeting > Daily Brief > Ghost Text > Mic > Note Feed
+//  EEON v2 Home Screen — clean, Letterly-inspired layout
+//  Greeting > Daily Brief > Tabbed Note Feed > Bottom Bar (Write/Mic/Search)
 //
 
 import SwiftUI
@@ -61,51 +61,16 @@ struct AIHomeView: View {
     // Daily brief expansion
     @State private var isBriefExpanded = false
 
-    // Ghost text visibility
-    @State private var showGhostText = true
-
-    // MARK: - Ghost Text Session Tracking
-
-    private var sessionCount: Int {
-        get { UserDefaults.standard.integer(forKey: "eeon_session_count") }
+    // Feed tabs & sorting
+    enum FeedTab: String, CaseIterable {
+        case all = "All"
+        case favorites = "Favorites"
+        case archive = "Archive"
     }
-
-    private var lastOpenDate: Date? {
-        get { UserDefaults.standard.object(forKey: "eeon_last_open_date") as? Date }
-    }
-
-    private var totalQueryCount: Int {
-        get { UserDefaults.standard.integer(forKey: "eeon_total_query_count") }
-    }
-
-    /// Whether ghost text coaching should be visible
-    private var shouldShowGhostText: Bool {
-        // Show in first 5 sessions
-        if sessionCount < 5 { return true }
-
-        // Show after 3+ day gap
-        if let lastDate = lastOpenDate {
-            let daysSinceLastOpen = Calendar.current.dateComponents([.day], from: lastDate, to: Date()).day ?? 0
-            if daysSinceLastOpen >= 3 { return true }
-        }
-
-        // Show after 10+ notes with zero queries
-        if notes.count >= 10 && totalQueryCount == 0 { return true }
-
-        return false
-    }
-
-    private var ghostTextHint: String {
-        let hints = [
-            "Talk to record, or ask \"What should I focus on today?\"",
-            "Tap to capture a thought -- I'll find the decisions and actions",
-            "Try asking \"What did I commit to this week?\"",
-            "Record anything -- meetings, ideas, reminders",
-            "Say it, I'll organize it"
-        ]
-        // Deterministic based on session count
-        return hints[sessionCount % hints.count]
-    }
+    @State private var selectedTab: FeedTab = .all
+    @State private var sortNewestFirst = true
+    @State private var selectedTagFilter: Tag?
+    @State private var showingTagManagement = false
 
     // Today's daily brief
     private var todaysBrief: DailyBrief? {
@@ -113,41 +78,76 @@ struct AIHomeView: View {
         return dailyBriefs.first { $0.briefDate >= today }
     }
 
-    // Brief summary items for collapsed view
-    private var briefSummaryItems: [String] {
-        guard let brief = todaysBrief else { return [] }
-        var items: [String] = []
-
-        // Overdue actions
-        let overdueWarnings = brief.warnings.filter { $0.type == .overdue }
-        if !overdueWarnings.isEmpty {
-            items.append("\(overdueWarnings.count) overdue action\(overdueWarnings.count == 1 ? "" : "s")")
+    /// Filtered notes based on selected tab and optional tag filter
+    private var filteredNotes: [Note] {
+        var base: [Note]
+        switch selectedTab {
+        case .all:
+            base = notes.filter { !$0.isArchived }
+        case .favorites:
+            base = notes.filter { $0.isFavorite && !$0.isArchived }
+        case .archive:
+            base = notes.filter { $0.isArchived }
         }
-
-        // Commitments due
-        let commitmentWarnings = brief.warnings.filter { $0.type == .commitment }
-        if !commitmentWarnings.isEmpty {
-            items.append("\(commitmentWarnings.count) commitment\(commitmentWarnings.count == 1 ? "" : "s") due")
+        // Apply tag filter if selected
+        if let tag = selectedTagFilter {
+            base = base.filter { $0.tags.contains(where: { $0.id == tag.id }) }
         }
-
-        // Suggested actions
-        let incompleteActions = brief.incompleteSuggestedActions
-        if !incompleteActions.isEmpty {
-            items.append("\(incompleteActions.count) thing\(incompleteActions.count == 1 ? "" : "s") to do")
+        if sortNewestFirst {
+            return base // Already sorted newest first by @Query
+        } else {
+            return base.reversed()
         }
+    }
 
-        // Stalled items
-        let stalledWarnings = brief.warnings.filter { $0.type == .stalled }
-        if !stalledWarnings.isEmpty {
-            items.append("\(stalledWarnings.count) stalled item\(stalledWarnings.count == 1 ? "" : "s")")
+    /// Group notes by month for section headers
+    private var notesByMonth: [(String, [Note])] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        var grouped: [(String, [Note])] = []
+        var currentMonth = ""
+        var currentGroup: [Note] = []
+
+        for note in filteredNotes {
+            let month = formatter.string(from: note.createdAt)
+            if month != currentMonth {
+                if !currentGroup.isEmpty {
+                    grouped.append((currentMonth, currentGroup))
+                }
+                currentMonth = month
+                currentGroup = [note]
+            } else {
+                currentGroup.append(note)
+            }
         }
-
-        // If nothing specific, use the summary
-        if items.isEmpty && !brief.whatMattersToday.isEmpty {
-            items.append(brief.whatMattersToday)
+        if !currentGroup.isEmpty {
+            grouped.append((currentMonth, currentGroup))
         }
+        return grouped
+    }
 
-        return Array(items.prefix(3))
+    private var emptyStateIcon: String {
+        switch selectedTab {
+        case .all: return "waveform.circle"
+        case .favorites: return "heart.circle"
+        case .archive: return "archivebox"
+        }
+    }
+
+    private var emptyStateTitle: String {
+        switch selectedTab {
+        case .all: return "No notes yet"
+        case .favorites: return "No favorites yet"
+        case .archive: return "Archive is empty"
+        }
+    }
+
+    private var emptyStateSubtitle: String {
+        switch selectedTab {
+        case .all: return "Tap the mic to record your first thought"
+        case .favorites: return "Heart a note to see it here"
+        case .archive: return "Archived notes will appear here"
+        }
     }
 
     var body: some View {
@@ -161,7 +161,7 @@ struct AIHomeView: View {
                     } else {
                         // Main scrollable content
                         ScrollView {
-                            VStack(alignment: .leading, spacing: 20) {
+                            VStack(alignment: .leading, spacing: 16) {
                                 // 1. Greeting bar
                                 greetingBar
                                     .padding(.horizontal)
@@ -181,24 +181,18 @@ struct AIHomeView: View {
                                     }
                                 }
 
-                                // 3. Ghost text hint area
-                                if shouldShowGhostText && showGhostText && !isRecording && !isTranscribing {
-                                    ghostTextView
-                                        .padding(.horizontal)
-                                }
-
-                                // 5. Note feed
+                                // 3. Note feed with tabs
                                 noteFeed
 
                                 // Spacer for bottom bar
-                                Color.clear.frame(height: 120)
+                                Color.clear.frame(height: 100)
                             }
                             .padding(.top, 8)
                         }
                     }
                 }
 
-                // 4. Mic button (center bottom, prominent) + nav to chat
+                // Bottom bar
                 VStack {
                     Spacer()
                     bottomBar
@@ -239,6 +233,9 @@ struct AIHomeView: View {
                 }, onCancel: {
                     showingTypeNote = false
                 })
+            }
+            .sheet(isPresented: $showingTagManagement) {
+                TagManagementSheet()
             }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) { }
@@ -307,6 +304,16 @@ struct AIHomeView: View {
 
             Spacer()
 
+            // Tag management
+            Button {
+                showingTagManagement = true
+            } label: {
+                Image(systemName: "tag")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.gray)
+            }
+            .padding(.trailing, 8)
+
             // Settings / avatar
             Button {
                 showingSettings = true
@@ -325,8 +332,6 @@ struct AIHomeView: View {
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
-        let name = authService.isSignedIn ? authService.displayName.components(separatedBy: " ").first ?? "" : ""
-
         let timeGreeting: String
         if hour < 12 {
             timeGreeting = "Good morning"
@@ -335,12 +340,7 @@ struct AIHomeView: View {
         } else {
             timeGreeting = "Good evening"
         }
-
-        if name.isEmpty {
-            return timeGreeting
-        } else {
-            return "\(timeGreeting), \(name)"
-        }
+        return timeGreeting
     }
 
     private var todayDateString: String {
@@ -349,7 +349,7 @@ struct AIHomeView: View {
         return formatter.string(from: Date())
     }
 
-    // MARK: - 2. Daily Brief Card (Collapsible)
+    // MARK: - 2. Daily Brief Card (Collapsible, Executive Summary)
 
     private var dailyBriefCard: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -392,84 +392,44 @@ struct AIHomeView: View {
             }
             .buttonStyle(.plain)
 
-            // Collapsed: show 2-3 key items as summary
+            // Collapsed: short executive summary (2-3 lines)
             if !isBriefExpanded && !intelligenceService.isRefreshingDaily {
-                if !briefSummaryItems.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(briefSummaryItems, id: \.self) { item in
-                            HStack(spacing: 8) {
-                                Circle()
-                                    .fill(Color.blue.opacity(0.6))
-                                    .frame(width: 5, height: 5)
-                                Text(item)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.white.opacity(0.8))
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 14)
+                if let brief = todaysBrief, !brief.whatMattersToday.isEmpty {
+                    Text(brief.whatMattersToday)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.8))
+                        .lineLimit(3)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 14)
                 }
             }
 
-            // Expanded: full brief
+            // Expanded: full executive brief
             if isBriefExpanded, let brief = todaysBrief {
                 Divider()
                     .background(Color.white.opacity(0.1))
 
-                VStack(alignment: .leading, spacing: 12) {
-                    // Summary text
+                VStack(alignment: .leading, spacing: 10) {
+                    // Executive summary text
                     if !brief.whatMattersToday.isEmpty {
                         Text(brief.whatMattersToday)
                             .font(.subheadline)
                             .foregroundStyle(.white)
-                            .lineLimit(4)
+                            .lineSpacing(3)
                     }
 
-                    // Actionable checklist
-                    if !brief.suggestedActions.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(brief.suggestedActions) { action in
-                                let isCompleted = brief.isSuggestedActionCompleted(action)
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        brief.toggleSuggestedAction(action)
-                                    }
-                                } label: {
-                                    HStack(alignment: .top, spacing: 10) {
-                                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
-                                            .font(.body)
-                                            .foregroundStyle(isCompleted ? .green : .gray)
-
-                                        Text(action.content)
-                                            .font(.subheadline)
-                                            .foregroundStyle(isCompleted ? .gray : .white)
-                                            .strikethrough(isCompleted, color: .gray)
-                                            .lineLimit(2)
-                                            .multilineTextAlignment(.leading)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-
-                    // Warnings
+                    // Warnings as a compact alert line
                     if !brief.warnings.isEmpty {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.caption)
+                                .font(.caption2)
                                 .foregroundStyle(.orange)
                             Text(brief.warnings.prefix(2).map(\.content).joined(separator: " \u{00B7} "))
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                                 .lineLimit(2)
                         }
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(8)
+                        .padding(.top, 4)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -510,123 +470,194 @@ struct AIHomeView: View {
         .cornerRadius(10)
     }
 
-    // MARK: - 3. Ghost Text Hint
-
-    private var ghostTextView: some View {
-        Text(ghostTextHint)
-            .font(.subheadline)
-            .foregroundStyle(.gray.opacity(0.6))
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-    }
-
-    // MARK: - 4. Bottom Bar (Mic + Chat + Type)
+    // MARK: - 3. Bottom Bar (Write / Mic / Search)
 
     private var bottomBar: some View {
         HStack(spacing: 0) {
-            // Chat button (left)
+            // Write button (left)
             Button {
-                showingAssistant = true
+                showingTypeNote = true
             } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: "bubble.left.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.gray.opacity(0.6))
-                    Text("Chat")
-                        .font(.caption2)
-                        .foregroundStyle(.gray.opacity(0.5))
-                }
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
             }
             .frame(maxWidth: .infinity)
 
-            // Mic button (center, prominent)
+            // Mic button (center, elevated)
             Button(action: {
-                showGhostText = false
                 toggleRecording()
             }) {
                 ZStack {
-                    // Outer glow
-                    Circle()
-                        .fill(Color.red.opacity(0.15))
-                        .frame(width: 88, height: 88)
-
                     Circle()
                         .fill(Color.red)
-                        .frame(width: 72, height: 72)
+                        .frame(width: 64, height: 64)
 
                     if isTranscribing {
                         ProgressView()
                             .tint(.white)
                     } else {
                         Image(systemName: "mic.fill")
-                            .font(.system(size: 28))
+                            .font(.system(size: 24))
                             .foregroundStyle(.white)
                     }
                 }
-                .shadow(color: .red.opacity(0.4), radius: 12, y: 4)
             }
             .disabled(isTranscribing)
-            .offset(y: -10)
+            .offset(y: -12)
 
-            // Type note (right)
+            // Search button (right)
             Button {
-                showingTypeNote = true
+                showingAssistant = true
             } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: "keyboard")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.gray.opacity(0.6))
-                    Text("Type")
-                        .font(.caption2)
-                        .foregroundStyle(.gray.opacity(0.5))
-                }
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
             }
             .frame(maxWidth: .infinity)
         }
-        .padding(.bottom, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 24)
         .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0), Color.black, Color.black],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            Color.black
+                .ignoresSafeArea()
+                .shadow(color: .black.opacity(0.5), radius: 8, y: -4)
         )
     }
 
-    // MARK: - 5. Note Feed
+    // MARK: - 4. Note Feed (Tabbed, Grouped by Month)
 
     private var noteFeed: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if notes.isEmpty {
+            // Tab bar + sort button
+            HStack(spacing: 0) {
+                ForEach(FeedTab.allCases, id: \.self) { tab in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedTab = tab
+                        }
+                    } label: {
+                        VStack(spacing: 6) {
+                            Text(tab.rawValue)
+                                .font(.subheadline.weight(selectedTab == tab ? .semibold : .regular))
+                                .foregroundStyle(selectedTab == tab ? .white : .gray)
+
+                            Rectangle()
+                                .fill(selectedTab == tab ? Color.white : Color.clear)
+                                .frame(height: 2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
+                // Sort toggle
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        sortNewestFirst.toggle()
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.gray)
+                        .padding(.horizontal, 12)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+
+            // Active tag filter chip
+            if let tag = selectedTagFilter {
+                HStack(spacing: 6) {
+                    Text(tag.name)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.blue)
+                    Button {
+                        withAnimation { selectedTagFilter = nil }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.12))
+                .cornerRadius(8)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+            }
+
+            if filteredNotes.isEmpty {
                 // Empty state
                 VStack(spacing: 12) {
-                    Image(systemName: "waveform.circle")
+                    Image(systemName: emptyStateIcon)
                         .font(.system(size: 48))
                         .foregroundStyle(.gray.opacity(0.5))
 
-                    Text("No notes yet")
+                    Text(emptyStateTitle)
                         .font(.headline)
                         .foregroundStyle(.gray)
 
-                    Text("Tap the mic to record your first thought")
+                    Text(emptyStateSubtitle)
                         .font(.subheadline)
                         .foregroundStyle(.gray.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
             } else {
-                // Note list
-                LazyVStack(spacing: 2) {
-                    ForEach(notes) { note in
-                        NavigationLink(destination: NoteDetailView(note: note)) {
-                            NoteFeedCard(note: note)
+                // Grouped by month
+                LazyVStack(spacing: 0, pinnedViews: []) {
+                    ForEach(notesByMonth, id: \.0) { month, monthNotes in
+                        Section {
+                            // 2-column grid
+                            let columns = [
+                                GridItem(.flexible(), spacing: 10),
+                                GridItem(.flexible(), spacing: 10)
+                            ]
+                            LazyVGrid(columns: columns, spacing: 10) {
+                                ForEach(monthNotes) { note in
+                                    NavigationLink(destination: NoteDetailView(note: note)) {
+                                        NoteFeedCard(note: note)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .contextMenu {
+                                        Button {
+                                            note.isFavorite.toggle()
+                                            try? modelContext.save()
+                                        } label: {
+                                            Label(
+                                                note.isFavorite ? "Unfavorite" : "Favorite",
+                                                systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
+                                            )
+                                        }
+
+                                        Button {
+                                            withAnimation {
+                                                note.isArchived.toggle()
+                                                try? modelContext.save()
+                                            }
+                                        } label: {
+                                            Label(
+                                                note.isArchived ? "Unarchive" : "Archive",
+                                                systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 16)
+                        } header: {
+                            Text(month)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.gray)
+                                .textCase(.uppercase)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                                .padding(.vertical, 8)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal)
             }
         }
     }
@@ -1086,81 +1117,74 @@ struct WelcomeFeatureRow: View {
     }
 }
 
-// MARK: - Note Feed Card
+// MARK: - Note Feed Card (compact for 2-column grid)
 
 struct NoteFeedCard: View {
     let note: Note
 
     private var preview: String {
-        // 1-line preview: first topic/key point or first line of transcript
         if let transcript = note.transcript, !transcript.isEmpty {
             let firstLine = transcript.components(separatedBy: .newlines).first ?? transcript
-            return String(firstLine.prefix(100))
+            return String(firstLine.prefix(80))
         }
         if !note.content.isEmpty {
             let firstLine = note.content.components(separatedBy: .newlines).first ?? note.content
-            return String(firstLine.prefix(100))
+            return String(firstLine.prefix(80))
         }
         return ""
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Title row with intent icon
-            HStack(spacing: 8) {
-                // Intent icon
-                if note.intent != .unknown {
-                    Image(systemName: note.intent.icon)
-                        .font(.caption)
-                        .foregroundStyle(note.intent.color)
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            // Title
+            Text(note.displayTitle)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(2)
 
-                Text(note.displayTitle)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                Spacer()
-
-                // Pending indicator
-                if note.transcriptionStatus == "pending" {
-                    Image(systemName: "clock")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-            }
-
-            // Date/time
-            Text(note.createdAt.formatted(date: .abbreviated, time: .shortened))
-                .font(.caption)
+            // Date
+            Text(note.createdAt.formatted(date: .abbreviated, time: .omitted))
+                .font(.caption2)
                 .foregroundStyle(.gray)
 
             // 1-line preview
             if !preview.isEmpty {
                 Text(preview)
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(.gray.opacity(0.8))
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
 
-            // Topic chips
-            if !note.topics.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(note.topics.prefix(4), id: \.self) { topic in
-                            Text(topic)
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.blue)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.12))
-                                .cornerRadius(6)
-                        }
-                    }
+            // Intent icon or first topic chip
+            HStack(spacing: 4) {
+                if note.intent != .unknown {
+                    Image(systemName: note.intent.icon)
+                        .font(.caption2)
+                        .foregroundStyle(note.intent.color)
+                }
+
+                if let firstTopic = note.topics.first {
+                    Text(firstTopic)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.blue)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.12))
+                        .cornerRadius(4)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if note.isFavorite {
+                    Image(systemName: "heart.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.pink)
                 }
             }
         }
-        .padding(14)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemGray6).opacity(0.2))
         .cornerRadius(12)
     }
