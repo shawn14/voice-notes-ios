@@ -198,8 +198,6 @@ class AuthService {
 
 // MARK: - Sign In View
 
-// MARK: - Sign In View
-
 struct SignInView: View {
     private var authService: AuthService { AuthService.shared }
 
@@ -207,10 +205,9 @@ struct SignInView: View {
     @State private var showingError = false
     @State private var errorMessage = ""
 
-    private let pageCount = 3
+    private let pageCount = 4
 
     private func advanceToPaywall() {
-        // Check if user already has an active subscription — skip paywall if so
         Task {
             await SubscriptionManager.shared.updateSubscriptionStatus()
             await MainActor.run {
@@ -223,48 +220,65 @@ struct SignInView: View {
         }
     }
 
+    /// Skip sign-in entirely — go straight to the app with 5 free notes
+    private func skipToApp() {
+        OnboardingState.set(.completed)
+    }
+
     var body: some View {
         ZStack {
-            // Atmospheric gradient background that shifts per page
-            backgroundGradient
+            // Dark background with coral atmospheric glow
+            Color("EEONBackground")
                 .ignoresSafeArea()
-                .animation(.easeInOut(duration: 0.6), value: currentPage)
+
+            // Coral radial glow — shifts subtly per page
+            RadialGradient(
+                colors: [Color("EEONAccent").opacity(currentPage == 0 ? 0.25 : 0.12), Color("EEONAccent").opacity(0.04), Color.clear],
+                center: currentPage == 0 ? .top : (currentPage == 1 ? .topTrailing : (currentPage == 2 ? .topLeading : .top)),
+                startRadius: 20,
+                endRadius: 500
+            )
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 0.6), value: currentPage)
 
             VStack(spacing: 0) {
                 // Paged content
                 TabView(selection: $currentPage) {
-                    page1.tag(0)
-                    page2.tag(1)
-                    page3.tag(2)
+                    heroPage.tag(0)
+                    recordPage.tag(1)
+                    askPage.tag(2)
+                    organizePage.tag(3)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
 
-                // Page indicator — refined capsule bars
-                HStack(spacing: 6) {
+                // Page indicator dots in coral
+                HStack(spacing: 8) {
                     ForEach(0..<pageCount, id: \.self) { index in
-                        Capsule()
-                            .fill(index == currentPage ? Color("EEONTextPrimary").opacity(0.9) : Color("EEONTextPrimary").opacity(0.15))
-                            .frame(width: index == currentPage ? 28 : 8, height: 3)
+                        Circle()
+                            .fill(index == currentPage ? Color("EEONAccent") : Color("EEONTextPrimary").opacity(0.15))
+                            .frame(width: index == currentPage ? 10 : 8, height: index == currentPage ? 10 : 8)
                             .animation(.spring(response: 0.35), value: currentPage)
                     }
                 }
-                .padding(.bottom, 24)
+                .padding(.bottom, 28)
 
                 // Bottom action area
                 VStack(spacing: 14) {
                     if currentPage < pageCount - 1 {
+                        // Continue button — coral accent
                         Button {
                             withAnimation(.spring(response: 0.4)) { currentPage += 1 }
                         } label: {
                             Text("Continue")
                                 .font(.body.weight(.bold))
-                                .foregroundStyle(.black)
+                                .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 18)
-                                .background(Color.white)
+                                .background(Color("EEONAccent"))
                                 .cornerRadius(14)
                         }
                     } else {
+                        // Final page: Sign in with Apple + skip
                         SignInWithAppleButton(.signIn) { request in
                             request.requestedScopes = [.fullName, .email]
                         } onCompletion: { result in
@@ -280,12 +294,17 @@ struct SignInView: View {
                         .signInWithAppleButtonStyle(.white)
                         .frame(height: 54)
                         .cornerRadius(14)
-                    }
 
-                    Button("Skip") { advanceToPaywall() }
-                        .font(.subheadline)
-                        .foregroundStyle(Color("EEONTextSecondary").opacity(0.6))
-                        .padding(.top, 2)
+                        Button {
+                            skipToApp()
+                        } label: {
+                            Text("Try 5 free notes first")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color("EEONTextSecondary"))
+                                .underline()
+                        }
+                        .padding(.top, 4)
+                    }
                 }
                 .padding(.horizontal, 28)
 
@@ -311,226 +330,100 @@ struct SignInView: View {
         }
     }
 
-    // MARK: - Background
+    // MARK: - Page 1: Hero
 
-    private var backgroundGradient: some View {
-        ZStack {
-            Color("EEONBackground")
-
-            switch currentPage {
-            case 0:
-                // Deep blue atmosphere — layered for depth
-                RadialGradient(
-                    colors: [Color.blue.opacity(0.35), Color.blue.opacity(0.08), Color.clear],
-                    center: .top,
-                    startRadius: 20,
-                    endRadius: 550
-                )
-                RadialGradient(
-                    colors: [Color.cyan.opacity(0.1), Color.clear],
-                    center: .bottomLeading,
-                    startRadius: 50,
-                    endRadius: 400
-                )
-            case 1:
-                // Warm purple atmosphere — richer, more dramatic
-                RadialGradient(
-                    colors: [Color.purple.opacity(0.35), Color.purple.opacity(0.08), Color.clear],
-                    center: .topTrailing,
-                    startRadius: 20,
-                    endRadius: 500
-                )
-                RadialGradient(
-                    colors: [Color.indigo.opacity(0.12), Color.clear],
-                    center: .bottomLeading,
-                    startRadius: 80,
-                    endRadius: 400
-                )
-            default:
-                // Teal atmosphere — deeper, more confident
-                RadialGradient(
-                    colors: [Color.cyan.opacity(0.25), Color.teal.opacity(0.08), Color.clear],
-                    center: .topLeading,
-                    startRadius: 20,
-                    endRadius: 500
-                )
-                RadialGradient(
-                    colors: [Color.blue.opacity(0.1), Color.clear],
-                    center: .bottomTrailing,
-                    startRadius: 80,
-                    endRadius: 400
-                )
-            }
-        }
-    }
-
-    // MARK: - Page 1: Capture
-
-    private var page1: some View {
+    private var heroPage: some View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Hero icon with layered glow
+            // Coral waveform icon
             ZStack {
+                // Outer glow
                 Circle()
-                    .fill(Color.blue.opacity(0.05))
+                    .fill(Color("EEONAccent").opacity(0.06))
                     .frame(width: 180, height: 180)
                     .blur(radius: 20)
 
+                // Inner ring
                 Circle()
-                    .fill(Color.blue.opacity(0.08))
-                    .frame(width: 140, height: 140)
+                    .fill(Color("EEONAccent").opacity(0.10))
+                    .frame(width: 120, height: 120)
 
-                Circle()
-                    .fill(Color.blue.opacity(0.14))
-                    .frame(width: 100, height: 100)
-
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 44, weight: .light))
-                    .foregroundStyle(Color("EEONTextPrimary"))
-            }
-            .padding(.bottom, 44)
-
-            VStack(spacing: 14) {
-                Text("Just talk.")
-                    .font(.system(size: 38, weight: .bold, design: .default))
-                    .foregroundStyle(Color("EEONTextPrimary"))
-                    .tracking(-0.5)
-
-                Text("We turn your voice into\norganized, searchable notes.")
-                    .font(.system(size: 17))
-                    .foregroundStyle(Color("EEONTextSecondary"))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(5)
-            }
-
-            Spacer()
-
-            // Feature hints with subtle glass backing
-            VStack(spacing: 12) {
-                featureRow("waveform", "Record anywhere")
-                featureRow("text.cursor", "Transcribed instantly")
-                featureRow("arrow.trianglehead.2.clockwise", "Synced to all devices")
-            }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 20)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color("EEONTextPrimary").opacity(0.04))
-            )
-            .padding(.horizontal, 28)
-
-            Spacer().frame(height: 32)
-        }
-    }
-
-    // MARK: - Page 2: AI
-
-    private var page2: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            // Sparkle cluster — larger, more depth
-            ZStack {
-                // Soft glow behind
-                Circle()
-                    .fill(Color.purple.opacity(0.06))
-                    .frame(width: 160, height: 160)
-                    .blur(radius: 20)
-
-                Image(systemName: "sparkle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(Color("EEONTextSecondary").opacity(0.4))
-                    .offset(x: -44, y: -34)
-
-                Image(systemName: "sparkle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color("EEONTextSecondary").opacity(0.3))
-                    .offset(x: 48, y: -42)
-
-                Image(systemName: "sparkle")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color("EEONTextSecondary").opacity(0.2))
-                    .offset(x: 52, y: 22)
-
-                Image(systemName: "sparkles")
-                    .font(.system(size: 56, weight: .light))
-                    .foregroundStyle(Color("EEONTextPrimary"))
-            }
-            .frame(height: 130)
-            .padding(.bottom, 40)
-
-            VStack(spacing: 14) {
-                Text("AI does the rest.")
-                    .font(.system(size: 38, weight: .bold))
-                    .foregroundStyle(Color("EEONTextPrimary"))
-                    .tracking(-0.5)
-
-                Text("Decisions, actions, commitments —\nextracted from every note.")
-                    .font(.system(size: 17))
-                    .foregroundStyle(Color("EEONTextSecondary"))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(5)
-            }
-
-            Spacer()
-
-            VStack(spacing: 12) {
-                featureRow("checkmark.circle", "Actions from your words")
-                featureRow("person.2", "Tracks who owes what")
-                featureRow("exclamationmark.circle", "Flags what needs attention")
-            }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 20)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color("EEONTextPrimary").opacity(0.04))
-            )
-            .padding(.horizontal, 28)
-
-            Spacer().frame(height: 32)
-        }
-    }
-
-    // MARK: - Page 3: Reports
-
-    private var page3: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            // Abstract chart visualization — more refined
-            ZStack {
-                // Soft glow
-                Circle()
-                    .fill(Color.cyan.opacity(0.06))
-                    .frame(width: 160, height: 160)
-                    .blur(radius: 20)
-
-                HStack(alignment: .bottom, spacing: 7) {
-                    ForEach(Array([0.3, 0.5, 0.72, 0.48, 0.88, 0.62, 0.4].enumerated()), id: \.offset) { index, height in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(
-                                LinearGradient(
-                                    colors: [.cyan.opacity(0.7), .blue.opacity(0.25)],
-                                    startPoint: .bottom,
-                                    endPoint: .top
-                                )
-                            )
-                            .frame(width: 14, height: CGFloat(height) * 90)
+                // Waveform bars
+                HStack(alignment: .center, spacing: 4) {
+                    ForEach(Array([0.4, 0.7, 1.0, 0.8, 0.5, 0.9, 0.6, 0.3, 0.75].enumerated()), id: \.offset) { _, scale in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color("EEONAccent"))
+                            .frame(width: 4, height: CGFloat(scale) * 44)
                     }
                 }
-                .frame(height: 100)
             }
-            .padding(.bottom, 40)
+            .padding(.bottom, 48)
 
             VStack(spacing: 14) {
-                Text("Your command\ncenter.")
+                Text("Talk. Your AI\nremembers.")
                     .font(.system(size: 38, weight: .bold))
                     .foregroundStyle(Color("EEONTextPrimary"))
                     .tracking(-0.5)
                     .multilineTextAlignment(.center)
 
-                Text("CEO reports, SWOT analysis,\ngoal tracking — one tap away.")
+                Text("Voice notes that think for you")
+                    .font(.system(size: 17))
+                    .foregroundStyle(Color("EEONTextSecondary"))
+                    .multilineTextAlignment(.center)
+            }
+
+            Spacer()
+            Spacer().frame(height: 32)
+        }
+    }
+
+    // MARK: - Page 2: Record + Live Transcript
+
+    private var recordPage: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            // Recording mockup with waveform bars
+            ZStack {
+                // Glow
+                Circle()
+                    .fill(Color("EEONAccent").opacity(0.05))
+                    .frame(width: 160, height: 160)
+                    .blur(radius: 20)
+
+                VStack(spacing: 16) {
+                    // Waveform visualization
+                    HStack(alignment: .center, spacing: 3) {
+                        ForEach(Array([0.3, 0.5, 0.8, 0.6, 1.0, 0.7, 0.9, 0.4, 0.6, 0.8, 0.5, 0.3].enumerated()), id: \.offset) { _, scale in
+                            RoundedRectangle(cornerRadius: 1.5)
+                                .fill(Color("EEONAccent").opacity(0.7))
+                                .frame(width: 3, height: CGFloat(scale) * 36)
+                        }
+                    }
+
+                    // Mock transcript lines
+                    VStack(alignment: .leading, spacing: 6) {
+                        mockTranscriptLine(width: 140)
+                        mockTranscriptLine(width: 100)
+                        mockTranscriptLine(width: 120)
+                    }
+                }
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color("EEONTextPrimary").opacity(0.04))
+                )
+            }
+            .padding(.bottom, 40)
+
+            VStack(spacing: 14) {
+                Text("Just talk")
+                    .font(.system(size: 38, weight: .bold))
+                    .foregroundStyle(Color("EEONTextPrimary"))
+                    .tracking(-0.5)
+
+                Text("Your words appear in real-time.\nAI removes filler and enhances\nyour thoughts into clear notes.")
                     .font(.system(size: 17))
                     .foregroundStyle(Color("EEONTextSecondary"))
                     .multilineTextAlignment(.center)
@@ -538,38 +431,153 @@ struct SignInView: View {
             }
 
             Spacer()
-
-            VStack(spacing: 12) {
-                featureRow("chart.bar.doc.horizontal", "AI-powered reports")
-                featureRow("rectangle.3.group", "Visual project boards")
-                featureRow("target", "Track goals & momentum")
-            }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 20)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color("EEONTextPrimary").opacity(0.04))
-            )
-            .padding(.horizontal, 28)
-
             Spacer().frame(height: 32)
         }
     }
 
-    // MARK: - Feature Row (minimal, no cards)
+    // MARK: - Page 3: Ask Your Memory
 
-    private func featureRow(_ icon: String, _ text: String) -> some View {
-        HStack(spacing: 14) {
+    private var askPage: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            // Chat bubble illustration
+            ZStack {
+                Circle()
+                    .fill(Color("EEONAccent").opacity(0.05))
+                    .frame(width: 160, height: 160)
+                    .blur(radius: 20)
+
+                VStack(spacing: 12) {
+                    // User question bubble
+                    HStack {
+                        Spacer()
+                        Text("What did I promise Sarah?")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18)
+                                    .fill(Color("EEONAccent"))
+                            )
+                    }
+
+                    // AI response bubble
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("You promised to send the proposal by Friday and review her draft.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color("EEONTextPrimary").opacity(0.9))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(Color("EEONTextPrimary").opacity(0.06))
+                        )
+                        Spacer()
+                    }
+                }
+                .padding(.horizontal, 20)
+                .frame(maxWidth: 280)
+            }
+            .padding(.bottom, 40)
+
+            VStack(spacing: 14) {
+                Text("Ask anything")
+                    .font(.system(size: 38, weight: .bold))
+                    .foregroundStyle(Color("EEONTextPrimary"))
+                    .tracking(-0.5)
+
+                Text("Search across all your notes\nwith AI that remembers everything.")
+                    .font(.system(size: 17))
+                    .foregroundStyle(Color("EEONTextSecondary"))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(5)
+            }
+
+            Spacer()
+            Spacer().frame(height: 32)
+        }
+    }
+
+    // MARK: - Page 4: AI Organizes
+
+    private var organizePage: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            // Organized sections illustration
+            ZStack {
+                Circle()
+                    .fill(Color("EEONAccent").opacity(0.05))
+                    .frame(width: 160, height: 160)
+                    .blur(radius: 20)
+
+                VStack(spacing: 8) {
+                    organizeRow(icon: "flame.fill", label: "Active Threads", count: "3", color: Color("EEONAccent"))
+                    organizeRow(icon: "exclamationmark.triangle.fill", label: "Needs Attention", count: "2", color: .orange)
+                    organizeRow(icon: "person.2.fill", label: "People", count: "5", color: .blue)
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color("EEONTextPrimary").opacity(0.04))
+                )
+                .frame(maxWidth: 260)
+            }
+            .padding(.bottom, 40)
+
+            VStack(spacing: 14) {
+                Text("Never drop\nthe ball")
+                    .font(.system(size: 38, weight: .bold))
+                    .foregroundStyle(Color("EEONTextPrimary"))
+                    .tracking(-0.5)
+                    .multilineTextAlignment(.center)
+
+                Text("AI tracks your decisions,\ncommitments, and action items.\nGet reminded when things go stale.")
+                    .font(.system(size: 17))
+                    .foregroundStyle(Color("EEONTextSecondary"))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(5)
+            }
+
+            Spacer()
+            Spacer().frame(height: 32)
+        }
+    }
+
+    // MARK: - Helper Views
+
+    private func mockTranscriptLine(width: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 3)
+            .fill(Color("EEONTextPrimary").opacity(0.12))
+            .frame(width: width, height: 8)
+    }
+
+    private func organizeRow(icon: String, label: String, count: String, color: Color) -> some View {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Color("EEONTextSecondary"))
+                .font(.system(size: 14))
+                .foregroundStyle(color)
                 .frame(width: 24, height: 24)
 
-            Text(text)
-                .font(.system(size: 15, weight: .medium))
+            Text(label)
+                .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(Color("EEONTextPrimary").opacity(0.8))
 
             Spacer()
+
+            Text(count)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color("EEONTextSecondary"))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule()
+                        .fill(Color("EEONTextPrimary").opacity(0.06))
+                )
         }
     }
 }

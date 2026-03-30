@@ -43,36 +43,31 @@ struct OnboardingPaywallView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 50)
 
-                    // Pro badge icon
+                    // Pro badge icon — coral waveform
                     ZStack {
                         Circle()
-                            .fill(Color("EEONTextPrimary").opacity(0.04))
+                            .fill(Color("EEONAccent").opacity(0.06))
                             .frame(width: 80, height: 80)
 
                         Circle()
-                            .fill(Color("EEONTextPrimary").opacity(0.06))
+                            .fill(Color("EEONAccent").opacity(0.10))
                             .frame(width: 56, height: 56)
 
-                        Image(systemName: "crown.fill")
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [Color("EEONAccent"), Color("EEONAccent").opacity(0.7)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
+                        Image(systemName: "waveform.circle.fill")
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundStyle(Color("EEONAccent"))
                     }
                     .padding(.bottom, 24)
 
                     // Headline
                     VStack(spacing: 12) {
-                        Text("Go unlimited.")
+                        Text("Unlock your\nAI memory.")
                             .font(.system(size: 38, weight: .bold))
                             .foregroundStyle(Color("EEONTextPrimary"))
                             .tracking(-0.5)
+                            .multilineTextAlignment(.center)
 
-                        Text("Everything you just saw,\nwithout limits.")
+                        Text("Unlimited voice notes, AI extraction,\nand everything you need to never forget.")
                             .font(.system(size: 17))
                             .foregroundStyle(Color("EEONTextSecondary"))
                             .multilineTextAlignment(.center)
@@ -84,10 +79,10 @@ struct OnboardingPaywallView: View {
                     // Feature list — glass-backed card
                     VStack(spacing: 14) {
                         paywallFeature("infinity", "Unlimited voice notes")
-                        paywallFeature("sparkles", "AI extraction on every note")
-                        paywallFeature("chart.bar.doc.horizontal", "CEO reports & SWOT analysis")
+                        paywallFeature("sparkles", "AI enhances every thought")
+                        paywallFeature("magnifyingglass", "Ask your memory anything")
                         paywallFeature("person.2", "People & commitment tracking")
-                        paywallFeature("arrow.trianglehead.2.clockwise", "Sync across all devices")
+                        paywallFeature("bell.badge", "Proactive stale reminders")
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 20)
