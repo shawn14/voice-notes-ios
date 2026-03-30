@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import StoreKit
 import AuthenticationServices
 
 // MARK: - Timeline Step Component
@@ -58,8 +59,11 @@ struct OnboardingPaywallView: View {
 
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var selectedPlan: SubscriptionProduct = .annual
+    @State private var isPurchasing = false
 
     private let authService = AuthService.shared
+    private let subscriptionManager = SubscriptionManager.shared
 
     var body: some View {
         ZStack {
@@ -139,35 +143,122 @@ struct OnboardingPaywallView: View {
                     }
                 }
 
-                // Bottom pinned section
+                // Bottom pinned section — plan selection + purchase
                 VStack(spacing: 12) {
-                    // Pricing text
-                    Text("$9.99/month or $79.99/year")
-                        .font(.subheadline)
-                        .foregroundStyle(Color("EEONTextPrimary").opacity(0.5))
+                    // Plan selector
+                    HStack(spacing: 12) {
+                        // Annual plan
+                        Button {
+                            selectedPlan = .annual
+                        } label: {
+                            VStack(spacing: 4) {
+                                Text("Annual")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("$79.99/yr")
+                                    .font(.caption.weight(.medium))
+                                Text("$6.67/mo")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .foregroundStyle(selectedPlan == .annual ? .white : Color("EEONTextPrimary"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(selectedPlan == .annual ? Color("EEONAccent") : Color(.systemGray5).opacity(0.5))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(selectedPlan == .annual ? Color("EEONAccent") : Color(.systemGray4), lineWidth: 1.5)
+                            )
+                        }
+                        .buttonStyle(.plain)
 
-                    // CTA button
+                        // Monthly plan
+                        Button {
+                            selectedPlan = .monthly
+                        } label: {
+                            VStack(spacing: 4) {
+                                Text("Monthly")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("$9.99/mo")
+                                    .font(.caption.weight(.medium))
+                                Text(" ")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(selectedPlan == .monthly ? .white : Color("EEONTextPrimary"))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(selectedPlan == .monthly ? Color("EEONAccent") : Color(.systemGray5).opacity(0.5))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(selectedPlan == .monthly ? Color("EEONAccent") : Color(.systemGray4), lineWidth: 1.5)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Purchase CTA
+                    Button {
+                        isPurchasing = true
+                        Task {
+                            // Load products if needed
+                            if subscriptionManager.products.isEmpty {
+                                await subscriptionManager.loadProducts()
+                            }
+                            // Find the matching StoreKit Product
+                            if let product = subscriptionManager.products.first(where: { $0.id == selectedPlan.rawValue }) {
+                                do {
+                                    let _ = try await subscriptionManager.purchase(product)
+                                    await MainActor.run {
+                                        isPurchasing = false
+                                        OnboardingState.set(.completed)
+                                    }
+                                } catch {
+                                    await MainActor.run {
+                                        isPurchasing = false
+                                        errorMessage = error.localizedDescription
+                                        showError = true
+                                    }
+                                }
+                            } else {
+                                await MainActor.run {
+                                    isPurchasing = false
+                                    errorMessage = "Could not load subscription. Try again."
+                                    showError = true
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            if isPurchasing {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Subscribe & Get Started")
+                                    .font(.body.weight(.bold))
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(Color("EEONAccent"))
+                        .foregroundStyle(.white)
+                        .cornerRadius(14)
+                    }
+                    .disabled(isPurchasing)
+
+                    // Skip — try free
                     Button {
                         OnboardingState.set(.completed)
                     } label: {
-                        Text("Start with 5 free notes")
-                            .font(.body.weight(.bold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
-                            .background(Color("EEONAccent"))
-                            .foregroundStyle(.white)
-                            .cornerRadius(14)
+                        Text("Try 5 free notes first")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Color("EEONTextSecondary"))
+                            .underline()
                     }
-
-                    // Sign in link
-                    Button {
-                        triggerSignInWithApple()
-                    } label: {
-                        Text("Already have an account? Sign in")
-                            .font(.subheadline)
-                            .foregroundStyle(Color("EEONTextPrimary").opacity(0.5))
-                    }
-                    .padding(.top, 4)
+                    .padding(.top, 2)
 
                     // Legal links
                     HStack(spacing: 4) {
