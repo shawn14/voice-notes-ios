@@ -455,7 +455,7 @@ struct AIHomeView: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(
                     LinearGradient(
-                        colors: [Color.blue.opacity(0.15), Color.purple.opacity(0.08)],
+                        colors: [Color("EEONAccent").opacity(0.12), Color("EEONAccentAI").opacity(0.08)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

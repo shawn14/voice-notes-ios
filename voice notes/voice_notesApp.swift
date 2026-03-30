@@ -16,6 +16,7 @@ struct voice_notesApp: App {
     @State private var authService = AuthService.shared
     @State private var subscriptionManager = SubscriptionManager.shared
     @AppStorage("onboardingState") private var onboardingState: String = OnboardingState.needsSignIn.rawValue
+    @AppStorage("appearanceMode") private var appearanceMode: Int = 0
     @Environment(\.scenePhase) private var scenePhase
 
     // Shared note handling
@@ -132,6 +133,7 @@ struct voice_notesApp: App {
             } message: {
                 Text(sharedNoteError ?? "Unknown error")
             }
+            .preferredColorScheme(appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : nil)
         }
         .modelContainer(container)
         .backgroundTask(.appRefresh(voice_notesApp.proactiveAlertsTaskId)) {

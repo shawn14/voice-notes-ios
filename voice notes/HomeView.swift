@@ -971,10 +971,10 @@ struct HomeNoteRow: View {
                                     Text(name)
                                 }
                                 .font(.caption2.weight(.medium))
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(Color("EEONAccentAI"))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Color.purple.opacity(0.15))
+                                .background(Color("EEONAccentAI").opacity(0.15))
                                 .cornerRadius(6)
                             }
 
@@ -982,10 +982,10 @@ struct HomeNoteRow: View {
                             if note.mentionedPeople.count > 3 {
                                 Text("+\(note.mentionedPeople.count - 3)")
                                     .font(.caption2.weight(.medium))
-                                    .foregroundStyle(.purple)
+                                    .foregroundStyle(Color("EEONAccentAI"))
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 4)
-                                    .background(Color.purple.opacity(0.15))
+                                    .background(Color("EEONAccentAI").opacity(0.15))
                                     .cornerRadius(6)
                             }
                         }
@@ -1162,7 +1162,7 @@ struct UserAvatarView: View {
             Circle()
                 .fill(
                     LinearGradient(
-                        colors: [.blue, .purple],
+                        colors: [Color("EEONAccent"), Color("EEONAccent").opacity(0.7)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -1171,7 +1171,7 @@ struct UserAvatarView: View {
 
             Text(initials)
                 .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color("EEONTextPrimary"))
+                .foregroundStyle(.white)
         }
     }
 }
@@ -1538,7 +1538,7 @@ struct ProjectsListView: View {
         case "red": return .red
         case "green": return .green
         case "orange": return .orange
-        case "purple": return .blue
+        case "purple": return Color("EEONAccentAI")
         case "pink": return .pink
         case "yellow": return .yellow
         default: return .blue
@@ -1581,6 +1581,8 @@ struct SettingsView: View {
     @State private var editedName = ""
     @State private var showSignIn = false
 
+    @AppStorage("appearanceMode") private var appearanceMode: Int = 0
+
     private let usage = UsageService.shared
 
     private var accountSection: some View {
@@ -1593,10 +1595,10 @@ struct SettingsView: View {
                 HStack(spacing: 16) {
                     ZStack {
                         Circle()
-                            .fill(usage.isPro ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
+                            .fill(usage.isPro ? Color("EEONAccentAI").opacity(0.15) : Color.orange.opacity(0.15))
                             .frame(width: 44, height: 44)
                         Image(systemName: usage.isPro ? "sparkles" : "star.fill")
-                            .foregroundStyle(usage.isPro ? .blue : .orange)
+                            .foregroundStyle(usage.isPro ? Color("EEONAccentAI") : .orange)
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Plan: \(usage.isPro ? "Pro" : "Free")")
@@ -1625,7 +1627,7 @@ struct SettingsView: View {
             if !usage.isPro {
                 Button { showingPaywall = true } label: {
                     HStack(spacing: 16) {
-                        Image(systemName: "sparkles").foregroundStyle(.blue).frame(width: 44)
+                        Image(systemName: "sparkles").foregroundStyle(Color("EEONAccent")).frame(width: 44)
                         Text("Upgrade to Pro").font(.body).foregroundStyle(.primary)
                         Spacer()
                         Text("$9.99/mo").font(.caption).foregroundStyle(.secondary)
@@ -1636,7 +1638,7 @@ struct SettingsView: View {
             }
 
             HStack(spacing: 16) {
-                Image(systemName: "globe").foregroundStyle(.blue).frame(width: 44)
+                Image(systemName: "globe").foregroundStyle(Color("EEONAccentAI")).frame(width: 44)
                 Text(AppInfo.versionString).font(.body)
                 Spacer()
             }
@@ -1644,7 +1646,7 @@ struct SettingsView: View {
 
             Button { showingShareSheet = true } label: {
                 HStack(spacing: 16) {
-                    Image(systemName: "square.and.arrow.up").foregroundStyle(.blue).frame(width: 44)
+                    Image(systemName: "square.and.arrow.up").foregroundStyle(Color("EEONAccentAI")).frame(width: 44)
                     Text("Share Voice Notes").font(.body).foregroundStyle(.primary)
                     Spacer()
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
@@ -1675,8 +1677,8 @@ struct SettingsView: View {
             } else {
                 Button { showSignIn = true } label: {
                     HStack(spacing: 16) {
-                        Image(systemName: "person.crop.circle.badge.plus").foregroundStyle(.blue).frame(width: 44)
-                        Text("Sign In").font(.body).foregroundStyle(.blue)
+                        Image(systemName: "person.crop.circle.badge.plus").foregroundStyle(Color("EEONAccent")).frame(width: 44)
+                        Text("Sign In").font(.body).foregroundStyle(Color("EEONAccent"))
                         Spacer()
                     }
                 }
@@ -1695,10 +1697,10 @@ struct SettingsView: View {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(Color.blue.opacity(0.15))
+                        .fill(Color("EEONAccentAI").opacity(0.15))
                         .frame(width: 44, height: 44)
                     Image(systemName: authService.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color("EEONAccentAI"))
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -1726,7 +1728,7 @@ struct SettingsView: View {
                 if authService.isSignedIn {
                     Text("Edit")
                         .font(.subheadline)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color("EEONAccent"))
                 }
             }
         }
@@ -1737,6 +1739,18 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                // MARK: - Appearance Section
+                Section {
+                    Picker("Appearance", selection: $appearanceMode) {
+                        Text("System").tag(0)
+                        Text("Light").tag(1)
+                        Text("Dark").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Appearance")
+                }
+
                 // MARK: - Usage Section
                 Section {
                     UsageSectionContent(usage: usage, noteCount: notes.count)
@@ -1755,7 +1769,7 @@ struct SettingsView: View {
                         VStack(spacing: 12) {
                             Image(systemName: "folder.badge.plus")
                                 .font(.system(size: 40))
-                                .foregroundStyle(.blue.opacity(0.7))
+                                .foregroundStyle(Color("EEONAccentAI").opacity(0.7))
 
                             Text("Organize your notes")
                                 .font(.headline)
@@ -1772,7 +1786,7 @@ struct SettingsView: View {
                                     .padding(.vertical, 12)
                             }
                             .buttonStyle(.borderedProminent)
-                            .tint(.blue)
+                            .tint(Color("EEONAccent"))
                             .padding(.top, 8)
                         }
                         .padding(.vertical, 16)
@@ -1808,12 +1822,12 @@ struct SettingsView: View {
                         Button(action: { showingAddProject = true }) {
                             HStack(spacing: 16) {
                                 Image(systemName: "plus.circle")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color("EEONAccent"))
                                     .frame(width: 44)
 
                                 Text("Add Project")
                                     .font(.body)
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color("EEONAccent"))
 
                                 Spacer()
                             }
@@ -1829,7 +1843,7 @@ struct SettingsView: View {
                     // TODO: Add audio quality picker when multiple quality options are supported
                     HStack(spacing: 16) {
                         Image(systemName: "waveform.circle")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color("EEONAccentAI"))
                             .frame(width: 44)
 
                         Text("Audio Quality")
@@ -1878,7 +1892,7 @@ struct SettingsView: View {
                     } label: {
                         HStack(spacing: 16) {
                             Image(systemName: "envelope")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color("EEONAccentAI"))
                                 .frame(width: 44)
 
                             Text("Contact Support")
@@ -1926,7 +1940,7 @@ struct SettingsView: View {
                     } label: {
                         HStack(spacing: 16) {
                             Image(systemName: "doc.text")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color("EEONAccentAI"))
                                 .frame(width: 44)
 
                             Text("Terms of Use")
@@ -1954,12 +1968,12 @@ struct SettingsView: View {
                     } label: {
                         HStack(spacing: 16) {
                             Image(systemName: "arrow.counterclockwise.circle")
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(Color("EEONAccentAI"))
                                 .frame(width: 44)
 
                             Text("Reset Onboarding")
                                 .font(.body)
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(Color("EEONAccentAI"))
 
                             Spacer()
                         }
@@ -2102,7 +2116,7 @@ struct SettingsView: View {
         case "yellow": return .yellow
         case "green": return .green
         case "blue": return .blue
-        case "purple": return .blue
+        case "purple": return Color("EEONAccentAI")
         case "pink": return .pink
         default: return .blue
         }
@@ -2163,10 +2177,10 @@ struct UsageSectionContent: View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color.blue.opacity(0.15))
+                    .fill(Color("EEONAccentAI").opacity(0.15))
                     .frame(width: 44, height: 44)
                 Image(systemName: "note.text")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color("EEONAccentAI"))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -2353,7 +2367,7 @@ struct ProjectEditView: View {
         case "yellow": return .yellow
         case "green": return .green
         case "blue": return .blue
-        case "purple": return .blue
+        case "purple": return Color("EEONAccentAI")
         case "pink": return .pink
         default: return .blue
         }
@@ -2380,7 +2394,7 @@ struct LanguagePickerView: View {
 
                         if selectedLanguage == language {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color("EEONAccent"))
                         }
                     }
                 }
@@ -2463,7 +2477,7 @@ struct NotificationSettingsSection: View {
                 DatePicker(selection: $briefTime, displayedComponents: .hourAndMinute) {
                     HStack(spacing: 16) {
                         Image(systemName: "clock")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color("EEONAccentAI"))
                             .frame(width: 44)
 
                         Text("Brief time")
