@@ -1184,11 +1184,27 @@ struct HomeRecordingOverlay: View {
     let onCancel: () -> Void
     let audioRecorder: AudioRecorder
 
-    // Simulated audio levels for waveform bars
-    @State private var barLevels: [CGFloat] = [0.3, 0.5, 0.4, 0.6, 0.35]
-    @State private var waveformTimer: Timer?
+    // Waveform bars driven by real audio metering — 8 bold bars
+    private let barCount = 8
+    @State private var barLevels: [CGFloat] = Array(repeating: 0.15, count: 8)
+    @State private var meterTimer: Timer?
+
+    // Ring pulse animation
+    @State private var ringScales: [CGFloat] = [1.0, 1.0, 1.0]
+    @State private var ringOpacities: [Double] = [0.18, 0.12, 0.06]
+    @State private var ringAnimating = false
+
+    // Timer dot blink
+    @State private var dotVisible = true
+
+    // Live transcription
+    @State private var liveTranscription = LiveTranscriptionService()
+
+    // Blinking cursor
+    @State private var cursorVisible = true
 
     private let usageService = UsageService.shared
+    private let accentRed = Color(red: 1.0, green: 0.231, blue: 0.188) // #FF3B30
 
     var body: some View {
         ZStack {
@@ -1197,131 +1213,283 @@ struct HomeRecordingOverlay: View {
 
             VStack(spacing: 0) {
                 // MARK: - Top bar: close button + timer pill
-                HStack {
-                    Button(action: onCancel) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.1), in: Circle())
-                    }
+                topBar
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
 
-                    Spacer()
+                // MARK: - Waveform strip with ring pulses
+                waveformSection
+                    .padding(.top, 32)
 
-                    // Timer pill
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-
-                        Text(audioRecorder.formattedTime)
-                            .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.1), in: Capsule())
-
-                    Spacer()
-
-                    // Invisible spacer to balance the close button
-                    Color.clear
-                        .frame(width: 36, height: 36)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
+                // MARK: - Live transcript (hero)
+                transcriptSection
+                    .padding(.top, 24)
 
                 Spacer()
 
-                // MARK: - Center: Waveform visualization
-                HStack(alignment: .center, spacing: 12) {
-                    ForEach(0..<5, id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.white.opacity(0.25))
-                            .frame(width: 8, height: 40 + barLevels[index] * 120)
-                            .animation(
-                                .spring(response: 0.4, dampingFraction: 0.6),
-                                value: barLevels[index]
-                            )
-                    }
-                }
-                .frame(height: 180)
-
-                Spacer()
-
-                // MARK: - Bottom: Notes remaining + controls
-                VStack(spacing: 32) {
-                    // Notes remaining (only for free users)
-                    if !usageService.isPro {
-                        HStack(spacing: 4) {
-                            Text("\(usageService.freeNotesRemaining) notes left")
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.5))
-
-                            Text("·")
-                                .foregroundStyle(.white.opacity(0.3))
-
-                            Text("Get PRO")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                    }
-
-                    // Control buttons
-                    HStack(spacing: 0) {
-                        // Restart button
-                        Button {
-                            onCancel()
-                        } label: {
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.system(size: 22, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.7))
-                                .frame(width: 56, height: 56)
-                                .background(Color.white.opacity(0.1), in: Circle())
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        // Stop button (center, prominent)
-                        Button(action: onStop) {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 3)
-                                    .frame(width: 72, height: 72)
-
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.red)
-                                    .frame(width: 28, height: 28)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        // Pause button (placeholder — AudioRecorder doesn't support pause)
-                        Color.clear
-                            .frame(width: 56, height: 56)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .padding(.horizontal, 40)
-                }
-                .padding(.bottom, 60)
+                // MARK: - Bottom: Pro upsell + controls
+                bottomControls
+                    .padding(.bottom, 60)
             }
         }
         .onAppear {
-            startWaveformAnimation()
+            startMetering()
+            startDotBlink()
+            startCursorBlink()
+            startRingPulse()
+            startLiveTranscription()
         }
         .onDisappear {
-            waveformTimer?.invalidate()
-            waveformTimer = nil
+            meterTimer?.invalidate()
+            meterTimer = nil
+            liveTranscription.stop()
         }
     }
 
-    // MARK: - Simulated waveform animation
+    // MARK: - Top Bar
 
-    private func startWaveformAnimation() {
-        waveformTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
-            withAnimation {
-                for i in 0..<barLevels.count {
-                    barLevels[i] = CGFloat.random(in: 0.15...1.0)
+    private var topBar: some View {
+        HStack {
+            Button(action: onCancel) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(width: 36, height: 36)
+                    .background(Color.white.opacity(0.1), in: Circle())
+            }
+
+            Spacer()
+
+            // Timer pill with red tint
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(accentRed)
+                    .frame(width: 8, height: 8)
+                    .opacity(dotVisible ? 1.0 : 0.3)
+
+                Text(audioRecorder.formattedTime)
+                    .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(accentRed.opacity(0.15), in: Capsule())
+
+            Spacer()
+
+            // Invisible spacer to balance the close button
+            Color.clear
+                .frame(width: 36, height: 36)
+        }
+    }
+
+    // MARK: - Waveform Section with Ring Pulses
+
+    private var waveformSection: some View {
+        ZStack {
+            // Expanding ring pulses behind the waveform
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .stroke(accentRed.opacity(ringOpacities[i]), lineWidth: 1.5)
+                    .frame(width: 80, height: 80)
+                    .scaleEffect(ringScales[i])
+            }
+
+            // Bold waveform bars (8 thick capsules)
+            HStack(alignment: .center, spacing: 10) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    Capsule()
+                        .fill(accentRed)
+                        .frame(width: 18, height: barHeight(for: index))
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.5)
+                                .delay(Double(index) * 0.02),
+                            value: barLevels[index]
+                        )
                 }
+            }
+        }
+        .frame(height: 120)
+    }
+
+    private func barHeight(for index: Int) -> CGFloat {
+        let level = barLevels[index]
+        let minHeight: CGFloat = 14
+        let maxHeight: CGFloat = 100
+        return minHeight + level * (maxHeight - minHeight)
+    }
+
+    // MARK: - Live Transcript Section
+
+    private var transcriptSection: some View {
+        ScrollView {
+            ScrollViewReader { proxy in
+                VStack(alignment: .leading, spacing: 0) {
+                    let confirmedText = liveTranscription.liveTranscript
+                    let activeWord = liveTranscription.currentWord
+
+                    if confirmedText.isEmpty && activeWord.isEmpty {
+                        Text("Start speaking...")
+                            .font(.system(size: 22, weight: .regular))
+                            .foregroundStyle(.white.opacity(0.3))
+                    } else {
+                        // Build attributed text: confirmed words in white, current word in red
+                        (buildTranscriptText(confirmed: confirmedText, active: activeWord))
+                            .font(.system(size: 22, weight: .regular))
+                            .lineSpacing(6)
+                    }
+
+                    // Blinking cursor
+                    Rectangle()
+                        .fill(accentRed)
+                        .frame(width: 2, height: 24)
+                        .opacity(cursorVisible ? 1.0 : 0.0)
+                        .padding(.top, 2)
+                        .id("cursor")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onChange(of: liveTranscription.liveTranscript) { _, _ in
+                    withAnimation {
+                        proxy.scrollTo("cursor", anchor: .bottom)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 24)
+        .frame(maxHeight: 300)
+    }
+
+    private func buildTranscriptText(confirmed: String, active: String) -> Text {
+        var result = Text(confirmed)
+            .foregroundColor(.white)
+
+        if !active.isEmpty {
+            let separator = confirmed.isEmpty ? "" : " "
+            result = result + Text(separator) + Text(active)
+                .foregroundColor(accentRed)
+                .fontWeight(.bold)
+        }
+
+        return result
+    }
+
+    // MARK: - Bottom Controls
+
+    private var bottomControls: some View {
+        VStack(spacing: 32) {
+            // Pro upsell (free users only)
+            if !usageService.isPro {
+                HStack(spacing: 4) {
+                    Text("\(usageService.freeNotesRemaining) notes left")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.5))
+
+                    Text("\u{00B7}")
+                        .foregroundStyle(.white.opacity(0.3))
+
+                    Text("Get PRO for unlimited")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+            }
+
+            // Three controls in a row
+            HStack(spacing: 0) {
+                // Restart button
+                Button {
+                    liveTranscription.stop()
+                    onCancel()
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .frame(width: 56, height: 56)
+                        .background(Color.white.opacity(0.1), in: Circle())
+                }
+                .frame(maxWidth: .infinity)
+
+                // Stop button (center, prominent)
+                Button {
+                    liveTranscription.stop()
+                    onStop()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 3)
+                            .frame(width: 72, height: 72)
+
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(accentRed)
+                            .frame(width: 28, height: 28)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                // Pause placeholder (AudioRecorder doesn't support pause)
+                Color.clear
+                    .frame(width: 56, height: 56)
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 40)
+        }
+    }
+
+    // MARK: - Timers & Animation
+
+    private func startMetering() {
+        meterTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            let level = audioRecorder.normalizedLevel
+
+            // Each bar gets the current level with per-bar variation
+            // for a flowing, organic wave feel
+            var newLevels = [CGFloat]()
+            for i in 0..<barCount {
+                let phase = sin(Double(i) * 0.8 + Date().timeIntervalSinceReferenceDate * 4.0)
+                let variation = CGFloat(phase) * 0.15
+                let barLevel = max(0.05, min(1.0, level + variation + CGFloat.random(in: -0.06...0.06)))
+                newLevels.append(barLevel)
+            }
+            barLevels = newLevels
+        }
+    }
+
+    private func startDotBlink() {
+        // Blink the recording dot every 0.8s
+        Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { _ in
+            withAnimation(.easeInOut(duration: 0.3)) {
+                dotVisible.toggle()
+            }
+        }
+    }
+
+    private func startCursorBlink() {
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                cursorVisible.toggle()
+            }
+        }
+    }
+
+    private func startRingPulse() {
+        // Animate 3 concentric rings expanding outward in sequence
+        func pulseRing(_ index: Int) {
+            withAnimation(.easeOut(duration: 2.0).repeatForever(autoreverses: false)) {
+                ringScales[index] = 3.5
+                ringOpacities[index] = 0.0
+            }
+        }
+
+        // Stagger the three rings
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) { pulseRing(0) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { pulseRing(1) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { pulseRing(2) }
+    }
+
+    private func startLiveTranscription() {
+        Task {
+            let authorized = await liveTranscription.requestAuthorization()
+            if authorized {
+                liveTranscription.start()
             }
         }
     }

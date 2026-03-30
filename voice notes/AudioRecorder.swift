@@ -52,6 +52,7 @@ final class AudioRecorder: NSObject {
         ]
 
         audioRecorder = try AVAudioRecorder(url: url, settings: settings)
+        audioRecorder?.isMeteringEnabled = true
         audioRecorder?.record()
 
         isRecording = true
@@ -140,6 +141,28 @@ final class AudioRecorder: NSObject {
 
     private func getDocumentsDirectory() -> URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+
+    /// Returns the current average power in decibels (-160 silence … 0 max).
+    /// Call from a display-link / timer to drive waveform UI.
+    var currentLevel: Float {
+        guard let recorder = audioRecorder, recorder.isRecording else { return -160 }
+        recorder.updateMeters()
+        return recorder.averagePower(forChannel: 0)
+    }
+
+    /// Normalized 0…1 value suitable for driving UI (maps -50 dB … 0 dB → 0…1).
+    var normalizedLevel: CGFloat {
+        let level = currentLevel
+        let minDb: Float = -50
+        let clamped = max(minDb, min(level, 0))
+        return CGFloat((clamped - minDb) / (0 - minDb))
+    }
+
+    /// The URL of the file currently being recorded, for use by live transcription tap.
+    var currentRecordingURL: URL? {
+        guard let fileName = currentFileName else { return nil }
+        return getDocumentsDirectory().appendingPathComponent(fileName)
     }
 
     var formattedTime: String {
