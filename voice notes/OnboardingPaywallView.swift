@@ -2,399 +2,258 @@
 //  OnboardingPaywallView.swift
 //  voice notes
 //
-//  Soft paywall shown during onboarding - users can subscribe immediately
-//  or skip to try 5 free notes first
+//  Timeline-based transparent onboarding paywall — shows users
+//  what the free tier includes before they start.
 //
 
 import SwiftUI
-import StoreKit
+import AuthenticationServices
 
-struct OnboardingPaywallView: View {
+// MARK: - Timeline Step Component
 
-    @State private var selectedProductID: String = SubscriptionProduct.annual.rawValue
-    @State private var isPurchasing = false
-    @State private var errorMessage: String?
-    @State private var showError = false
-
-    private let subscriptionManager = SubscriptionManager.shared
+struct TimelineStep: View {
+    let emoji: String
+    let isActive: Bool
+    let title: String
+    let subtitle: String
+    let isLast: Bool
 
     var body: some View {
-        ZStack {
-            // Rich layered atmospheric background
-            Color("EEONBackground").ignoresSafeArea()
-
-            RadialGradient(
-                colors: [Color("EEONAccent").opacity(0.2), Color("EEONAccent").opacity(0.04), Color.clear],
-                center: .top,
-                startRadius: 20,
-                endRadius: 500
-            )
-            .ignoresSafeArea()
-
-            RadialGradient(
-                colors: [Color.indigo.opacity(0.08), Color.clear],
-                center: .bottomTrailing,
-                startRadius: 50,
-                endRadius: 350
-            )
-            .ignoresSafeArea()
-
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    Spacer().frame(height: 50)
-
-                    // Pro badge icon — coral waveform
-                    ZStack {
-                        Circle()
-                            .fill(Color("EEONAccent").opacity(0.06))
-                            .frame(width: 80, height: 80)
-
-                        Circle()
-                            .fill(Color("EEONAccent").opacity(0.10))
-                            .frame(width: 56, height: 56)
-
-                        Image(systemName: "waveform.circle.fill")
-                            .font(.system(size: 28, weight: .medium))
-                            .foregroundStyle(Color("EEONAccent"))
-                    }
-                    .padding(.bottom, 24)
-
-                    // Headline
-                    VStack(spacing: 12) {
-                        Text("Unlock your\nAI memory.")
-                            .font(.system(size: 38, weight: .bold))
-                            .foregroundStyle(Color("EEONTextPrimary"))
-                            .tracking(-0.5)
-                            .multilineTextAlignment(.center)
-
-                        Text("Unlimited voice notes, AI extraction,\nand everything you need to never forget.")
-                            .font(.system(size: 17))
-                            .foregroundStyle(Color("EEONTextSecondary"))
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(5)
-                    }
-
-                    Spacer().frame(height: 32)
-
-                    // Feature list — glass-backed card
-                    VStack(spacing: 14) {
-                        paywallFeature("infinity", "Unlimited voice notes")
-                        paywallFeature("sparkles", "AI enhances every thought")
-                        paywallFeature("magnifyingglass", "Ask your memory anything")
-                        paywallFeature("person.2", "People & commitment tracking")
-                        paywallFeature("bell.badge", "Proactive stale reminders")
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 20)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color("EEONCardBackground").opacity(0.6))
-                    )
-                    .padding(.horizontal, 28)
-
-                    Spacer().frame(height: 28)
-
-                    // Subscription options
-                    subscriptionSection
-                        .padding(.horizontal, 28)
-
-                    Spacer().frame(height: 24)
-
-                    // CTA
-                    ctaSection
-                        .padding(.horizontal, 28)
-
-                    // Legal
-                    legalSection
-                        .padding(.top, 20)
-
-                    Spacer().frame(height: 20)
+        HStack(alignment: .top, spacing: 16) {
+            // Left: circle + connecting line
+            VStack(spacing: 0) {
+                ZStack {
+                    Circle()
+                        .fill(isActive ? Color("EEONAccent").opacity(0.15) : Color(.systemGray5))
+                        .frame(width: 48, height: 48)
+                    Text(emoji)
+                        .font(.system(size: 22))
+                }
+                if !isLast {
+                    Rectangle()
+                        .fill(Color(.systemGray4))
+                        .frame(width: 2, height: 40)
                 }
             }
-        }
-        .alert("Purchase Error", isPresented: $showError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(errorMessage ?? "Something went wrong")
-        }
-        .task {
-            // Auto-check subscription status — skip paywall if already subscribed
-            await subscriptionManager.updateSubscriptionStatus()
-            if subscriptionManager.isSubscribed {
-                OnboardingState.set(.completed)
-                return
+
+            // Right: text
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color("EEONTextPrimary"))
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-
-            // Load products if needed
-            if subscriptionManager.products.isEmpty {
-                await subscriptionManager.loadProducts()
-            }
-        }
-    }
-
-    // MARK: - Feature Row (matches onboarding style)
-
-    private func paywallFeature(_ icon: String, _ text: String) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Color("EEONTextSecondary"))
-                .frame(width: 24, height: 24)
-
-            Text(text)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Color("EEONTextPrimary").opacity(0.8))
+            .padding(.top, 8)
 
             Spacer()
         }
     }
+}
 
-    // MARK: - Subscription Section
+// MARK: - Onboarding Paywall View
 
-    private var subscriptionSection: some View {
-        Group {
-            if subscriptionManager.isLoading && subscriptionManager.products.isEmpty {
-                ProgressView()
-                    .tint(.white)
-                    .padding(.vertical, 40)
-            } else if subscriptionManager.products.isEmpty {
+struct OnboardingPaywallView: View {
+
+    @State private var errorMessage: String?
+    @State private var showError = false
+
+    private let authService = AuthService.shared
+
+    var body: some View {
+        ZStack {
+            Color("EEONBackground").ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Close button — top left
+                HStack {
+                    Button {
+                        OnboardingState.set(.completed)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Color("EEONTextPrimary").opacity(0.5))
+                            .frame(width: 32, height: 32)
+                            .background(Color(.systemGray5).opacity(0.6))
+                            .clipShape(Circle())
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+
+                        // Hero emoji
+                        Text("\u{1f3a4}")
+                            .font(.system(size: 80))
+                            .padding(.top, 24)
+                            .padding(.bottom, 20)
+
+                        // Headline — "See how free works" with coral "free"
+                        (
+                            Text("See how ")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundStyle(Color("EEONTextPrimary"))
+                            + Text("free")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundStyle(Color("EEONAccent"))
+                            + Text(" works")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundStyle(Color("EEONTextPrimary"))
+                        )
+                        .multilineTextAlignment(.center)
+                        .padding(.bottom, 36)
+
+                        // Timeline section
+                        VStack(spacing: 0) {
+                            TimelineStep(
+                                emoji: "\u{1f399}\u{fe0f}",
+                                isActive: true,
+                                title: "Today \u{2014} start recording",
+                                subtitle: "5 free voice notes with full AI enhancement",
+                                isLast: false
+                            )
+
+                            TimelineStep(
+                                emoji: "\u{2728}",
+                                isActive: false,
+                                title: "Hit the limit",
+                                subtitle: "Love it? Upgrade for unlimited notes and AI memory",
+                                isLast: false
+                            )
+
+                            TimelineStep(
+                                emoji: "\u{1f680}",
+                                isActive: false,
+                                title: "Go unlimited",
+                                subtitle: "Ask your memory anything. Never forget what matters.",
+                                isLast: true
+                            )
+                        }
+                        .padding(.horizontal, 28)
+
+                        Spacer().frame(height: 40)
+                    }
+                }
+
+                // Bottom pinned section
                 VStack(spacing: 12) {
-                    Text("Unable to load plans")
-                        .foregroundStyle(Color("EEONTextSecondary"))
-                    Button("Retry") {
-                        Task {
-                            await subscriptionManager.loadProducts()
-                        }
-                    }
-                    .foregroundStyle(.blue)
-                }
-                .padding(.vertical, 20)
-            } else {
-                VStack(spacing: 10) {
-                    // Annual (recommended)
-                    if let annual = subscriptionManager.annualProduct {
-                        PlanOption(
-                            title: "Annual",
-                            price: annual.displayPrice,
-                            period: "year",
-                            subtitle: monthlyEquivalent(for: annual),
-                            badge: savingsBadge(for: annual),
-                            isSelected: selectedProductID == annual.id
-                        ) {
-                            selectedProductID = annual.id
-                        }
-                    }
+                    // Pricing text
+                    Text("$9.99/month or $79.99/year")
+                        .font(.subheadline)
+                        .foregroundStyle(Color("EEONTextPrimary").opacity(0.5))
 
-                    // Monthly
-                    if let monthly = subscriptionManager.monthlyProduct {
-                        PlanOption(
-                            title: "Monthly",
-                            price: monthly.displayPrice,
-                            period: "month",
-                            subtitle: nil,
-                            badge: nil,
-                            isSelected: selectedProductID == monthly.id
-                        ) {
-                            selectedProductID = monthly.id
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func monthlyEquivalent(for product: Product) -> String? {
-        guard let monthly = product.monthlyEquivalentPrice else { return nil }
-        return "\(monthly.formatted(.currency(code: "USD")))/month"
-    }
-
-    private func savingsBadge(for product: Product) -> String? {
-        guard let monthlyProduct = subscriptionManager.monthlyProduct,
-              let annualMonthly = product.monthlyEquivalentPrice else { return nil }
-        let monthlyPrice = monthlyProduct.price
-        let savings = (1 - (annualMonthly / monthlyPrice)) * 100
-        let percent = Int(NSDecimalNumber(decimal: savings).doubleValue)
-        return percent > 0 ? "Save \(percent)%" : nil
-    }
-
-    // MARK: - CTA Section
-
-    private var ctaSection: some View {
-        VStack(spacing: 16) {
-            // Subscribe button
-            Button(action: handlePurchase) {
-                HStack(spacing: 8) {
-                    if isPurchasing {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Text("Start Pro")
+                    // CTA button
+                    Button {
+                        OnboardingState.set(.completed)
+                    } label: {
+                        Text("Start with 5 free notes")
                             .font(.body.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 18)
+                            .background(Color("EEONAccent"))
+                            .foregroundStyle(.white)
+                            .cornerRadius(14)
                     }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
-                .background(Color("EEONAccent"))
-                .foregroundStyle(.white)
-                .cornerRadius(14)
-            }
-            .disabled(isPurchasing || subscriptionManager.products.isEmpty)
-            .opacity(subscriptionManager.products.isEmpty ? 0.5 : 1)
 
-            // Skip button
-            Button {
-                OnboardingState.set(.completed)
-            } label: {
-                Text("Try 5 free notes first")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color("EEONTextSecondary"))
-                    .underline()
-            }
-
-            // Restore purchases
-            Button("Restore Purchases") {
-                Task {
-                    await subscriptionManager.restorePurchases()
-                    if subscriptionManager.isSubscribed {
-                        OnboardingState.set(.completed)
+                    // Sign in link
+                    Button {
+                        triggerSignInWithApple()
+                    } label: {
+                        Text("Already have an account? Sign in")
+                            .font(.subheadline)
+                            .foregroundStyle(Color("EEONTextPrimary").opacity(0.5))
                     }
+                    .padding(.top, 4)
+
+                    // Legal links
+                    HStack(spacing: 4) {
+                        Link("Terms of use", destination: URL(string: "https://eeon.com/terms")!)
+                        Text("|")
+                        Link("Privacy policy", destination: URL(string: "https://eeon.com/privacy")!)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Color("EEONTextPrimary").opacity(0.35))
+                    .padding(.top, 2)
                 }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 16)
             }
-            .font(.caption)
-            .foregroundStyle(Color("EEONTextSecondary").opacity(0.6))
-            .padding(.top, 2)
+        }
+        .alert("Sign In Error", isPresented: $showError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage ?? "Something went wrong")
         }
     }
 
-    // MARK: - Legal Section
+    // MARK: - Sign in with Apple
 
-    private var legalSection: some View {
-        VStack(spacing: 6) {
-            Text("Cancel anytime. Payment charged to Apple ID.")
-                .font(.caption2)
-                .foregroundStyle(Color("EEONTextSecondary").opacity(0.5))
+    private func triggerSignInWithApple() {
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
+        request.requestedScopes = [.fullName, .email]
 
-            HStack(spacing: 16) {
-                Link("Terms", destination: URL(string: "https://eeon.com/terms")!)
-                Link("Privacy", destination: URL(string: "https://eeon.com/privacy")!)
-            }
-            .font(.caption2)
-            .foregroundStyle(Color("EEONTextSecondary").opacity(0.5))
-        }
-        .padding(.bottom, 16)
-    }
-
-    // MARK: - Purchase Handler
-
-    private func handlePurchase() {
-        print("StoreKit: handlePurchase called. selectedProductID=\(selectedProductID), products=\(subscriptionManager.products.map { $0.id })")
-        guard let product = subscriptionManager.products.first(where: { $0.id == selectedProductID }) else {
-            print("StoreKit: No product found for \(selectedProductID)!")
-            errorMessage = "Product not available. Please try again."
-            showError = true
-            return
-        }
-
-        isPurchasing = true
-
-        Task {
-            do {
-                let success = try await subscriptionManager.purchase(product)
-
-                await MainActor.run {
-                    isPurchasing = false
-                    if success {
-                        OnboardingState.set(.completed)
-                    }
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        let delegate = SignInDelegate { result in
+            switch result {
+            case .success(let authorization):
+                authService.handleSignInResult(.success(authorization))
+                if authService.isSignedIn {
+                    OnboardingState.set(.completed)
                 }
-            } catch {
-                await MainActor.run {
-                    isPurchasing = false
-                    errorMessage = error.localizedDescription
-                    showError = true
-                }
+            case .failure(let error):
+                errorMessage = error.localizedDescription
+                showError = true
             }
         }
+        // Store delegate to keep it alive
+        SignInDelegate.current = delegate
+        controller.delegate = delegate
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = scene.windows.first {
+            let contextProvider = SignInPresentationContext(window: window)
+            controller.presentationContextProvider = contextProvider
+            SignInPresentationContext.current = contextProvider
+        }
+        controller.performRequests()
     }
 }
 
-// MARK: - Plan Option
+// MARK: - Sign In Helpers
 
-struct PlanOption: View {
-    let title: String
-    let price: String
-    let period: String
-    let subtitle: String?
-    let badge: String?
-    let isSelected: Bool
-    let onSelect: () -> Void
+private class SignInDelegate: NSObject, ASAuthorizationControllerDelegate {
+    static var current: SignInDelegate?
+    let completion: (Result<ASAuthorization, Error>) -> Void
 
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 14) {
-                // Selection indicator
-                ZStack {
-                    Circle()
-                        .stroke(isSelected ? Color("EEONAccent") : Color("EEONTextSecondary").opacity(0.3), lineWidth: 1.5)
-                        .frame(width: 22, height: 22)
+    init(completion: @escaping (Result<ASAuthorization, Error>) -> Void) {
+        self.completion = completion
+    }
 
-                    if isSelected {
-                        Circle()
-                            .fill(Color("EEONAccent"))
-                            .frame(width: 12, height: 12)
-                    }
-                }
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        completion(.success(authorization))
+        SignInDelegate.current = nil
+    }
 
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 8) {
-                        Text(title)
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(Color("EEONTextPrimary"))
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        completion(.failure(error))
+        SignInDelegate.current = nil
+    }
+}
 
-                        if let badge = badge {
-                            Text(badge)
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(
-                                    Capsule()
-                                        .fill(Color("EEONAccent"))
-                                )
-                        }
-                    }
+private class SignInPresentationContext: NSObject, ASAuthorizationControllerPresentationContextProviding {
+    static var current: SignInPresentationContext?
+    let window: UIWindow
 
-                    if let subtitle = subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(Color("EEONTextSecondary"))
-                    }
-                }
+    init(window: UIWindow) {
+        self.window = window
+    }
 
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(price)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(Color("EEONTextPrimary"))
-                    Text("/\(period)")
-                        .font(.caption)
-                        .foregroundStyle(Color("EEONTextSecondary"))
-                }
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 18)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color("EEONCardBackground").opacity(isSelected ? 0.8 : 0.4))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(isSelected ? Color("EEONAccent").opacity(0.5) : Color("EEONDivider").opacity(0.3), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.2), value: isSelected)
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        window
     }
 }
 
