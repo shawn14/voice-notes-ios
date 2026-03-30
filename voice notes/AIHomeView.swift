@@ -210,8 +210,8 @@ struct AIHomeView: View {
                                 // 3. Note feed with tabs
                                 noteFeed
 
-                                // Spacer for bottom bar
-                                Color.clear.frame(height: 90)
+                                // Spacer so content doesn't show behind bottom bar
+                                Color.clear.frame(height: 20)
                             }
                             .padding(.top, 8)
                         }
@@ -565,9 +565,9 @@ struct AIHomeView: View {
             .frame(maxWidth: .infinity)
         }
         .padding(.top, 8)
-        .padding(.bottom, 0)
         .background(
             Color.eeonBackground
+                .ignoresSafeArea(edges: .bottom)
                 .shadow(color: Color.eeonTextPrimary.opacity(0.08), radius: 4, y: -2)
         )
     }
