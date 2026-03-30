@@ -70,7 +70,7 @@ struct SharedDefaults {
         suite.integer(forKey: totalNotesKey)
     }
 
-    static let freeNoteLimit = 10
+    static let freeNoteLimit = 5
 
     static var freeNotesRemaining: Int {
         max(0, freeNoteLimit - noteCount)

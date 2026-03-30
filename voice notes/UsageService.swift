@@ -2,7 +2,7 @@
 //  UsageService.swift
 //  voice notes
 //
-//  Simple monetization: 10 free notes, then pay
+//  Simple monetization: 5 free notes, then pay
 //
 
 import Foundation
@@ -26,7 +26,7 @@ class UsageService {
 
     // MARK: - Constants
 
-    static let freeNoteLimit = 10
+    static let freeNoteLimit = 5
 
     // MARK: - Core State
 
@@ -102,8 +102,8 @@ class UsageService {
     }
 
     func shouldShowPaywall() -> Bool {
-        // Show when they hit the limit
-        !isPro && noteCount >= UsageService.freeNoteLimit && !hasShownPaywall
+        // Show every time they try to create a note past the limit
+        !isPro && noteCount >= UsageService.freeNoteLimit
     }
 
     // MARK: - Recording Time (kept for stats display)

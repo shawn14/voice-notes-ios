@@ -30,7 +30,7 @@ struct PaywallView: View {
                     .padding(.top, 32)
 
                 // Headline
-                Text("You've used your 10 free notes")
+                Text("You've reached 5 notes")
                     .font(.title2.weight(.bold))
                     .multilineTextAlignment(.center)
 

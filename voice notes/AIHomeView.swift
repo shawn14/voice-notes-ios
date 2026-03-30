@@ -780,7 +780,7 @@ struct AIHomeView: View {
                     }
                     .padding(.horizontal, 20)
 
-                    Text("10 free notes \u{00B7} No credit card required")
+                    Text("5 free notes \u{00B7} No credit card required")
                         .font(.caption)
                         .foregroundStyle(.eeonTextSecondary)
                 }
