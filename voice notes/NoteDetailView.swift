@@ -94,6 +94,7 @@ struct NoteDetailView: View {
     @State private var isProcessingImage = false
     @State private var selectedImageForFullscreen: String?
     @State private var showingFullscreenImage = false
+    @State private var showingBottomPhotoPicker = false
 
     // Transcript collapsed state
     @State private var showingTranscript = false
@@ -169,81 +170,28 @@ struct NoteDetailView: View {
                         titleRow
                             .padding(.bottom, 24)
 
-                        // 3. Body text (hero content)
-                        enhancedNoteSection
-                            .padding(.bottom, 20)
-
-                        // 4. Transform output (if any active rewrite)
-                        if let output = note.activeRewriteText, let typeRaw = note.activeRewriteType, !output.isEmpty {
-                            transformOutputSection(output: output, typeRaw: typeRaw)
-                                .padding(.bottom, 20)
+                        // 3. Enhanced / Original toggle
+                        if note.enhancedNoteText != nil && !(note.enhancedNoteText?.isEmpty ?? true),
+                           let transcript = note.transcript, !transcript.isEmpty {
+                            enhancedOriginalToggle
+                                .padding(.bottom, 12)
                         }
 
+                        // 4. Body text (hero content)
+                        noteBodySection
+                            .padding(.bottom, 20)
+
                         // 5. AI generating indicator
-                        if isGeneratingAI {
+                        if isGeneratingAI || isRewriting {
                             HStack(spacing: 12) {
                                 ProgressView()
                                     .tint(.blue)
-                                Text("Transforming...")
+                                Text(isRewriting ? "Rewriting..." : "Transforming...")
                                     .font(.subheadline)
                                     .foregroundStyle(.gray)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 20)
-                        }
-
-                        // 6. Next step card (if exists)
-                        if let nextStep = note.suggestedNextStep, !nextStep.isEmpty, !note.isNextStepResolved {
-                            nextStepCard(nextStep: nextStep)
-                                .padding(.bottom, 16)
-                        }
-
-                        // 7. Extraction section (collapsed by default)
-                        if hasExtractions {
-                            extractionSection
-                                .padding(.bottom, 16)
-                        }
-
-                        // 8. Collapsible transcript
-                        if let transcript = note.transcript, !transcript.isEmpty {
-                            transcriptSection(transcript: transcript)
-                                .padding(.bottom, 16)
-                        }
-
-                        // 9. Images (if any)
-                        if note.hasImages {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Attachments")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.gray)
-
-                                ImageGalleryView(
-                                    imageFileNames: note.imageFileNames,
-                                    onImageTap: { fileName in
-                                        selectedImageForFullscreen = fileName
-                                        showingFullscreenImage = true
-                                    },
-                                    onImageDelete: { fileName in
-                                        ImageService.deleteImage(fileName: fileName)
-                                        note.removeImageFileName(fileName)
-                                    }
-                                )
-                            }
-                            .padding(.bottom, 16)
-                        }
-
-                        // 10. Links (if any)
-                        if !noteURLs.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Links")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.gray)
-
-                                ForEach(noteURLs) { extractedURL in
-                                    URLPreviewCard(extractedURL: extractedURL)
-                                }
-                            }
-                            .padding(.bottom, 16)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -275,6 +223,7 @@ struct NoteDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: { dismiss() }) {
@@ -448,6 +397,7 @@ struct NoteDetailView: View {
                 }
             )
         }
+        .photosPicker(isPresented: $showingBottomPhotoPicker, selection: $selectedPhotoItem, matching: .images)
         .sheet(isPresented: $showingRewriteSheet) {
             RewriteTemplatePickerSheet { template in
                 handleRewriteTemplate(template)
@@ -585,30 +535,68 @@ struct NoteDetailView: View {
         !note.mentionedPeople.isEmpty || !note.topics.isEmpty
     }
 
-    // MARK: - Enhanced Note Section (Hero Content)
+    // MARK: - Enhanced / Original Toggle
+
+    private var enhancedOriginalToggle: some View {
+        HStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showingOriginal = false
+                }
+            } label: {
+                Text("Enhanced")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(!showingOriginal ? .white : .gray)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(!showingOriginal ? Color(.systemGray4) : Color.clear)
+                    )
+            }
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showingOriginal = true
+                }
+            } label: {
+                Text("Original")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(showingOriginal ? .white : .gray)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(showingOriginal ? Color(.systemGray4) : Color.clear)
+                    )
+            }
+        }
+        .padding(2)
+        .background(
+            Capsule()
+                .fill(Color(.systemGray6).opacity(0.3))
+        )
+    }
+
+    // MARK: - Note Body Section (Hero Content)
 
     @ViewBuilder
-    private var enhancedNoteSection: some View {
-        if let enhanced = note.enhancedNoteText, !enhanced.isEmpty {
-            Text(enhanced)
+    private var noteBodySection: some View {
+        let displayText: String = {
+            if showingOriginal {
+                return note.transcript ?? note.content
+            } else {
+                return note.enhancedNoteText ?? note.transcript ?? note.content
+            }
+        }()
+
+        if !displayText.isEmpty {
+            Text(displayText)
                 .font(.body.leading(.loose))
                 .foregroundStyle(.white.opacity(0.95))
                 .lineSpacing(6)
                 .textSelection(.enabled)
-                .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6).opacity(0.15))
-                .cornerRadius(14)
-        } else if !note.content.isEmpty {
-            Text(String(note.content.prefix(500)) + (note.content.count > 500 ? "..." : ""))
-                .font(.body.leading(.loose))
-                .foregroundStyle(.white.opacity(0.9))
-                .lineSpacing(5)
-                .textSelection(.enabled)
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6).opacity(0.15))
-                .cornerRadius(14)
         }
     }
 
@@ -887,7 +875,7 @@ struct NoteDetailView: View {
 
                 // Photo picker
                 Button {
-                    // Trigger photo picker from menu — uses the existing onChange handler
+                    showingBottomPhotoPicker = true
                 } label: {
                     Label("Add Photo", systemImage: "photo.badge.plus")
                 }
