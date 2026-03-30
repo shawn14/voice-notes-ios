@@ -75,6 +75,7 @@ struct AIHomeView: View {
     @State private var sortNewestFirst = true
     @State private var selectedTagFilter: Tag?
     @State private var showingTagManagement = false
+    @State private var showingTagFilter = false
 
     // Today's daily brief
     private var todaysBrief: DailyBrief? {
@@ -91,6 +92,15 @@ struct AIHomeView: View {
             decisions: extractedDecisions,
             people: mentionedPeople
         )
+    }
+
+    /// Tags sorted by note count descending
+    private var sortedTags: [Tag] {
+        tags.sorted { (($0.notes ?? []).count) > (($1.notes ?? []).count) }
+    }
+
+    private func tagNoteCount(_ tag: Tag) -> Int {
+        (tag.notes ?? []).count
     }
 
     /// Filtered notes based on selected tab and optional tag filter
@@ -250,6 +260,10 @@ struct AIHomeView: View {
             .sheet(isPresented: $showingTagManagement) {
                 TagManagementSheet()
             }
+            .sheet(isPresented: $showingTagFilter) {
+                TagFilterSheet(selectedTagFilter: $selectedTagFilter)
+                    .presentationDetents([.medium])
+            }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -319,9 +333,9 @@ struct AIHomeView: View {
 
             Spacer()
 
-            // Tag management
+            // Tag filter
             Button {
-                showingTagManagement = true
+                showingTagFilter = true
             } label: {
                 Image(systemName: "tag")
                     .font(.system(size: 16))
@@ -578,6 +592,61 @@ struct AIHomeView: View {
             }
             .padding(.horizontal)
             .padding(.bottom, 8)
+
+            // Tag chip strip (hidden on AI tab and when no tags)
+            if selectedTab != .ai && !tags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        // Show tags sorted by note count, top 12
+                        ForEach(sortedTags.prefix(12)) { tag in
+                            Button {
+                                if selectedTagFilter?.id == tag.id {
+                                    selectedTagFilter = nil
+                                } else {
+                                    selectedTagFilter = tag
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(tag.name)
+                                    Text("(\(tagNoteCount(tag)))")
+                                        .font(.caption2)
+                                }
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    selectedTagFilter?.id == tag.id
+                                        ? Color.eeonAccent
+                                        : Color.eeonCard
+                                )
+                                .foregroundStyle(
+                                    selectedTagFilter?.id == tag.id
+                                        ? .white
+                                        : .eeonTextSecondary
+                                )
+                                .cornerRadius(16)
+                            }
+                        }
+
+                        // "+N more" pill if there are more than 12 tags
+                        if sortedTags.count > 12 {
+                            Button {
+                                showingTagFilter = true
+                            } label: {
+                                Text("+\(sortedTags.count - 12) more")
+                                    .font(.caption.weight(.medium))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.eeonCard)
+                                    .foregroundStyle(.eeonTextTertiary)
+                                    .cornerRadius(16)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.bottom, 4)
+            }
 
             // Active tag filter chip
             if let tag = selectedTagFilter {
