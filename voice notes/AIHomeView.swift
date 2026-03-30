@@ -369,6 +369,11 @@ struct AIHomeView: View {
         } else {
             timeGreeting = "Good evening"
         }
+        // Add first name if signed in
+        if authService.isSignedIn, let fullName = authService.userName {
+            let firstName = fullName.split(separator: " ").first.map(String.init) ?? fullName
+            return "\(timeGreeting), \(firstName)"
+        }
         return timeGreeting
     }
 
