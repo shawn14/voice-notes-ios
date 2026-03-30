@@ -797,11 +797,7 @@ struct NoteDetailView: View {
                 ZStack {
                     Circle()
                         .fill(
-                            LinearGradient(
-                                colors: isRewriting ? [.gray] : [.purple, .blue],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                            isRewriting ? Color.gray : Color.blue
                         )
                         .frame(width: 48, height: 48)
 
@@ -815,7 +811,7 @@ struct NoteDetailView: View {
                             .foregroundStyle(.white)
                     }
                 }
-                .shadow(color: .purple.opacity(0.3), radius: 8, y: 2)
+                .shadow(color: .blue.opacity(0.3), radius: 8, y: 2)
             }
             .disabled(isRewriting)
             .frame(maxWidth: .infinity)
