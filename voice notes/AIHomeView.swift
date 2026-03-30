@@ -201,16 +201,13 @@ struct AIHomeView: View {
                                 noteFeed
 
                                 // Spacer for bottom bar
-                                Color.clear.frame(height: 100)
+                                Color.clear.frame(height: 90)
                             }
                             .padding(.top, 8)
                         }
                     }
                 }
-
-                // Bottom bar
-                VStack {
-                    Spacer()
+                .safeAreaInset(edge: .bottom) {
                     bottomBar
                 }
 
@@ -519,7 +516,7 @@ struct AIHomeView: View {
                 }
             }
             .disabled(isTranscribing)
-            .offset(y: -12)
+            .offset(y: -6)
 
             // Search button (right)
             Button {
@@ -531,12 +528,11 @@ struct AIHomeView: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .padding(.top, 10)
-        .padding(.bottom, 24)
+        .padding(.top, 8)
+        .padding(.bottom, 0)
         .background(
             Color.eeonBackground
-                .ignoresSafeArea()
-                .shadow(color: Color.eeonTextPrimary.opacity(0.15), radius: 8, y: -4)
+                .shadow(color: Color.eeonTextPrimary.opacity(0.08), radius: 4, y: -2)
         )
     }
 
