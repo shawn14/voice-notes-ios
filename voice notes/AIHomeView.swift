@@ -296,6 +296,9 @@ struct AIHomeView: View {
             }
             .onAppear {
                 trackSession()
+                // Sync free note counter with actual database count
+                let actualCount = notes.filter { !$0.isArchived }.count
+                UsageService.shared.syncNoteCount(actualCount: actualCount)
             }
         }
     }
