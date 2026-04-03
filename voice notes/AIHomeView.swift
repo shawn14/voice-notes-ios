@@ -205,8 +205,8 @@ struct AIHomeView: View {
                                 }
                             }
 
-                            // Knowledge articles (pro only)
-                            if UsageService.shared.isPro && !knowledgeArticles.isEmpty {
+                            // Knowledge articles
+                            if !knowledgeArticles.isEmpty {
                                 knowledgeCardsSection
                             }
 

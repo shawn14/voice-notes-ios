@@ -30,9 +30,6 @@ final class KnowledgeCompiler {
     /// Sets isDirty = true on each. Zero API calls.
     @MainActor
     func markAffectedArticles(note: Note, context: ModelContext) {
-        // Only compile for pro users
-        guard UsageService.shared.isPro else { return }
-
         let allArticles = (try? context.fetch(FetchDescriptor<KnowledgeArticle>())) ?? []
 
         // People mentioned in this note
@@ -104,9 +101,6 @@ final class KnowledgeCompiler {
 
     /// Recompile articles marked dirty. Max 5 per pass, 15-min cooldown.
     func recompileDirtyArticles(context: ModelContext) async {
-        // Only compile for pro users
-        guard UsageService.shared.isPro else { return }
-
         // 15-minute cooldown
         if let lastCompile = lastCompileAt,
            Date().timeIntervalSince(lastCompile) < 15 * 60 {
@@ -209,7 +203,6 @@ final class KnowledgeCompiler {
 
     /// Scan all articles for stale threads, contradictions, and gaps.
     func lintArticles(context: ModelContext) async -> [KnowledgeLintResult] {
-        guard UsageService.shared.isPro else { return [] }
         guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else { return [] }
 
         let allArticles = (try? context.fetch(FetchDescriptor<KnowledgeArticle>())) ?? []
