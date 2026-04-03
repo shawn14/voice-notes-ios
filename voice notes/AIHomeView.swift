@@ -28,6 +28,7 @@ struct AIHomeView: View {
     @Query private var extractedDecisions: [ExtractedDecision]
     @Query private var mentionedPeople: [MentionedPerson]
     @Query private var unresolvedItems: [UnresolvedItem]
+    @Query(sort: \KnowledgeArticle.lastMentionedAt, order: .reverse) private var knowledgeArticles: [KnowledgeArticle]
 
     @Binding var shouldStartRecording: Bool
 
@@ -202,6 +203,11 @@ struct AIHomeView: View {
                                     freeNotesWarning(remaining: remaining)
                                         .padding(.horizontal)
                                 }
+                            }
+
+                            // Knowledge articles (pro only)
+                            if UsageService.shared.isPro && !knowledgeArticles.isEmpty {
+                                knowledgeCardsSection
                             }
 
                             // 3. Note feed with tabs
@@ -512,6 +518,38 @@ struct AIHomeView: View {
         .padding(.vertical, 10)
         .background(Color.orange.opacity(0.15))
         .cornerRadius(10)
+    }
+
+    // MARK: - Knowledge Cards
+
+    @ViewBuilder
+    private var knowledgeCardsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Knowledge")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.eeonTextPrimary)
+
+                Spacer()
+
+                Text("\(knowledgeArticles.count) articles")
+                    .font(.caption)
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+            .padding(.horizontal)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(knowledgeArticles.prefix(10)) { article in
+                        NavigationLink(destination: KnowledgeArticleDetailView(article: article)) {
+                            KnowledgeCardView(article: article)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
     }
 
     // MARK: - 3. Bottom Bar (Write / Mic / Search)
