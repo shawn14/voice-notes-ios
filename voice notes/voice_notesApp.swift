@@ -262,6 +262,9 @@ struct voice_notesApp: App {
             unresolved: unresolved
         )
 
+        // Tier 2.5: Recompile dirty knowledge articles (API calls, pro only)
+        await KnowledgeCompiler.shared.recompileDirtyArticles(context: context)
+
         // Tier 3: Check and generate daily brief if needed (one AI call per day)
         await IntelligenceService.shared.checkAndGenerateDailyBrief(
             context: context,

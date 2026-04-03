@@ -378,7 +378,13 @@ final class IntelligenceService {
                 unresolved: unresolved
             )
 
+            // Tier 3: Lint knowledge articles
+            let lintResults = await KnowledgeCompiler.shared.lintArticles(context: context)
+
             await MainActor.run {
+                if !lintResults.isEmpty {
+                    brief.lintResults = lintResults
+                }
                 context.insert(brief)
                 try? context.save()
                 UserDefaults.standard.set(Date(), forKey: Keys.lastDailyBriefDate)

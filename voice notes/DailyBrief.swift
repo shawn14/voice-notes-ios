@@ -26,6 +26,7 @@ final class DailyBrief {
     var suggestedActionsData: Data = Data()
     var highlightsData: Data = Data()
     var warningsData: Data = Data()
+    var lintResultsData: Data = Data()
 
     // Completed suggested action tracking (JSON-encoded array of content strings)
     var completedSuggestedActionsData: Data = Data()
@@ -93,6 +94,16 @@ final class DailyBrief {
         }
         set {
             warningsData = (try? JSONEncoder().encode(newValue)) ?? Data()
+        }
+    }
+
+    var lintResults: [KnowledgeLintResult] {
+        get {
+            guard !lintResultsData.isEmpty else { return [] }
+            return (try? JSONDecoder().decode([KnowledgeLintResult].self, from: lintResultsData)) ?? []
+        }
+        set {
+            lintResultsData = (try? JSONEncoder().encode(newValue)) ?? Data()
         }
     }
 

@@ -99,4 +99,143 @@ final class KnowledgeCompiler {
         article.updatedAt = Date()
         article.addLinkedNote(id: noteId)
     }
+
+    // MARK: - Tier 2.5: Recompile Dirty Articles (on app foreground, API calls)
+
+    /// Recompile articles marked dirty. Max 5 per pass, 15-min cooldown.
+    func recompileDirtyArticles(context: ModelContext) async {
+        // Only compile for pro users
+        guard UsageService.shared.isPro else { return }
+
+        // 15-minute cooldown
+        if let lastCompile = lastCompileAt,
+           Date().timeIntervalSince(lastCompile) < 15 * 60 {
+            return
+        }
+
+        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else { return }
+        guard !isCompiling else { return }
+
+        await MainActor.run { isCompiling = true }
+
+        defer {
+            Task { @MainActor in
+                isCompiling = false
+                lastCompileAt = Date()
+                UserDefaults.standard.set(Date(), forKey: Keys.lastCompileDate)
+            }
+        }
+
+        // Fetch dirty articles, sorted by most recently mentioned
+        var descriptor = FetchDescriptor<KnowledgeArticle>(
+            predicate: #Predicate { $0.isDirty == true },
+            sortBy: [SortDescriptor(\.lastMentionedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 5
+
+        guard let dirtyArticles = try? context.fetch(descriptor), !dirtyArticles.isEmpty else {
+            return
+        }
+
+        // Fetch all notes for lookups
+        let allNotes = (try? context.fetch(FetchDescriptor<Note>())) ?? []
+        let noteLookup = Dictionary(uniqueKeysWithValues: allNotes.map { ($0.id, $0) })
+
+        for article in dirtyArticles {
+            do {
+                // Get new notes since last compile
+                let linkedIds = article.linkedNoteIds
+                let newNotes: [Note]
+                if let lastCompiled = article.lastCompiledNoteDate {
+                    newNotes = linkedIds.compactMap { noteLookup[$0] }
+                        .filter { $0.createdAt > lastCompiled }
+                        .sorted { $0.createdAt < $1.createdAt }
+                } else {
+                    // First compile — include all linked notes
+                    newNotes = linkedIds.compactMap { noteLookup[$0] }
+                        .sorted { $0.createdAt < $1.createdAt }
+                }
+
+                guard !newNotes.isEmpty else {
+                    await MainActor.run { article.isDirty = false }
+                    continue
+                }
+
+                let noteTexts = newNotes.map { note -> String in
+                    let text = note.enhancedNoteText ?? note.transcript ?? note.content
+                    let dateStr = note.createdAt.formatted(date: .abbreviated, time: .shortened)
+                    return "[\(dateStr)] \(String(text.prefix(500)))"
+                }
+
+                let response = try await SummaryService.compileArticle(
+                    existingSummary: article.summary.isEmpty ? nil : article.summary,
+                    existingOpenThreads: article.openThreads,
+                    existingTimeline: article.timeline,
+                    existingConnections: article.connections,
+                    existingSentimentArc: article.sentimentArc,
+                    existingDecisions: article.decisions,
+                    existingRelationshipContext: article.relationshipContext,
+                    existingThinkingEvolution: article.thinkingEvolution,
+                    articleName: article.name,
+                    articleType: article.articleType,
+                    newNoteTexts: noteTexts,
+                    apiKey: apiKey
+                )
+
+                await MainActor.run {
+                    article.summary = response.summary
+                    if let threads = response.openThreads { article.openThreads = threads }
+                    if let timeline = response.timeline { article.timeline = timeline }
+                    if let connections = response.connections { article.connections = connections }
+                    if let arc = response.sentimentArc { article.sentimentArc = arc }
+                    if let decisions = response.decisions { article.decisions = decisions }
+                    if let rel = response.relationshipContext { article.relationshipContext = rel }
+                    if let evolution = response.thinkingEvolution { article.thinkingEvolution = evolution }
+
+                    article.isDirty = false
+                    article.lastCompiledAt = Date()
+                    article.lastCompiledNoteDate = newNotes.last?.createdAt
+                    article.updatedAt = Date()
+
+                    try? context.save()
+                }
+            } catch {
+                print("[KnowledgeCompiler] Failed to compile article '\(article.name)': \(error)")
+            }
+        }
+    }
+
+    // MARK: - Tier 3: Lint Articles (daily, one API call)
+
+    /// Scan all articles for stale threads, contradictions, and gaps.
+    func lintArticles(context: ModelContext) async -> [KnowledgeLintResult] {
+        guard UsageService.shared.isPro else { return [] }
+        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else { return [] }
+
+        let allArticles = (try? context.fetch(FetchDescriptor<KnowledgeArticle>())) ?? []
+        guard !allArticles.isEmpty else { return [] }
+
+        let summaries = allArticles.map { article -> (name: String, type: String, summary: String, openThreadCount: Int, daysSinceLastMention: Int) in
+            let daysSince: Int
+            if let last = article.lastMentionedAt {
+                daysSince = Calendar.current.dateComponents([.day], from: last, to: Date()).day ?? 0
+            } else {
+                daysSince = Int.max
+            }
+            return (
+                name: article.name,
+                type: article.articleType.label,
+                summary: article.summary.isEmpty ? "(no summary yet)" : article.summary,
+                openThreadCount: article.openThreads.count,
+                daysSinceLastMention: daysSince
+            )
+        }
+
+        do {
+            return try await SummaryService.lintArticles(articleSummaries: summaries, apiKey: apiKey)
+        } catch {
+            print("[KnowledgeCompiler] Lint failed: \(error)")
+            return []
+        }
+    }
 }
