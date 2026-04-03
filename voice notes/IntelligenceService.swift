@@ -174,6 +174,11 @@ final class IntelligenceService {
         // Update counters
         StatusCounters.shared.incrementNotesToday()
         StatusCounters.shared.markSessionStale()
+
+        // Mark knowledge articles dirty for Tier 2.5 compile
+        await MainActor.run {
+            KnowledgeCompiler.shared.markAffectedArticles(note: note, context: context)
+        }
     }
 
     // MARK: - URL Processing
