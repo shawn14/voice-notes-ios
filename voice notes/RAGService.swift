@@ -36,7 +36,7 @@ class RAGService {
 
     /// Answer a question using RAG over the user's notes.
     /// Pipeline: embed query -> vector search -> keyword search -> merge -> GPT answer with citations.
-    func answerQuestion(query: String, allNotes: [Note]) async throws -> RAGResponse {
+    func answerQuestion(query: String, allNotes: [Note], articles: [KnowledgeArticle] = []) async throws -> RAGResponse {
         guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
             throw RAGError.noAPIKey
         }
@@ -73,6 +73,32 @@ class RAGService {
         // Take top 10 after merge
         let contextNotes = Array(mergedNotes.prefix(10))
 
+        // Step 4.5: Find relevant knowledge articles by name/summary match
+        let queryLower = query.lowercased()
+        let relevantArticles = articles.filter { article in
+            !article.summary.isEmpty && (
+                queryLower.contains(article.name.lowercased()) ||
+                article.name.lowercased().contains(queryLower) ||
+                article.aliases.contains { queryLower.contains($0) }
+            )
+        }.prefix(3)
+
+        let articleContext: String
+        if !relevantArticles.isEmpty {
+            articleContext = "\n\n--- COMPILED KNOWLEDGE ---\n\n" + relevantArticles.map { article in
+                var text = "[\(article.articleType.label): \(article.name)]\n\(article.summary)"
+                if !article.openThreads.isEmpty {
+                    text += "\nOpen threads: " + article.openThreads.map { $0.thread }.joined(separator: "; ")
+                }
+                if let arc = article.sentimentArc, !arc.isEmpty {
+                    text += "\nSentiment: \(arc)"
+                }
+                return text
+            }.joined(separator: "\n\n")
+        } else {
+            articleContext = ""
+        }
+
         // Step 5: Build context string from notes
         let notesContext = contextNotes.enumerated().map { index, note in
             let text = !note.content.isEmpty ? note.content : (note.transcript ?? "")
@@ -86,11 +112,13 @@ class RAGService {
 
         // Step 6: Call GPT-4o-mini with RAG context
         let systemPrompt = """
-        \(AuthService.shared.eeonContextPrefix)You are EEON, an AI memory assistant. Answer the user's question based on their notes below.
-        Always cite which note(s) your answer comes from using [Note: title, date].
+        \(AuthService.shared.eeonContextPrefix)You are EEON, an AI memory assistant. Answer the user's question based on their compiled knowledge and notes below.
+        Prefer compiled knowledge articles when available — they contain synthesized, up-to-date information.
+        Always cite which note(s) or article(s) your answer comes from.
         If you can't find relevant information, say so honestly.
         After answering, provide exactly 2-3 follow-up questions on new lines prefixed with "FOLLOWUP: ".
         Do not use emojis.
+        \(articleContext)
 
         --- USER'S NOTES ---
 

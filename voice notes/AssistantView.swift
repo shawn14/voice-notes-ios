@@ -37,6 +37,7 @@ struct AssistantView: View {
     @Environment(\.dismiss) private var dismiss
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var allNotes: [Note]
+    @Query private var knowledgeArticles: [KnowledgeArticle]
 
     @State private var messages: [ChatMessage] = []
     @State private var inputText = ""
@@ -201,7 +202,7 @@ struct AssistantView: View {
 
         Task {
             do {
-                let response = try await RAGService.shared.answerQuestion(query: trimmed, allNotes: allNotes)
+                let response = try await RAGService.shared.answerQuestion(query: trimmed, allNotes: allNotes, articles: Array(knowledgeArticles))
                 await MainActor.run {
                     let assistantMessage = ChatMessage(
                         role: .assistant,
