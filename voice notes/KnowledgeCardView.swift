@@ -77,12 +77,3 @@ struct KnowledgeCardView: View {
         .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, y: 2)
     }
 }
-
-// Placeholder until Task 7 creates the real view
-struct KnowledgeArticleDetailView: View {
-    let article: KnowledgeArticle
-    var body: some View {
-        Text(article.name)
-            .navigationTitle(article.name)
-    }
-}
