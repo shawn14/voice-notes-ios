@@ -75,6 +75,19 @@ struct IntentAnalysis: Sendable {
     }
 }
 
+// MARK: - Knowledge Article Compilation Response
+
+struct CompileArticleResponse: Codable {
+    let summary: String
+    let openThreads: [OpenThread]?
+    let timeline: [TimelineEvent]?
+    let connections: [ArticleConnection]?
+    let sentimentArc: String?
+    let decisions: [ArticleDecision]?
+    let relationshipContext: String?
+    let thinkingEvolution: String?
+}
+
 enum SummaryService {
     enum SummaryError: LocalizedError {
         case apiError(String)
@@ -582,6 +595,224 @@ enum SummaryService {
                 NoteAnalysis.UnresolvedExtract(content: $0.content, reason: $0.reason)
             }
         )
+    }
+
+    // MARK: - Knowledge Article Compilation
+
+    /// Compile or update a KnowledgeArticle from new notes.
+    static func compileArticle(
+        existingSummary: String?,
+        existingOpenThreads: [OpenThread],
+        existingTimeline: [TimelineEvent],
+        existingConnections: [ArticleConnection],
+        existingSentimentArc: String?,
+        existingDecisions: [ArticleDecision],
+        existingRelationshipContext: String?,
+        existingThinkingEvolution: String?,
+        articleName: String,
+        articleType: KnowledgeArticleType,
+        newNoteTexts: [String],
+        apiKey: String
+    ) async throws -> CompileArticleResponse {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Build existing article context
+        var existingContext = ""
+        if let summary = existingSummary, !summary.isEmpty {
+            existingContext += "Current summary: \(summary)\n"
+        }
+        if let arc = existingSentimentArc, !arc.isEmpty {
+            existingContext += "Sentiment arc: \(arc)\n"
+        }
+        if let rel = existingRelationshipContext, !rel.isEmpty {
+            existingContext += "Relationship context: \(rel)\n"
+        }
+        if let evolution = existingThinkingEvolution, !evolution.isEmpty {
+            existingContext += "Thinking evolution: \(evolution)\n"
+        }
+        if !existingOpenThreads.isEmpty {
+            let threads = existingOpenThreads.map { "- \($0.thread) (\($0.status), \($0.daysOpen)d)" }.joined(separator: "\n")
+            existingContext += "Open threads:\n\(threads)\n"
+        }
+        if !existingDecisions.isEmpty {
+            let decs = existingDecisions.map { "- \($0.decision) [\($0.status)]" }.joined(separator: "\n")
+            existingContext += "Decisions:\n\(decs)\n"
+        }
+
+        let newNotesText = newNoteTexts.enumerated().map { "Note \($0.offset + 1): \($0.element)" }.joined(separator: "\n\n")
+
+        let typeSpecificFields: String
+        switch articleType {
+        case .person:
+            typeSpecificFields = """
+            "relationshipContext": "Who this person is and your relationship (1-2 sentences)",
+            "sentimentArc": "How the relationship tone has evolved (e.g. 'Cautious -> Warming up -> Trusted partner')",
+            """
+        case .project:
+            typeSpecificFields = """
+            "decisions": [{"decision": "what was decided", "status": "resolved or open", "date": "when"}],
+            "thinkingEvolution": "How your approach has changed over time (1 sentence)",
+            "sentimentArc": "Overall project mood trajectory",
+            """
+        case .topic:
+            typeSpecificFields = """
+            "thinkingEvolution": "How your thinking on this topic has evolved (1-2 sentences)",
+            "sentimentArc": "Your emotional relationship with this topic over time",
+            """
+        }
+
+        let systemPrompt = """
+        You maintain a living knowledge article about a \(articleType.label.lowercased()) named "\(articleName)".
+        Update the article with information from the new notes below.
+        Preserve existing information unless contradicted by newer notes.
+        Be concise — summaries should be 2-3 sentences max.
+
+        Return ONLY valid JSON with this structure:
+        {
+            "summary": "2-3 sentence overview incorporating new information",
+            "openThreads": [{"thread": "description of open item", "status": "open|waiting|stale", "daysOpen": 0}],
+            "timeline": [{"date": "YYYY-MM-DD or description", "event": "what happened"}],
+            "connections": [{"articleName": "name of related person/project/topic", "reason": "why connected"}],
+            \(typeSpecificFields)
+        }
+
+        Rules:
+        - Keep summaries factual and concise
+        - Mark threads as "stale" if they seem forgotten (>5 days with no update)
+        - Timeline should only include significant events, max 10 entries
+        - Connections should link to other people, projects, or topics mentioned alongside this entity
+        - Return ONLY valid JSON, no other text
+        """
+
+        let userContent: String
+        if existingContext.isEmpty {
+            userContent = "Create a new article from these notes:\n\n\(newNotesText)"
+        } else {
+            userContent = "Current article state:\n\(existingContext)\n\nNew notes to incorporate:\n\n\(newNotesText)"
+        }
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": userContent]
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1500
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SummaryError.apiError(errorMessage)
+        }
+
+        struct ChatResponse: Codable {
+            struct Choice: Codable {
+                struct Message: Codable { let content: String }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+
+        let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+
+        guard let content = chatResponse.choices.first?.message.content,
+              let jsonData = content.data(using: .utf8) else {
+            throw SummaryError.apiError("Empty response")
+        }
+
+        return try JSONDecoder().decode(CompileArticleResponse.self, from: jsonData)
+    }
+
+    /// Lint all knowledge articles for stale threads, contradictions, connections, and gaps.
+    static func lintArticles(
+        articleSummaries: [(name: String, type: String, summary: String, openThreadCount: Int, daysSinceLastMention: Int)],
+        apiKey: String
+    ) async throws -> [KnowledgeLintResult] {
+        guard !articleSummaries.isEmpty else { return [] }
+
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let articlesText = articleSummaries.map { article in
+            "[\(article.type)] \(article.name): \(article.summary) (open threads: \(article.openThreadCount), last mentioned: \(article.daysSinceLastMention)d ago)"
+        }.joined(separator: "\n")
+
+        let systemPrompt = """
+        You are a knowledge base health checker. Review these knowledge articles and find issues.
+
+        Return JSON array of issues found:
+        [
+            {
+                "lintType": "stale_thread|contradiction|connection|gap",
+                "content": "Human-readable description of the issue",
+                "severity": "info|warning|urgent",
+                "relatedArticleNames": ["Article Name 1", "Article Name 2"]
+            }
+        ]
+
+        Lint types:
+        - stale_thread: Open commitments or threads with no follow-up (>5 days)
+        - contradiction: Conflicting information across articles
+        - connection: Articles that should be linked but aren't
+        - gap: Missing information that seems important
+
+        Rules:
+        - Return 0-5 most important issues
+        - Focus on actionable insights, not trivia
+        - "urgent" = needs action today, "warning" = needs attention this week, "info" = nice to know
+        - Return ONLY valid JSON array, no other text
+        - If no issues found, return empty array []
+        """
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": "Review these knowledge articles:\n\n\(articlesText)"]
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1000
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SummaryError.apiError(errorMessage)
+        }
+
+        struct ChatResponse: Codable {
+            struct Choice: Codable {
+                struct Message: Codable { let content: String }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+
+        let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+
+        guard let content = chatResponse.choices.first?.message.content,
+              let jsonData = content.data(using: .utf8) else {
+            return []
+        }
+
+        return (try? JSONDecoder().decode([KnowledgeLintResult].self, from: jsonData)) ?? []
     }
 }
 
