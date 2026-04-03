@@ -36,6 +36,11 @@ struct DailyBriefSheet: View {
                         WarningsSection(warnings: brief.warnings)
                     }
 
+                    // Knowledge Health (lint results)
+                    if !brief.lintResults.isEmpty {
+                        KnowledgeHealthSection(lintResults: brief.lintResults)
+                    }
+
                     // Session Intelligence
                     if let session = sessionBrief {
                         SessionIntelligenceSection(session: session)
@@ -407,6 +412,88 @@ private struct FooterStat: View {
                 .foregroundStyle(Color("EEONTextSecondary"))
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Knowledge Health Section
+
+struct KnowledgeHealthSection: View {
+    let lintResults: [KnowledgeLintResult]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.purple)
+                Text("Knowledge Health")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.eeonTextPrimary)
+            }
+
+            ForEach(lintResults) { result in
+                HStack(alignment: .top, spacing: 12) {
+                    Rectangle()
+                        .fill(lintColor(severity: result.severity))
+                        .frame(width: 3)
+                        .cornerRadius(2)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Image(systemName: lintIcon(type: result.lintType))
+                                .font(.caption)
+                                .foregroundStyle(lintColor(severity: result.severity))
+
+                            Text(lintLabel(type: result.lintType))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(lintColor(severity: result.severity))
+                                .textCase(.uppercase)
+                        }
+
+                        Text(result.content)
+                            .font(.subheadline)
+                            .foregroundStyle(.eeonTextPrimary)
+
+                        if !result.relatedArticleNames.isEmpty {
+                            Text(result.relatedArticleNames.joined(separator: ", "))
+                                .font(.caption)
+                                .foregroundStyle(.eeonTextTertiary)
+                        }
+                    }
+                }
+                .padding(12)
+                .background(Color.eeonCard)
+                .cornerRadius(10)
+            }
+        }
+    }
+
+    private func lintColor(severity: String) -> Color {
+        switch severity {
+        case "urgent": return .red
+        case "warning": return .orange
+        default: return .blue
+        }
+    }
+
+    private func lintIcon(type: String) -> String {
+        switch type {
+        case "stale_thread": return "clock.badge.exclamationmark"
+        case "contradiction": return "exclamationmark.triangle"
+        case "connection": return "link"
+        case "gap": return "questionmark.circle"
+        default: return "info.circle"
+        }
+    }
+
+    private func lintLabel(type: String) -> String {
+        switch type {
+        case "stale_thread": return "Stale Thread"
+        case "contradiction": return "Contradiction"
+        case "connection": return "Connection"
+        case "gap": return "Gap"
+        default: return "Info"
+        }
     }
 }
 
