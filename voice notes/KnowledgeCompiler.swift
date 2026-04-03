@@ -97,7 +97,7 @@ final class KnowledgeCompiler {
         article.addLinkedNote(id: noteId)
     }
 
-    // MARK: - Tier 2.5: Recompile Dirty Articles (on app foreground, API calls)
+    // MARK: - Tier 2.5: Recompile Dirty Articles (on note save + app foreground)
 
     /// Recompile articles marked dirty. Max 5 per pass, 15-min cooldown.
     func recompileDirtyArticles(context: ModelContext) async {
@@ -112,14 +112,6 @@ final class KnowledgeCompiler {
 
         await MainActor.run { isCompiling = true }
 
-        defer {
-            Task { @MainActor in
-                isCompiling = false
-                lastCompileAt = Date()
-                UserDefaults.standard.set(Date(), forKey: Keys.lastCompileDate)
-            }
-        }
-
         // Fetch dirty articles, sorted by most recently mentioned
         var descriptor = FetchDescriptor<KnowledgeArticle>(
             predicate: #Predicate { $0.isDirty == true },
@@ -128,6 +120,7 @@ final class KnowledgeCompiler {
         descriptor.fetchLimit = 5
 
         guard let dirtyArticles = try? context.fetch(descriptor), !dirtyArticles.isEmpty else {
+            await MainActor.run { isCompiling = false }
             return
         }
 
@@ -196,6 +189,13 @@ final class KnowledgeCompiler {
             } catch {
                 print("[KnowledgeCompiler] Failed to compile article '\(article.name)': \(error)")
             }
+        }
+
+        // Only set cooldown after actually compiling
+        await MainActor.run {
+            isCompiling = false
+            lastCompileAt = Date()
+            UserDefaults.standard.set(Date(), forKey: Keys.lastCompileDate)
         }
     }
 

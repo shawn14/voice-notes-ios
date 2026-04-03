@@ -179,6 +179,9 @@ final class IntelligenceService {
         await MainActor.run {
             KnowledgeCompiler.shared.markAffectedArticles(note: note, context: context)
         }
+
+        // Compile immediately after marking (don't wait for foreground)
+        await KnowledgeCompiler.shared.recompileDirtyArticles(context: context)
     }
 
     // MARK: - URL Processing
