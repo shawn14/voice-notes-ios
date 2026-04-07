@@ -40,6 +40,30 @@ enum NoteIntent: String, CaseIterable, Codable {
     }
 }
 
+// MARK: - Note Source Type
+
+enum NoteSourceType: String, CaseIterable {
+    case voice = "voice"
+    case webArticle = "web"
+    case derived = "derived"
+
+    var badgeIcon: String? {
+        switch self {
+        case .voice: return nil
+        case .webArticle: return "link"
+        case .derived: return "sparkles"
+        }
+    }
+
+    var label: String? {
+        switch self {
+        case .voice: return nil
+        case .webArticle: return "Web Source"
+        case .derived: return "Saved from Assistant"
+        }
+    }
+}
+
 // MARK: - Structured Extraction Models
 
 struct ExtractedSubject: Codable, Sendable {
@@ -149,6 +173,12 @@ final class Note {
 
     // AI-enhanced version of the note (cleaned up, expanded, well-structured)
     var enhancedNoteText: String?
+
+    // Source type (voice, web article, derived from RAG answer)
+    var sourceTypeRaw: String = "voice"
+    var originalURL: String?               // For .webArticle — the shared URL
+    var annotation: String?                // "Why I saved this" from share sheet
+    var derivedFromQueryId: String?        // For .derived — UUID string of the query
 
     @Relationship(deleteRule: .nullify, inverse: \Tag.notes)
     var tagsOptional: [Tag]?
@@ -355,6 +385,11 @@ final class Note {
             }
             return Array(UnsafeBufferPointer(start: pointer, count: data.count / MemoryLayout<Float>.size))
         }
+    }
+
+    var sourceType: NoteSourceType {
+        get { NoteSourceType(rawValue: sourceTypeRaw) ?? .voice }
+        set { sourceTypeRaw = newValue.rawValue }
     }
 
     // MARK: - Audio Cleanup

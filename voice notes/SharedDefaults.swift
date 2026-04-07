@@ -75,4 +75,38 @@ struct SharedDefaults {
     static var freeNotesRemaining: Int {
         max(0, freeNoteLimit - noteCount)
     }
+
+    // MARK: - Pending Ingests (from Share Extension)
+
+    private static let pendingIngestsKey = "shared_pendingIngests"
+
+    struct PendingIngest: Codable {
+        let id: String          // UUID string for deduplication
+        let url: String?
+        let text: String?
+        let title: String?
+        let annotation: String?
+        let createdAt: Date
+    }
+
+    static var pendingIngests: [PendingIngest] {
+        get {
+            guard let data = suite.data(forKey: pendingIngestsKey) else { return [] }
+            return (try? JSONDecoder().decode([PendingIngest].self, from: data)) ?? []
+        }
+        set {
+            let data = try? JSONEncoder().encode(newValue)
+            suite.set(data, forKey: pendingIngestsKey)
+        }
+    }
+
+    static func addPendingIngest(_ ingest: PendingIngest) {
+        var current = pendingIngests
+        current.append(ingest)
+        pendingIngests = current
+    }
+
+    static func clearPendingIngests() {
+        suite.removeObject(forKey: pendingIngestsKey)
+    }
 }
