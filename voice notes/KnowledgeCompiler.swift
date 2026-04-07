@@ -151,7 +151,16 @@ final class KnowledgeCompiler {
                 let noteTexts = newNotes.map { note -> String in
                     let text = note.enhancedNoteText ?? note.transcript ?? note.content
                     let dateStr = note.createdAt.formatted(date: .abbreviated, time: .shortened)
-                    return "[\(dateStr)] \(String(text.prefix(500)))"
+                    let prefix: String
+                    switch note.sourceType {
+                    case .voice:
+                        prefix = "[\(dateStr)]"
+                    case .webArticle:
+                        prefix = "[WEB SOURCE: \(dateStr)]"
+                    case .derived:
+                        prefix = "[DERIVED: \(dateStr)]"
+                    }
+                    return "\(prefix) \(String(text.prefix(500)))"
                 }
 
                 let response = try await SummaryService.compileArticle(

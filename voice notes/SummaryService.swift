@@ -597,6 +597,86 @@ enum SummaryService {
         )
     }
 
+    // MARK: - Lightweight Extraction (for web articles and derived notes)
+
+    /// Lighter extraction for non-voice sources — topics, people, summary only.
+    /// Skips actions, commitments, unresolved items, next steps.
+    static func extractIntentLightweight(text: String, apiKey: String) async throws -> IntentAnalysis {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let prompt = """
+        Analyze this text and extract structured information.
+        This is reference material (a web article or saved AI response), NOT a personal voice note.
+        Extract topics and people mentioned, but do NOT extract personal actions, commitments, or unresolved items.
+
+        Return ONLY valid JSON:
+        {
+            "intent": "Idea",
+            "intentConfidence": 0.8,
+            "mentionedPeople": ["name1", "name2"],
+            "topics": ["topic1", "topic2"],
+            "emotionalTone": "neutral",
+            "enhancedNote": "A clean, concise summary of the content (2-4 sentences)",
+            "summary": "One sentence summary",
+            "keyPoints": ["point1", "point2"],
+            "inferredProject": "project name or null"
+        }
+        """
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": prompt],
+                ["role": "user", "content": String(text.prefix(4000))]
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1000
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SummaryError.apiError(errorMessage)
+        }
+
+        let result = try JSONDecoder().decode(SummaryChatResponse.self, from: data)
+
+        guard let content = result.choices.first?.message.content,
+              let jsonData = content.data(using: .utf8) else {
+            throw SummaryError.parsingError
+        }
+
+        let parsed = try JSONDecoder().decode(IntentAnalysisResponse.self, from: jsonData)
+
+        return IntentAnalysis(
+            intent: parsed.intent,
+            intentConfidence: parsed.intentConfidence,
+            subject: nil,
+            nextStep: nil,
+            nextStepType: "simple",
+            missingInfo: [],
+            inferredProject: parsed.inferredProject,
+            mentionedPeople: parsed.mentionedPeople ?? [],
+            topics: parsed.topics ?? [],
+            emotionalTone: parsed.emotionalTone,
+            enhancedNote: parsed.enhancedNote,
+            summary: parsed.summary,
+            keyPoints: parsed.keyPoints,
+            decisions: [],
+            actions: [],
+            commitments: [],
+            unresolved: []
+        )
+    }
+
     // MARK: - Knowledge Article Compilation
 
     /// Compile or update a KnowledgeArticle from new notes.
@@ -671,6 +751,7 @@ enum SummaryService {
         Update the article with information from the new notes below.
         Preserve existing information unless contradicted by newer notes.
         Be concise — summaries should be 2-3 sentences max.
+        WEB SOURCE and DERIVED entries are reference material. They may inform connections and context but should not override summaries or timelines established by primary voice notes.
 
         Return ONLY valid JSON with this structure:
         {

@@ -56,30 +56,38 @@ final class IntelligenceService {
             return
         }
 
-        // Extract intent (existing SummaryService call)
+        // Extract intent — branch on source type
         do {
-            let result = try await SummaryService.extractIntent(text: transcript, apiKey: apiKey)
+            let result: IntentAnalysis
+            if note.sourceType == .voice {
+                result = try await SummaryService.extractIntent(text: transcript, apiKey: apiKey)
+            } else {
+                result = try await SummaryService.extractIntentLightweight(text: transcript, apiKey: apiKey)
+            }
 
             await MainActor.run {
                 // Apply extraction to note
                 note.intentType = result.intent
                 note.intentConfidence = result.intentConfidence
 
-                if let subject = result.subject {
-                    note.extractedSubject = ExtractedSubject(
-                        topic: subject.topic,
-                        action: subject.action
-                    )
+                if note.sourceType == .voice {
+                    if let subject = result.subject {
+                        note.extractedSubject = ExtractedSubject(
+                            topic: subject.topic,
+                            action: subject.action
+                        )
+                    }
+
+                    note.suggestedNextStep = result.nextStep
+                    note.nextStepTypeRaw = result.nextStepType
+                    note.missingInfo = result.missingInfo.map {
+                        MissingInfoItem(field: $0.field, description: $0.description)
+                    }
                 }
 
-                note.suggestedNextStep = result.nextStep
-                note.nextStepTypeRaw = result.nextStepType
-                note.missingInfo = result.missingInfo.map {
-                    MissingInfoItem(field: $0.field, description: $0.description)
-                }
                 note.inferredProjectName = result.inferredProject
 
-                // Auto-match project
+                // Auto-match project (all source types)
                 if let inferredName = result.inferredProject, !inferredName.isEmpty {
                     let textToMatch = "\(inferredName) \(note.content)"
                     if let match = ProjectMatcher.findMatch(for: textToMatch, in: projects) {
@@ -91,56 +99,56 @@ final class IntelligenceService {
                     }
                 }
 
-                // Persist extracted decisions
-                for decision in result.decisions {
-                    let item = ExtractedDecision(
-                        content: decision.content,
-                        affects: decision.affects,
-                        confidence: decision.confidence,
-                        sourceNoteId: note.id
-                    )
-                    context.insert(item)
+                // Persist extracted decisions, actions, commitments only for voice notes
+                if note.sourceType == .voice {
+                    for decision in result.decisions {
+                        let item = ExtractedDecision(
+                            content: decision.content,
+                            affects: decision.affects,
+                            confidence: decision.confidence,
+                            sourceNoteId: note.id
+                        )
+                        context.insert(item)
+                    }
+
+                    for action in result.actions {
+                        let extractedAction = ExtractedAction(
+                            content: action.content,
+                            owner: action.owner,
+                            deadline: action.deadline,
+                            sourceNoteId: note.id
+                        )
+                        context.insert(extractedAction)
+
+                        // Auto-create Kanban item for each action
+                        let kanbanItem = KanbanItem(
+                            content: action.content,
+                            column: .doing,
+                            itemType: .action,
+                            sourceNoteId: note.id,
+                            projectId: note.projectId
+                        )
+                        kanbanItem.owner = action.owner
+                        kanbanItem.deadline = action.deadline
+                        context.insert(kanbanItem)
+                    }
+
+                    for commitment in result.commitments {
+                        let item = ExtractedCommitment(
+                            who: commitment.who,
+                            what: commitment.what,
+                            sourceNoteId: note.id
+                        )
+                        context.insert(item)
+                    }
                 }
 
-                // Persist extracted actions and auto-create Kanban items
-                for action in result.actions {
-                    let extractedAction = ExtractedAction(
-                        content: action.content,
-                        owner: action.owner,
-                        deadline: action.deadline,
-                        sourceNoteId: note.id
-                    )
-                    context.insert(extractedAction)
-
-                    // Auto-create Kanban item for each action
-                    let kanbanItem = KanbanItem(
-                        content: action.content,
-                        column: .doing,
-                        itemType: .action,
-                        sourceNoteId: note.id,
-                        projectId: note.projectId
-                    )
-                    kanbanItem.owner = action.owner
-                    kanbanItem.deadline = action.deadline
-                    context.insert(kanbanItem)
-                }
-
-                // Persist extracted commitments
-                for commitment in result.commitments {
-                    let item = ExtractedCommitment(
-                        who: commitment.who,
-                        what: commitment.what,
-                        sourceNoteId: note.id
-                    )
-                    context.insert(item)
-                }
-
-                // Store mentioned people on note
+                // Store mentioned people on note (all source types)
                 if !result.mentionedPeople.isEmpty {
                     note.mentionedPeople = result.mentionedPeople
                 }
 
-                // Store topics and emotional tone
+                // Store topics and emotional tone (all source types)
                 if !result.topics.isEmpty {
                     note.topics = result.topics
                 }
@@ -151,14 +159,16 @@ final class IntelligenceService {
                     note.enhancedNoteText = enhanced
                 }
 
-                // Persist unresolved items
-                for unresolved in result.unresolved {
-                    let item = UnresolvedItem(
-                        content: unresolved.content,
-                        reason: unresolved.reason,
-                        sourceNoteId: note.id
-                    )
-                    context.insert(item)
+                // Persist unresolved items only for voice notes
+                if note.sourceType == .voice {
+                    for unresolved in result.unresolved {
+                        let item = UnresolvedItem(
+                            content: unresolved.content,
+                            reason: unresolved.reason,
+                            sourceNoteId: note.id
+                        )
+                        context.insert(item)
+                    }
                 }
             }
         } catch {
@@ -182,6 +192,71 @@ final class IntelligenceService {
 
         // Compile immediately after marking (don't wait for foreground)
         await KnowledgeCompiler.shared.recompileDirtyArticles(context: context)
+    }
+
+    // MARK: - Pending Ingest Processing (from Share Extension)
+
+    /// Process any pending ingests from the share extension.
+    /// Called on app foreground before normal refresh.
+    func processPendingIngests(context: ModelContext, projects: [Project], tags: [Tag]) async {
+        let pending = SharedDefaults.pendingIngests
+        guard !pending.isEmpty else { return }
+
+        for ingest in pending {
+            let note: Note
+
+            if let urlString = ingest.url, !urlString.isEmpty {
+                // URL ingest — fetch article content
+                do {
+                    let webContent = try await WebContentService.fetchArticle(from: urlString)
+                    note = Note(
+                        title: ingest.title ?? webContent.title,
+                        content: webContent.text
+                    )
+                    note.originalURL = urlString
+                } catch {
+                    // Fetch failed — create note with just the URL
+                    print("[IntelligenceService] Web fetch failed for \(urlString): \(error)")
+                    note = Note(
+                        title: ingest.title ?? "Shared Link",
+                        content: urlString
+                    )
+                    note.originalURL = urlString
+                }
+                note.sourceType = .webArticle
+            } else if let text = ingest.text, !text.isEmpty {
+                // Text ingest
+                note = Note(
+                    title: ingest.title ?? String(text.prefix(50)),
+                    content: text
+                )
+                note.sourceType = .webArticle
+            } else {
+                continue
+            }
+
+            note.annotation = ingest.annotation
+
+            await MainActor.run {
+                context.insert(note)
+                try? context.save()
+            }
+
+            // Run extraction + embedding pipeline
+            await processNoteSave(
+                note: note,
+                transcript: note.content,
+                projects: projects,
+                tags: tags,
+                context: context
+            )
+
+            // Generate embedding
+            try? await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
+            await MainActor.run { try? context.save() }
+        }
+
+        SharedDefaults.clearPendingIngests()
     }
 
     // MARK: - URL Processing

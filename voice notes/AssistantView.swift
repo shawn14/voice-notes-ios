@@ -246,6 +246,16 @@ struct AssistantView: View {
             content: message.content
         )
         note.intent = .idea
+        note.sourceType = .derived
+
+        // Link to the question that generated this answer
+        if let messageIndex = messages.firstIndex(where: { $0.id == message.id }),
+           messageIndex > 0 {
+            let previousMessage = messages[messageIndex - 1]
+            if previousMessage.role == .user {
+                note.derivedFromQueryId = previousMessage.id.uuidString
+            }
+        }
 
         modelContext.insert(note)
 
