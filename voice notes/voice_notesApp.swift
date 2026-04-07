@@ -227,6 +227,15 @@ struct voice_notesApp: App {
     private func triggerAppActiveRefresh() async {
         let context = container.mainContext
 
+        // Process any pending ingests from share extension
+        let allProjects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+        let allTags = (try? context.fetch(FetchDescriptor<Tag>())) ?? []
+        await IntelligenceService.shared.processPendingIngests(
+            context: context,
+            projects: allProjects,
+            tags: allTags
+        )
+
         // Sync widget shared defaults
         SharedDefaults.updateNoteCount(UsageService.shared.noteCount)
         SharedDefaults.updateProStatus(UsageService.shared.isPro)

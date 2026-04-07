@@ -1323,6 +1323,14 @@ struct NoteFeedCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.eeonCard)
         .cornerRadius(12)
+        .overlay(alignment: .topTrailing) {
+            if let icon = note.sourceType.badgeIcon {
+                Image(systemName: icon)
+                    .font(.caption2)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .padding(6)
+            }
+        }
         .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, y: 2)
     }
 }

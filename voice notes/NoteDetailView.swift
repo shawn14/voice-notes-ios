@@ -501,24 +501,65 @@ struct NoteDetailView: View {
     // MARK: - Title Row
 
     private var titleRow: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(note.displayTitle)
-                .font(.title.weight(.bold))
-                .foregroundStyle(.eeonTextPrimary)
-                .lineLimit(4)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 12) {
+                Text(note.displayTitle)
+                    .font(.title.weight(.bold))
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(4)
 
-            Spacer()
+                Spacer()
 
-            // Favorite button
-            Button(action: {
-                note.isFavorite.toggle()
-                try? modelContext.save()
-            }) {
-                Image(systemName: note.isFavorite ? "heart.fill" : "heart")
-                    .font(.title3)
-                    .foregroundStyle(note.isFavorite ? .eeonAccent : .eeonTextTertiary)
+                // Favorite button
+                Button(action: {
+                    note.isFavorite.toggle()
+                    try? modelContext.save()
+                }) {
+                    Image(systemName: note.isFavorite ? "heart.fill" : "heart")
+                        .font(.title3)
+                        .foregroundStyle(note.isFavorite ? .eeonAccent : .eeonTextTertiary)
+                }
+                .padding(.top, 4)
             }
-            .padding(.top, 4)
+
+            // Source type chip
+            if let label = note.sourceType.label {
+                HStack(spacing: 4) {
+                    if let icon = note.sourceType.badgeIcon {
+                        Image(systemName: icon)
+                            .font(.caption2)
+                    }
+                    Text(label)
+                        .font(.caption2.weight(.medium))
+                }
+                .foregroundStyle(.eeonTextSecondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.eeonCard)
+                .cornerRadius(6)
+            }
+
+            // Tappable original URL for web articles
+            if let urlString = note.originalURL, let url = URL(string: urlString) {
+                Link(destination: url) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.caption2)
+                        Text(url.host ?? urlString)
+                            .font(.caption2)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.blue)
+                }
+            }
+
+            // Annotation if present
+            if let annotation = note.annotation, !annotation.isEmpty {
+                Text(annotation)
+                    .font(.caption)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .italic()
+            }
         }
     }
 
