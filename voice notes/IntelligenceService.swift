@@ -200,6 +200,7 @@ final class IntelligenceService {
     /// Called on app foreground before normal refresh.
     func processPendingIngests(context: ModelContext, projects: [Project], tags: [Tag]) async {
         let pending = SharedDefaults.pendingIngests
+        print("[IntelligenceService] Checking pending ingests: \(pending.count) found")
         guard !pending.isEmpty else { return }
 
         for ingest in pending {

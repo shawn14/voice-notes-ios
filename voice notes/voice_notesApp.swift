@@ -228,6 +228,7 @@ struct voice_notesApp: App {
         let context = container.mainContext
 
         // Process any pending ingests from share extension
+        print("[App] triggerAppActiveRefresh called — checking pending ingests")
         let allProjects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
         let allTags = (try? context.fetch(FetchDescriptor<Tag>())) ?? []
         await IntelligenceService.shared.processPendingIngests(

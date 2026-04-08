@@ -7,12 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F56370812F86E155002B571D /* EEONShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F56370772F86E155002B571D /* EEONShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F5C09500AAAAAA01007AAAAA /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C09500AAAAAA02007AAAAA /* SnapshotHelper.swift */; };
 		F5C09500AAAAAA03007AAAAA /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C09500AAAAAA04007AAAAA /* ScreenshotTests.swift */; };
 		F5C09500BBBBBB0D007AAAAA /* VoiceNotesWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F5C09500BBBBBB02007AAAAA /* VoiceNotesWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		F563707F2F86E155002B571D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F5C094BC2F25871F0079962E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F56370762F86E155002B571D;
+			remoteInfo = EEONShareExtension;
+		};
 		F5C09500AAAAAA05007AAAAA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F5C094BC2F25871F0079962E /* Project object */;
@@ -37,6 +45,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				F5C09500BBBBBB0D007AAAAA /* VoiceNotesWidgetExtension.appex in Embed Foundation Extensions */,
+				F56370812F86E155002B571D /* EEONShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -44,6 +53,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F56370772F86E155002B571D /* EEONShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = EEONShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5C094C42F25871F0079962E /* voice notes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "voice notes.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5C09500AAAAAA02007AAAAA /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
 		F5C09500AAAAAA04007AAAAA /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
@@ -52,6 +62,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F56370842F86E155002B571D /* Exceptions for "EEONShareExtension" folder in "EEONShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F56370762F86E155002B571D /* EEONShareExtension */;
+		};
 		F5C09500BBBBBB0E007AAAAA /* Exceptions for "VoiceNotesWidget" folder in "VoiceNotesWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -62,6 +79,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		F56370782F86E155002B571D /* EEONShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F56370842F86E155002B571D /* Exceptions for "EEONShareExtension" folder in "EEONShareExtension" target */,
+			);
+			path = EEONShareExtension;
+			sourceTree = "<group>";
+		};
 		F5C094C62F25871F0079962E /* voice notes */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "voice notes";
@@ -78,6 +103,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		F56370742F86E155002B571D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F5C094C12F25871F0079962E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -108,6 +140,7 @@
 				F5C094C62F25871F0079962E /* voice notes */,
 				F5C09500BBBBBB03007AAAAA /* VoiceNotesWidget */,
 				F5C09500AAAAAA08007AAAAA /* voice notes UITests */,
+				F56370782F86E155002B571D /* EEONShareExtension */,
 				F5C094C52F25871F0079962E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -118,6 +151,7 @@
 				F5C094C42F25871F0079962E /* voice notes.app */,
 				F5C09500BBBBBB02007AAAAA /* VoiceNotesWidgetExtension.appex */,
 				F5C09500AAAAAA06007AAAAA /* voice notes UITests.xctest */,
+				F56370772F86E155002B571D /* EEONShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -134,6 +168,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		F56370762F86E155002B571D /* EEONShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F56370852F86E155002B571D /* Build configuration list for PBXNativeTarget "EEONShareExtension" */;
+			buildPhases = (
+				F56370732F86E155002B571D /* Sources */,
+				F56370742F86E155002B571D /* Frameworks */,
+				F56370752F86E155002B571D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F56370782F86E155002B571D /* EEONShareExtension */,
+			);
+			name = EEONShareExtension;
+			packageProductDependencies = (
+			);
+			productName = EEONShareExtension;
+			productReference = F56370772F86E155002B571D /* EEONShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		F5C094C32F25871F0079962E /* voice notes */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F5C094CF2F2587200079962E /* Build configuration list for PBXNativeTarget "voice notes" */;
@@ -147,6 +203,7 @@
 			);
 			dependencies = (
 				F5C09500BBBBBB0A007AAAAA /* PBXTargetDependency */,
+				F56370802F86E155002B571D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				F5C094C62F25871F0079962E /* voice notes */,
@@ -206,6 +263,9 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					F56370762F86E155002B571D = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					F5C094C32F25871F0079962E = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -235,11 +295,19 @@
 				F5C094C32F25871F0079962E /* voice notes */,
 				F5C09500BBBBBB01007AAAAA /* VoiceNotesWidgetExtension */,
 				F5C09500AAAAAA09007AAAAA /* voice notes UITests */,
+				F56370762F86E155002B571D /* EEONShareExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		F56370752F86E155002B571D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F5C094C22F25871F0079962E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -264,6 +332,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		F56370732F86E155002B571D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F5C094C02F25871F0079962E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -290,6 +365,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		F56370802F86E155002B571D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F56370762F86E155002B571D /* EEONShareExtension */;
+			targetProxy = F563707F2F86E155002B571D /* PBXContainerItemProxy */;
+		};
 		F5C09500AAAAAA0D007AAAAA /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = F5C094C32F25871F0079962E /* voice notes */;
@@ -303,6 +383,64 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		F56370822F86E155002B571D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = EEONShareExtension/EEONShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BYRK5RUS4U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = EEONShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = EEON;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.EEONShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F56370832F86E155002B571D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = EEONShareExtension/EEONShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BYRK5RUS4U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = EEONShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = EEON;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.EEONShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		F5C094CD2F2587200079962E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -432,7 +570,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "voice notes/voice notes.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -449,7 +587,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.4.0;
+				MARKETING_VERSION = 2.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -470,7 +608,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "voice notes/voice notesRelease.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -487,7 +625,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.4.0;
+				MARKETING_VERSION = 2.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -504,10 +642,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.4.0;
+				MARKETING_VERSION = 2.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -521,10 +659,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.4.0;
+				MARKETING_VERSION = 2.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -541,7 +679,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = VoiceNotesWidget/VoiceNotesWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VoiceNotesWidget/Info.plist;
@@ -552,7 +690,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.4.0;
+				MARKETING_VERSION = 2.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.widget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -571,7 +709,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = VoiceNotesWidget/VoiceNotesWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = BYRK5RUS4U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VoiceNotesWidget/Info.plist;
@@ -582,7 +720,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.4.0;
+				MARKETING_VERSION = 2.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "voice.notes.voice-notes.widget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -597,6 +735,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		F56370852F86E155002B571D /* Build configuration list for PBXNativeTarget "EEONShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F56370822F86E155002B571D /* Debug */,
+				F56370832F86E155002B571D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		F5C094BF2F25871F0079962E /* Build configuration list for PBXProject "voice notes" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

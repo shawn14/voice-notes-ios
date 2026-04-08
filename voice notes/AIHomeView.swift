@@ -315,6 +315,17 @@ struct AIHomeView: View {
                 // Sync free note counter with actual database count
                 let actualCount = notes.filter { !$0.isArchived }.count
                 UsageService.shared.syncNoteCount(actualCount: actualCount)
+
+                // Check for pending share extension ingests
+                Task {
+                    let projects = (try? modelContext.fetch(FetchDescriptor<Project>())) ?? []
+                    let tags = (try? modelContext.fetch(FetchDescriptor<Tag>())) ?? []
+                    await IntelligenceService.shared.processPendingIngests(
+                        context: modelContext,
+                        projects: projects,
+                        tags: tags
+                    )
+                }
             }
         }
     }
