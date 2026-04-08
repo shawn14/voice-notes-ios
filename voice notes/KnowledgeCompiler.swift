@@ -65,6 +65,19 @@ final class KnowledgeCompiler {
             markDirty(article: article, noteId: note.id)
         }
 
+        // Log ingest event
+        let affectedNames = (note.mentionedPeople + note.topics + [note.inferredProjectName].compactMap { $0 })
+            .filter { !$0.isEmpty }
+        let ingestTitle: String
+        switch note.sourceType {
+        case .voice: ingestTitle = "Recorded voice note"
+        case .webArticle: ingestTitle = "Ingested web article"
+        case .derived: ingestTitle = "Saved assistant answer"
+        }
+        let detail = affectedNames.isEmpty ? nil : "Marked \(affectedNames.count) articles: \(affectedNames.prefix(5).joined(separator: ", "))"
+        let event = KnowledgeEvent(eventType: .ingest, title: ingestTitle, detail: detail, sourceNoteId: note.id)
+        context.insert(event)
+
         try? context.save()
     }
 
@@ -193,6 +206,15 @@ final class KnowledgeCompiler {
                     article.lastCompiledNoteDate = newNotes.last?.createdAt
                     article.updatedAt = Date()
 
+                    // Log compile event
+                    let compileEvent = KnowledgeEvent(
+                        eventType: .compile,
+                        title: "Compiled \(article.name)",
+                        detail: "Incorporated \(newNotes.count) new note\(newNotes.count == 1 ? "" : "s")",
+                        relatedArticleName: article.name
+                    )
+                    context.insert(compileEvent)
+
                     try? context.save()
                 }
             } catch {
@@ -234,7 +256,37 @@ final class KnowledgeCompiler {
         }
 
         do {
-            return try await SummaryService.lintArticles(articleSummaries: summaries, apiKey: apiKey)
+            let results = try await SummaryService.lintArticles(articleSummaries: summaries, apiKey: apiKey)
+
+            // Log lint event if issues found
+            if !results.isEmpty {
+                let typeCounts = Dictionary(grouping: results, by: { $0.lintType })
+                    .map { "\($0.value.count) \($0.key.replacingOccurrences(of: "_", with: " "))" }
+                    .joined(separator: ", ")
+                let lintEvent = KnowledgeEvent(
+                    eventType: .lint,
+                    title: "Knowledge health check",
+                    detail: "Found \(results.count) issue\(results.count == 1 ? "" : "s"): \(typeCounts)"
+                )
+                await MainActor.run {
+                    context.insert(lintEvent)
+                    try? context.save()
+                }
+            }
+
+            // Auto-cleanup: delete events older than 30 days
+            let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+            let oldEvents = (try? context.fetch(FetchDescriptor<KnowledgeEvent>(
+                predicate: #Predicate { $0.createdAt < cutoff }
+            ))) ?? []
+            for event in oldEvents {
+                await MainActor.run { context.delete(event) }
+            }
+            if !oldEvents.isEmpty {
+                await MainActor.run { try? context.save() }
+            }
+
+            return results
         } catch {
             print("[KnowledgeCompiler] Lint failed: \(error)")
             return []

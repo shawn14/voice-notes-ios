@@ -543,9 +543,15 @@ struct AIHomeView: View {
 
                 Spacer()
 
-                Text("\(knowledgeArticles.count) articles")
-                    .font(.caption)
+                NavigationLink(destination: KnowledgeOverviewView()) {
+                    HStack(spacing: 4) {
+                        Text("\(knowledgeArticles.count) articles")
+                            .font(.caption)
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                    }
                     .foregroundStyle(.eeonTextSecondary)
+                }
             }
             .padding(.horizontal)
 

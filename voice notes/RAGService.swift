@@ -73,7 +73,20 @@ class RAGService {
         // Take top 10 after merge
         let contextNotes = Array(mergedNotes.prefix(10))
 
-        // Step 4.5: Find relevant knowledge articles by name/summary match
+        // Step 4.5: Build knowledge index for LLM context
+        let knowledgeIndex: String
+        let nonEmptyArticles = articles.filter { !$0.summary.isEmpty }
+        if !nonEmptyArticles.isEmpty {
+            let indexLines = nonEmptyArticles
+                .sorted { ($0.mentionCount) > ($1.mentionCount) }
+                .prefix(50)
+                .map { "[\($0.articleType.label)] \($0.name) — \(String($0.summary.prefix(80))), \($0.mentionCount) mentions" }
+            knowledgeIndex = "\n\n--- KNOWLEDGE INDEX ---\n" + indexLines.joined(separator: "\n")
+        } else {
+            knowledgeIndex = ""
+        }
+
+        // Step 4.6: Find relevant knowledge articles by name/summary match
         let queryLower = query.lowercased()
         let relevantArticles = articles.filter { article in
             !article.summary.isEmpty && (
@@ -118,6 +131,7 @@ class RAGService {
         If you can't find relevant information, say so honestly.
         After answering, provide exactly 2-3 follow-up questions on new lines prefixed with "FOLLOWUP: ".
         Do not use emojis.
+        \(knowledgeIndex)
         \(articleContext)
 
         --- USER'S NOTES ---
