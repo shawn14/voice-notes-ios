@@ -198,10 +198,18 @@ final class IntelligenceService {
 
     /// Process any pending ingests from the share extension.
     /// Called on app foreground before normal refresh.
+    private var isProcessingIngests = false
+
     func processPendingIngests(context: ModelContext, projects: [Project], tags: [Tag]) async {
+        guard !isProcessingIngests else { return }
+        isProcessingIngests = true
+        defer { isProcessingIngests = false }
+
         let pending = SharedDefaults.pendingIngests
-        print("[IntelligenceService] Checking pending ingests: \(pending.count) found")
         guard !pending.isEmpty else { return }
+
+        // Clear immediately to prevent double processing
+        SharedDefaults.clearPendingIngests()
 
         for ingest in pending {
             let note: Note
@@ -256,8 +264,6 @@ final class IntelligenceService {
             try? await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
             await MainActor.run { try? context.save() }
         }
-
-        SharedDefaults.clearPendingIngests()
     }
 
     // MARK: - URL Processing
