@@ -73,6 +73,8 @@ final class KnowledgeCompiler {
         case .voice: ingestTitle = "Recorded voice note"
         case .webArticle: ingestTitle = "Ingested web article"
         case .derived: ingestTitle = "Saved assistant answer"
+        case .document: ingestTitle = "Ingested document"
+        case .audioImport: ingestTitle = "Imported audio file"
         }
         let detail = affectedNames.isEmpty ? nil : "Marked \(affectedNames.count) articles: \(affectedNames.prefix(5).joined(separator: ", "))"
         let event = KnowledgeEvent(eventType: .ingest, title: ingestTitle, detail: detail, sourceNoteId: note.id)
@@ -172,6 +174,10 @@ final class KnowledgeCompiler {
                         prefix = "[WEB SOURCE: \(dateStr)]"
                     case .derived:
                         prefix = "[DERIVED: \(dateStr)]"
+                    case .document:
+                        prefix = "[DOCUMENT: \(dateStr)]"
+                    case .audioImport:
+                        prefix = "[AUDIO IMPORT: \(dateStr)]"
                     }
                     return "\(prefix) \(String(text.prefix(500)))"
                 }

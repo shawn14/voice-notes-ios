@@ -46,12 +46,16 @@ enum NoteSourceType: String, CaseIterable {
     case voice = "voice"
     case webArticle = "web"
     case derived = "derived"
+    case document = "document"
+    case audioImport = "audioImport"
 
     var badgeIcon: String? {
         switch self {
         case .voice: return nil
         case .webArticle: return "link"
         case .derived: return "sparkles"
+        case .document: return "doc.text"
+        case .audioImport: return "square.and.arrow.down"
         }
     }
 
@@ -60,6 +64,8 @@ enum NoteSourceType: String, CaseIterable {
         case .voice: return nil
         case .webArticle: return "Web Source"
         case .derived: return "Saved from Assistant"
+        case .document: return "PDF"
+        case .audioImport: return "Audio Import"
         }
     }
 }
