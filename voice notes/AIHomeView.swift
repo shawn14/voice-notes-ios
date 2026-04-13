@@ -55,6 +55,9 @@ struct AIHomeView: View {
     // Audio import state
     @State private var showingAudioImporter = false
 
+    // Source picker
+    @State private var showingSourcePicker = false
+
     // Type note
     @State private var showingTypeNote = false
 
@@ -284,6 +287,22 @@ struct AIHomeView: View {
                     errorMessage = "Import failed: \(error.localizedDescription)"
                     showingError = true
                 }
+            }
+            .sheet(isPresented: $showingSourcePicker) {
+                SourcePickerSheet(
+                    onRecordAudio: {
+                        toggleRecording()
+                    },
+                    onImportAudio: {
+                        showingAudioImporter = true
+                    },
+                    onImportPDF: { url in
+                        savePDFNote(from: url)
+                    },
+                    onWebLink: { urlString in
+                        saveWebNote(from: urlString)
+                    }
+                )
             }
             .navigationDestination(item: $navigateToNote) { note in
                 NoteDetailView(
@@ -582,6 +601,16 @@ struct AIHomeView: View {
                     .foregroundStyle(.eeonTextSecondary)
             }
             .frame(maxWidth: .infinity)
+
+            // "+" source picker (left of mic)
+            Button {
+                showingSourcePicker = true
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+            .frame(width: 44)
 
             // Mic button (center, elevated)
             Button(action: {
@@ -1198,6 +1227,192 @@ struct AIHomeView: View {
                     }
                 } catch {
                     print("Error processing typed note: \(error)")
+                }
+            }
+        }
+    }
+
+    // MARK: - Create Web Note
+
+    private func saveWebNote(from urlString: String) {
+        isTranscribing = true
+
+        Task {
+            do {
+                let webContent = try await WebContentService.fetchArticle(from: urlString)
+
+                await MainActor.run {
+                    let note = Note(
+                        title: webContent.title,
+                        content: webContent.text,
+                        transcript: webContent.text,
+                        audioFileName: nil
+                    )
+                    note.sourceTypeRaw = NoteSourceType.webArticle.rawValue
+                    note.originalURL = webContent.url
+                    modelContext.insert(note)
+                    UsageService.shared.incrementNoteCount()
+                    try? modelContext.save()
+
+                    isTranscribing = false
+                    navigateToNote = note
+
+                    // AI processing
+                    if let apiKey = APIKeys.openAI, !apiKey.isEmpty {
+                        let existingTags = tags
+                        let allProjects = projects
+                        let context = modelContext
+
+                        Task {
+                            do {
+                                let extractor = TagExtractor(apiKey: apiKey)
+                                let tagNames = try await extractor.extractTags(from: webContent.text)
+
+                                await MainActor.run {
+                                    for tagName in tagNames {
+                                        if let existingTag = existingTags.first(where: { $0.name.lowercased() == tagName.lowercased() }) {
+                                            if !note.tags.contains(where: { $0.id == existingTag.id }) {
+                                                note.tags.append(existingTag)
+                                            }
+                                        } else {
+                                            let newTag = Tag(name: tagName.capitalized)
+                                            context.insert(newTag)
+                                            note.tags.append(newTag)
+                                        }
+                                    }
+
+                                    if let match = ProjectMatcher.findMatch(for: webContent.text, in: allProjects) {
+                                        note.projectId = match.project.id
+                                    }
+                                }
+
+                                await intelligenceService.processNoteSave(
+                                    note: note,
+                                    transcript: webContent.text,
+                                    projects: allProjects,
+                                    tags: existingTags,
+                                    context: context
+                                )
+
+                                await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
+                            } catch {
+                                print("Error processing web note: \(error)")
+                            }
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isTranscribing = false
+                    errorMessage = "Couldn't load that link: \(error.localizedDescription)"
+                    showingError = true
+                }
+            }
+        }
+    }
+
+    // MARK: - Create PDF/Document Note
+
+    private func savePDFNote(from sourceURL: URL) {
+        guard sourceURL.startAccessingSecurityScopedResource() else {
+            errorMessage = "Could not access the selected file"
+            showingError = true
+            return
+        }
+
+        isTranscribing = true
+
+        Task {
+            defer { sourceURL.stopAccessingSecurityScopedResource() }
+
+            do {
+                // Copy file to documents first for reliable access
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let fileName = "\(UUID().uuidString).\(sourceURL.pathExtension)"
+                let localURL = documentsPath.appendingPathComponent(fileName)
+                try FileManager.default.copyItem(at: sourceURL, to: localURL)
+
+                let extracted: ExtractedDocument
+                if sourceURL.pathExtension.lowercased() == "pdf" {
+                    extracted = try await PDFExtractionService.shared.extractText(from: localURL)
+                } else {
+                    // Plain text file
+                    let text = try String(contentsOf: localURL, encoding: .utf8)
+                    extracted = ExtractedDocument(
+                        text: text,
+                        title: sourceURL.deletingPathExtension().lastPathComponent,
+                        pageCount: 1,
+                        wasOCR: false
+                    )
+                }
+
+                await MainActor.run {
+                    let note = Note(
+                        title: extracted.title,
+                        content: extracted.text,
+                        transcript: extracted.text,
+                        audioFileName: nil
+                    )
+                    note.sourceTypeRaw = NoteSourceType.document.rawValue
+                    modelContext.insert(note)
+                    UsageService.shared.incrementNoteCount()
+                    try? modelContext.save()
+
+                    isTranscribing = false
+                    navigateToNote = note
+
+                    // AI processing
+                    if let apiKey = APIKeys.openAI, !apiKey.isEmpty {
+                        let existingTags = tags
+                        let allProjects = projects
+                        let context = modelContext
+
+                        Task {
+                            do {
+                                let title = try await SummaryService.generateTitle(for: extracted.text, apiKey: apiKey)
+                                let extractor = TagExtractor(apiKey: apiKey)
+                                let tagNames = try await extractor.extractTags(from: extracted.text)
+
+                                await MainActor.run {
+                                    note.title = title
+
+                                    for tagName in tagNames {
+                                        if let existingTag = existingTags.first(where: { $0.name.lowercased() == tagName.lowercased() }) {
+                                            if !note.tags.contains(where: { $0.id == existingTag.id }) {
+                                                note.tags.append(existingTag)
+                                            }
+                                        } else {
+                                            let newTag = Tag(name: tagName.capitalized)
+                                            context.insert(newTag)
+                                            note.tags.append(newTag)
+                                        }
+                                    }
+
+                                    if let match = ProjectMatcher.findMatch(for: extracted.text, in: allProjects) {
+                                        note.projectId = match.project.id
+                                    }
+                                }
+
+                                await intelligenceService.processNoteSave(
+                                    note: note,
+                                    transcript: extracted.text,
+                                    projects: allProjects,
+                                    tags: existingTags,
+                                    context: context
+                                )
+
+                                await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
+                            } catch {
+                                print("Error processing PDF note: \(error)")
+                            }
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isTranscribing = false
+                    errorMessage = "Couldn't extract text: \(error.localizedDescription)"
+                    showingError = true
                 }
             }
         }
