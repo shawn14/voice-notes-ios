@@ -115,10 +115,8 @@ struct voice_notesApp: App {
                                 }
                             }
                         }
-                case .needsPaywall:
+                case .needsPaywall, .needsSignIn:
                     OnboardingQuizView()
-                case .needsSignIn:
-                    SignInView()
                 }
             }
             .onOpenURL { url in

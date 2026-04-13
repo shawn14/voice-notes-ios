@@ -9,6 +9,7 @@
 
 import SwiftUI
 import StoreKit
+import AuthenticationServices
 
 // MARK: - Quiz Data
 
@@ -105,6 +106,7 @@ struct OnboardingQuizView: View {
     @State private var showError = false
 
     private let subscriptionManager = SubscriptionManager.shared
+    private let authService = AuthService.shared
     private let totalSteps = 6
 
     var body: some View {
@@ -394,31 +396,35 @@ struct OnboardingQuizView: View {
                         planButton(plan: .monthly, label: "Monthly", price: "$9.99/mo", perMonth: nil)
                     }
 
-                    // Purchase CTA
-                    Button {
-                        purchaseSubscription()
-                    } label: {
-                        HStack {
-                            if isPurchasing {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text("Start my FREE week")
-                                    .font(.body.weight(.bold))
+                    // Sign In with Apple — primary CTA
+                    SignInWithAppleButton(.signIn) { request in
+                        request.requestedScopes = [.fullName, .email]
+                    } onCompletion: { result in
+                        switch result {
+                        case .success(let authorization):
+                            authService.handleSignInResult(.success(authorization))
+                            if authService.isSignedIn {
+                                purchaseSubscription()
                             }
+                        case .failure(let error):
+                            errorMessage = error.localizedDescription
+                            showError = true
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
-                        .background(Color("EEONAccent"))
-                        .foregroundStyle(.white)
-                        .cornerRadius(14)
                     }
-                    .disabled(isPurchasing)
+                    .signInWithAppleButtonStyle(.black)
+                    .frame(height: 54)
+                    .cornerRadius(14)
 
-                    // Skip
+                    if isPurchasing {
+                        ProgressView("Setting up your account...")
+                            .tint(Color("EEONAccent"))
+                    }
+
+                    // Skip — try free without sign-in
                     Button {
                         OnboardingState.set(.completed)
                     } label: {
-                        Text("Start free with 5 notes")
+                        Text("Try 5 free notes first")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -523,6 +529,17 @@ struct OnboardingQuizView: View {
     private func purchaseSubscription() {
         isPurchasing = true
         Task {
+            // Check if already subscribed (e.g. restored purchase)
+            await subscriptionManager.updateSubscriptionStatus()
+            if subscriptionManager.isSubscribed {
+                await MainActor.run {
+                    isPurchasing = false
+                    OnboardingState.set(.completed)
+                }
+                return
+            }
+
+            // Try to purchase selected plan
             if subscriptionManager.products.isEmpty {
                 await subscriptionManager.loadProducts()
             }
@@ -536,15 +553,15 @@ struct OnboardingQuizView: View {
                 } catch {
                     await MainActor.run {
                         isPurchasing = false
-                        errorMessage = error.localizedDescription
-                        showError = true
+                        // Sign-in succeeded even if purchase was cancelled — go to app
+                        OnboardingState.set(.completed)
                     }
                 }
             } else {
                 await MainActor.run {
                     isPurchasing = false
-                    errorMessage = "Could not load subscription. Try again."
-                    showError = true
+                    // Products couldn't load — still let them into the app
+                    OnboardingState.set(.completed)
                 }
             }
         }
