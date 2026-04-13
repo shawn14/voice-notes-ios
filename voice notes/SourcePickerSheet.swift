@@ -13,6 +13,7 @@ struct SourcePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var onRecordAudio: () -> Void
+    var onTypeNote: () -> Void
     var onImportAudio: () -> Void
     var onImportPDF: (URL) -> Void
     var onWebLink: (String) -> Void
@@ -72,6 +73,16 @@ struct SourcePickerSheet: View {
                 action: {
                     dismiss()
                     onRecordAudio()
+                }
+            )
+
+            sourceRow(
+                icon: "square.and.pencil",
+                iconColor: .orange,
+                title: "Type a note",
+                action: {
+                    dismiss()
+                    onTypeNote()
                 }
             )
 

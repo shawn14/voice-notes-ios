@@ -293,6 +293,9 @@ struct AIHomeView: View {
                     onRecordAudio: {
                         toggleRecording()
                     },
+                    onTypeNote: {
+                        showingTypeNote = true
+                    },
                     onImportAudio: {
                         showingAudioImporter = true
                     },
@@ -588,31 +591,11 @@ struct AIHomeView: View {
         }
     }
 
-    // MARK: - 3. Bottom Bar (Write / Mic / Search)
+    // MARK: - 3. Bottom Bar (Mic / New Note / Search)
 
     private var bottomBar: some View {
         HStack(spacing: 0) {
-            // Write button (left)
-            Button {
-                showingTypeNote = true
-            } label: {
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(.eeonTextSecondary)
-            }
-            .frame(maxWidth: .infinity)
-
-            // "+" source picker (left of mic)
-            Button {
-                showingSourcePicker = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(.eeonTextSecondary)
-            }
-            .frame(width: 44)
-
-            // Mic button (center, elevated)
+            // Mic button (left, elevated)
             Button(action: {
                 toggleRecording()
             }) {
@@ -634,7 +617,26 @@ struct AIHomeView: View {
             .disabled(isTranscribing)
             .offset(y: -6)
 
-            // Search button (right)
+            Spacer()
+
+            // "New Note" pill button (right) — Coconote-style
+            Button {
+                showingSourcePicker = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("New Note")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Color.eeonAccent)
+                .clipShape(Capsule())
+            }
+
+            // Search button (far right)
             Button {
                 showingAssistant = true
             } label: {
@@ -642,8 +644,9 @@ struct AIHomeView: View {
                     .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(.eeonTextSecondary)
             }
-            .frame(maxWidth: .infinity)
+            .frame(width: 50)
         }
+        .padding(.horizontal, 16)
         .padding(.top, 8)
         .background(
             Color.eeonBackground
