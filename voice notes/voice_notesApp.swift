@@ -116,7 +116,7 @@ struct voice_notesApp: App {
                             }
                         }
                 case .needsPaywall:
-                    OnboardingPaywallView()
+                    OnboardingQuizView()
                 case .needsSignIn:
                     SignInView()
                 }
