@@ -1203,7 +1203,7 @@ struct HomeRecordingOverlay: View {
     @State private var cursorVisible = true
 
     private let usageService = UsageService.shared
-    private let accentRed = Color(red: 1.0, green: 0.231, blue: 0.188) // #FF3B30
+    private let accentRed = Color("EEONAccent")
 
     var body: some View {
         ZStack {
