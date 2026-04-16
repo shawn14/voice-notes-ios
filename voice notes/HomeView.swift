@@ -1751,6 +1751,36 @@ struct SettingsView: View {
                     Text("Appearance")
                 }
 
+                // MARK: - Personalization
+                Section {
+                    NavigationLink {
+                        IdentityView()
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color("EEONAccent").opacity(0.15))
+                                    .frame(width: 44, height: 44)
+                                Image(systemName: "scope")
+                                    .foregroundStyle(Color("EEONAccent"))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Tune EEON")
+                                    .font(.body.weight(.medium))
+                                Text("Profile, purpose, reference material")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Personalization")
+                } footer: {
+                    Text("Tell EEON who you are and what it's for. Auto-refines as you capture notes.")
+                        .font(.caption)
+                }
+
                 // MARK: - Usage Section
                 Section {
                     UsageSectionContent(usage: usage, noteCount: notes.count)

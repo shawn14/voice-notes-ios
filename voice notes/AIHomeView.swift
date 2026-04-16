@@ -29,6 +29,8 @@ struct AIHomeView: View {
     @Query private var mentionedPeople: [MentionedPerson]
     @Query private var unresolvedItems: [UnresolvedItem]
     @Query(sort: \KnowledgeArticle.lastMentionedAt, order: .reverse) private var knowledgeArticles: [KnowledgeArticle]
+    @Query(filter: #Predicate<KnowledgeArticle> { $0.articleTypeRaw == "purpose" })
+    private var purposeArticles: [KnowledgeArticle]
 
     @Binding var shouldStartRecording: Bool
 
@@ -41,8 +43,10 @@ struct AIHomeView: View {
 
     @State private var showingSettings = false
     @State private var showingAssistant = false
+    @State private var showingIdentity = false
     @State private var showPaywall = false
     @State private var showSignIn = false
+    @AppStorage("tuneBannerDismissedAt") private var tuneBannerDismissedRaw: Double = 0
 
     // Recording state
     @State private var audioRecorder = AudioRecorder()
@@ -197,6 +201,12 @@ struct AIHomeView: View {
                             greetingBar
                                 .padding(.horizontal)
 
+                            // Tune EEON hero card — prominent until user has compiled a .purpose article
+                            if showTuneHeroCard {
+                                tuneHeroCard
+                                    .padding(.horizontal)
+                            }
+
                             // Daily brief removed — AI tab handles organization
 
                             // Free tier warning
@@ -208,13 +218,13 @@ struct AIHomeView: View {
                                 }
                             }
 
-                            // Knowledge articles
-                            if !knowledgeArticles.isEmpty {
-                                knowledgeCardsSection
+                            // Layout-driven sections — order picked by the Karpathy LLM
+                            // from the compiled .purpose article (or default layout pre-compile).
+                            ForEach(activeLayout.sections) { section in
+                                if let kind = section.kind {
+                                    sectionView(for: kind, section: section)
+                                }
                             }
-
-                            // 3. Note feed with tabs
-                            noteFeed
 
                             // Spacer so content doesn't show behind bottom bar
                             Color.clear.frame(height: 20)
@@ -243,6 +253,9 @@ struct AIHomeView: View {
             .navigationBarHidden(true)
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showingIdentity) {
+                NavigationStack { IdentityView() }
             }
             .sheet(isPresented: $showingAssistant) {
                 AssistantView()
@@ -847,6 +860,109 @@ struct AIHomeView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Tune EEON Hero Card
+
+    /// Show the Tune EEON hero card when the user hasn't set up their purpose yet.
+    /// Once the purpose is compiled (article has non-empty directive), the card disappears.
+    /// User can also dismiss manually; dismissals re-show after 14 days if still empty.
+    private var showTuneHeroCard: Bool {
+        let hasPurpose = (purposeArticles.first?.thinkingEvolution?.isEmpty == false)
+            || (purposeArticles.first?.summary.isEmpty == false)
+        if hasPurpose { return false }
+        let dismissed = Date(timeIntervalSince1970: tuneBannerDismissedRaw)
+        let daysSince = Calendar.current.dateComponents([.day], from: dismissed, to: Date()).day ?? 999
+        return daysSince >= 14
+    }
+
+    private var tuneHeroCard: some View {
+        Button {
+            showingIdentity = true
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color("EEONAccent").opacity(0.18))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "scope")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(Color("EEONAccent"))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Tune EEON to you")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.eeonTextPrimary)
+                    Text("Tell it who you are, what it's for, and what to remember for you.")
+                        .font(.caption)
+                        .foregroundStyle(.eeonTextSecondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Button {
+                    tuneBannerDismissedRaw = Date().timeIntervalSince1970
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.eeonTextSecondary)
+                        .padding(6)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.eeonCard)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color("EEONAccent").opacity(0.35), lineWidth: 1.5)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Layout-Driven Sections
+
+    /// Active home layout — compiled by the Karpathy LLM on the .purpose article,
+    /// or the default layout if no purpose article has been compiled yet.
+    private var activeLayout: HomeLayout {
+        purposeArticles.first?.homeLayout ?? .default
+    }
+
+    /// Dispatch a section kind to its concrete view. Sections render themselves
+    /// or disappear entirely when they have no data — so the user never sees an
+    /// empty "Silent Projects" placeholder.
+    @ViewBuilder
+    private func sectionView(for kind: HomeSectionKind, section: HomeSection) -> some View {
+        let t = section.effectiveTitle
+        switch kind {
+        case .priorityProjects:
+            PriorityProjectsSection(projects: projects, title: t, limit: section.limit ?? 5)
+        case .silentProjects:
+            SilentProjectsSection(projects: projects, title: t, staleDays: section.staleDaysThreshold ?? 9)
+        case .openDecisions:
+            OpenDecisionsSection(decisions: extractedDecisions, title: t, limit: section.limit ?? 5)
+        case .ideaInbox:
+            IdeaInboxSection(notes: notes, title: t, limit: section.limit ?? 5)
+        case .clientRoster:
+            ClientRosterSection(articles: knowledgeArticles, title: t, limit: section.limit ?? 8)
+        case .followUpsPerClient:
+            FollowUpsPerClientSection(commitments: extractedCommitments, title: t, limit: section.limit ?? 6)
+        case .recurringPatterns:
+            RecurringPatternsSection(articles: knowledgeArticles, title: t, limit: section.limit ?? 8)
+        case .referenceResonance:
+            ReferenceResonanceSection(articles: knowledgeArticles, title: t, limit: section.limit ?? 5)
+        case .knowledgeCarousel:
+            if !knowledgeArticles.isEmpty { knowledgeCardsSection }
+        case .recentNotes:
+            noteFeed
+        // Planned but not yet built — fall through to recentNotes as safe default.
+        case .captureHero, .todayThree, .openThreads, .relationshipArcs, .emotionalToneArc,
+             .activeInquiries, .contradictionLedger, .dailyBrief:
+            EmptyView()
         }
     }
 

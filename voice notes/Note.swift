@@ -48,6 +48,8 @@ enum NoteSourceType: String, CaseIterable {
     case derived = "derived"
     case document = "document"
     case audioImport = "audioImport"
+    case profileSeed = "profileSeed"   // User-authored "about me" text → seeds .self KnowledgeArticle
+    case purposeSeed = "purposeSeed"   // User-authored role statement → seeds .purpose KnowledgeArticle
 
     var badgeIcon: String? {
         switch self {
@@ -56,6 +58,8 @@ enum NoteSourceType: String, CaseIterable {
         case .derived: return "sparkles"
         case .document: return "doc.text"
         case .audioImport: return "square.and.arrow.down"
+        case .profileSeed: return "person.crop.circle"
+        case .purposeSeed: return "scope"
         }
     }
 
@@ -66,6 +70,8 @@ enum NoteSourceType: String, CaseIterable {
         case .derived: return "Saved from Assistant"
         case .document: return "PDF"
         case .audioImport: return "Audio Import"
+        case .profileSeed: return "Profile"
+        case .purposeSeed: return "Purpose"
         }
     }
 }

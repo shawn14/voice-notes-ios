@@ -125,7 +125,7 @@ class RAGService {
 
         // Step 6: Call GPT-4o-mini with RAG context
         let systemPrompt = """
-        \(AuthService.shared.eeonContextPrefix)You are EEON, an AI memory assistant. Answer the user's question based on their compiled knowledge and notes below.
+        \(ContextAssembler.flatPrefix(for: .rag))You are EEON, an AI memory assistant. Answer the user's question based on their compiled knowledge and notes below.
         Prefer compiled knowledge articles when available — they contain synthesized, up-to-date information.
         Always cite which note(s) or article(s) your answer comes from.
         If you can't find relevant information, say so honestly.

@@ -96,6 +96,15 @@ struct voice_notesApp: App {
         }
 
         // Background task for proactive alerts is registered via .backgroundTask(.appRefresh) modifier on the Scene
+
+        // Prime ContextAssembler cache from compiled .self / .purpose articles.
+        // Also runs the one-time eeonContext → .profileSeed migration if needed.
+        // Capture container locally — escaping the closure would capture mutating self.
+        let mainContext = container.mainContext
+        Task { @MainActor in
+            AuthService.shared.migrateEeonContextToSeedIfNeeded(context: mainContext)
+            ContextAssembler.shared.refresh(from: mainContext)
+        }
     }
 
     var body: some Scene {

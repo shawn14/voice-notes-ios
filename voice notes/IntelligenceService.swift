@@ -56,6 +56,17 @@ final class IntelligenceService {
             return
         }
 
+        // Seed notes (profile / purpose) bypass intent extraction entirely.
+        // The seed IS the content — no actions, decisions, or commitments to pull out.
+        // Still mark affected articles so the compiler rebuilds .self / .purpose on next pass.
+        if note.sourceType == .profileSeed || note.sourceType == .purposeSeed {
+            await MainActor.run {
+                KnowledgeCompiler.shared.markAffectedArticles(note: note, context: context)
+            }
+            await KnowledgeCompiler.shared.recompileDirtyArticles(context: context)
+            return
+        }
+
         // Extract intent — branch on source type
         do {
             let result: IntentAnalysis
@@ -666,8 +677,8 @@ final class IntelligenceService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let systemPrompt = """
-        \(AuthService.shared.eeonContextPrefix)You are an AI assistant generating a daily brief for a founder's voice notes app.
-        Be direct, actionable, and founder-friendly. Focus on what matters TODAY.
+        \(ContextAssembler.flatPrefix(for: .dailyBrief))You are an AI assistant generating a daily brief for a voice notes app.
+        Be direct, actionable, and focused on what matters TODAY.
 
         Return JSON with this EXACT structure:
         {

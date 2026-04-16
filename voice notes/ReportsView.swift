@@ -325,7 +325,7 @@ struct ReportsView: View {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let systemPrompt = """
-        \(AuthService.shared.eeonContextPrefix)You are an AI assistant analyzing a user's complete voice notes history. You have full access to their notes, projects, decisions, actions, commitments, people, and workflow board.
+        \(ContextAssembler.flatPrefix(for: .analysis))You are an AI assistant analyzing a user's complete voice notes history. You have full access to their notes, projects, decisions, actions, commitments, people, and workflow board.
 
         Be concise, actionable, and tailored to the user's role. Use markdown formatting for structured output. Do not use emojis.
 
@@ -427,9 +427,9 @@ struct ReportsView: View {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let systemPrompt = """
-        \(AuthService.shared.eeonContextPrefix)You are an AI assistant analyzing a founder's complete voice notes history. You have full access to their notes, projects, decisions, actions, commitments, people, and workflow board.
+        \(ContextAssembler.flatPrefix(for: .analysis))You are an AI assistant analyzing the user's complete voice notes history. You have full access to their notes, projects, decisions, actions, commitments, people, and workflow board.
 
-        Be concise, actionable, and founder-friendly. Use markdown formatting for structured output. Do not use emojis.
+        Be concise, actionable, and tailored to the user's role. Use markdown formatting for structured output. Do not use emojis.
 
         \(reportType.reportInstructions)
 

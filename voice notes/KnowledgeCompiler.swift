@@ -32,37 +32,54 @@ final class KnowledgeCompiler {
     func markAffectedArticles(note: Note, context: ModelContext) {
         let allArticles = (try? context.fetch(FetchDescriptor<KnowledgeArticle>())) ?? []
 
-        // People mentioned in this note
-        for personName in note.mentionedPeople {
-            let article = findOrCreate(
-                name: personName,
-                type: .person,
-                existing: allArticles,
-                context: context
-            )
+        // Seed notes route directly to their singleton article — skip people/topics/project extraction
+        switch note.sourceType {
+        case .profileSeed:
+            let name = AuthService.shared.userName ?? "You"
+            let article = findOrCreate(name: name, type: .self, existing: allArticles, context: context)
+            // Seeds replace prior seed content — drop old seed-note links so compile sees only current seed
+            let seedIds = Self.priorSeedNoteIds(for: .profileSeed, in: context, excluding: note.id)
+            article.linkedNoteIds = article.linkedNoteIds.filter { !seedIds.contains($0) }
             markDirty(article: article, noteId: note.id)
-        }
+        case .purposeSeed:
+            let article = findOrCreate(name: "Purpose", type: .purpose, existing: allArticles, context: context)
+            let seedIds = Self.priorSeedNoteIds(for: .purposeSeed, in: context, excluding: note.id)
+            article.linkedNoteIds = article.linkedNoteIds.filter { !seedIds.contains($0) }
+            markDirty(article: article, noteId: note.id)
+        default:
+            // People mentioned in this note
+            for personName in note.mentionedPeople {
+                let article = findOrCreate(
+                    name: personName,
+                    type: .person,
+                    existing: allArticles,
+                    context: context
+                )
+                markDirty(article: article, noteId: note.id)
+            }
 
-        // Topics extracted from this note
-        for topic in note.topics {
-            let article = findOrCreate(
-                name: topic,
-                type: .topic,
-                existing: allArticles,
-                context: context
-            )
-            markDirty(article: article, noteId: note.id)
-        }
+            // Topics extracted from this note — .document source upgrades topic → reference
+            let topicType: KnowledgeArticleType = (note.sourceType == .document) ? .reference : .topic
+            for topic in note.topics {
+                let article = findOrCreate(
+                    name: topic,
+                    type: topicType,
+                    existing: allArticles,
+                    context: context
+                )
+                markDirty(article: article, noteId: note.id)
+            }
 
-        // Inferred project
-        if let projectName = note.inferredProjectName, !projectName.isEmpty {
-            let article = findOrCreate(
-                name: projectName,
-                type: .project,
-                existing: allArticles,
-                context: context
-            )
-            markDirty(article: article, noteId: note.id)
+            // Inferred project
+            if let projectName = note.inferredProjectName, !projectName.isEmpty {
+                let article = findOrCreate(
+                    name: projectName,
+                    type: .project,
+                    existing: allArticles,
+                    context: context
+                )
+                markDirty(article: article, noteId: note.id)
+            }
         }
 
         // Log ingest event
@@ -75,11 +92,50 @@ final class KnowledgeCompiler {
         case .derived: ingestTitle = "Saved assistant answer"
         case .document: ingestTitle = "Ingested document"
         case .audioImport: ingestTitle = "Imported audio file"
+        case .profileSeed: ingestTitle = "Updated your profile"
+        case .purposeSeed: ingestTitle = "Updated your purpose"
         }
         let detail = affectedNames.isEmpty ? nil : "Marked \(affectedNames.count) articles: \(affectedNames.prefix(5).joined(separator: ", "))"
         let event = KnowledgeEvent(eventType: .ingest, title: ingestTitle, detail: detail, sourceNoteId: note.id)
         context.insert(event)
 
+        try? context.save()
+    }
+
+    // MARK: - Seed Management
+
+    /// Returns IDs of prior seed notes of the given type, excluding the current one.
+    /// Used to detach stale seed links from their article (so compile uses only the newest seed).
+    @MainActor
+    private static func priorSeedNoteIds(
+        for sourceType: NoteSourceType,
+        in context: ModelContext,
+        excluding currentId: UUID
+    ) -> Set<UUID> {
+        let raw = sourceType.rawValue
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { $0.sourceTypeRaw == raw }
+        )
+        let priorNotes = (try? context.fetch(descriptor)) ?? []
+        return Set(priorNotes.map(\.id).filter { $0 != currentId })
+    }
+
+    /// Delete prior seed notes of a given type after saving a new seed.
+    /// Keeps the app's note list clean — only one canonical seed per article.
+    @MainActor
+    static func replacePriorSeeds(
+        for sourceType: NoteSourceType,
+        keeping currentId: UUID,
+        in context: ModelContext
+    ) {
+        let raw = sourceType.rawValue
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { $0.sourceTypeRaw == raw }
+        )
+        let priorNotes = (try? context.fetch(descriptor)) ?? []
+        for note in priorNotes where note.id != currentId {
+            context.delete(note)
+        }
         try? context.save()
     }
 
@@ -178,6 +234,10 @@ final class KnowledgeCompiler {
                         prefix = "[DOCUMENT: \(dateStr)]"
                     case .audioImport:
                         prefix = "[AUDIO IMPORT: \(dateStr)]"
+                    case .profileSeed:
+                        prefix = "[PROFILE SEED (user-authored, high authority)]"
+                    case .purposeSeed:
+                        prefix = "[PURPOSE SEED (user-authored, high authority)]"
                     }
                     return "\(prefix) \(String(text.prefix(500)))"
                 }
@@ -206,6 +266,10 @@ final class KnowledgeCompiler {
                     if let decisions = response.decisions { article.decisions = decisions }
                     if let rel = response.relationshipContext { article.relationshipContext = rel }
                     if let evolution = response.thinkingEvolution { article.thinkingEvolution = evolution }
+                    // Purpose-only: persist the compiled home layout JSON so AIHomeView can read it.
+                    if article.articleType == .purpose, let layout = response.homeLayoutJSON, !layout.isEmpty {
+                        article.homeLayoutJSON = layout
+                    }
 
                     article.isDirty = false
                     article.lastCompiledAt = Date()
@@ -233,6 +297,13 @@ final class KnowledgeCompiler {
             isCompiling = false
             lastCompileAt = Date()
             UserDefaults.standard.set(Date(), forKey: Keys.lastCompileDate)
+            // Refresh ContextAssembler cache if .self or .purpose article was touched this pass
+            let touchedUserArticles = dirtyArticles.contains {
+                $0.articleType == .self || $0.articleType == .purpose
+            }
+            if touchedUserArticles {
+                ContextAssembler.shared.refresh(from: context)
+            }
         }
     }
 

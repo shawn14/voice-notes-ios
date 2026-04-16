@@ -15,12 +15,18 @@ enum KnowledgeArticleType: String, CaseIterable, Codable {
     case person = "person"
     case project = "project"
     case topic = "topic"
+    case `self` = "self"          // The user's own profile — compiled from .profileSeed + "I" notes
+    case purpose = "purpose"      // What EEON is FOR this user — compiled from .purposeSeed + usage
+    case reference = "reference"  // Uploaded canon (Bible, books, domain expertise)
 
     var icon: String {
         switch self {
         case .person: return "person.fill"
         case .project: return "folder.fill"
         case .topic: return "lightbulb.fill"
+        case .self: return "person.crop.circle.fill"
+        case .purpose: return "scope"
+        case .reference: return "books.vertical.fill"
         }
     }
 
@@ -29,6 +35,9 @@ enum KnowledgeArticleType: String, CaseIterable, Codable {
         case .person: return "Person"
         case .project: return "Project"
         case .topic: return "Topic"
+        case .self: return "You"
+        case .purpose: return "Purpose"
+        case .reference: return "Reference"
         }
     }
 }
@@ -101,6 +110,9 @@ final class KnowledgeArticle {
 
     // Aliases for entity resolution
     var aliasesJSON: String?
+
+    // Home layout (only populated on .purpose article — LLM-compiled section order)
+    var homeLayoutJSON: String?
 
     init(name: String, articleType: KnowledgeArticleType) {
         self.id = UUID()

@@ -7,6 +7,7 @@
 
 import Foundation
 import AuthenticationServices
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -158,9 +159,35 @@ class AuthService {
     // MARK: - AI Context
 
     /// Returns the user's EEON context formatted for system prompt injection, or empty string if not set.
+    /// Legacy — ContextAssembler is the preferred entry point. Kept as fallback for pre-migration users.
     var eeonContextPrefix: String {
         guard let ctx = eeonContext, !ctx.isEmpty else { return "" }
         return "About the user: \(ctx)\n\n"
+    }
+
+    /// One-time migration: move legacy `eeonContext` (UserDefaults) into a `.profileSeed` Note.
+    /// Idempotent — safe to call on every launch. Once a `.profileSeed` note exists, this returns fast.
+    /// The seed note will be picked up by KnowledgeCompiler on the next compile pass and produce a `.self` article.
+    @MainActor
+    func migrateEeonContextToSeedIfNeeded(context: ModelContext) {
+        guard let legacy = eeonContext, !legacy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        // Check whether a profileSeed note already exists
+        let seedRaw = NoteSourceType.profileSeed.rawValue
+        let existing = (try? context.fetch(
+            FetchDescriptor<Note>(predicate: #Predicate { $0.sourceTypeRaw == seedRaw })
+        )) ?? []
+        guard existing.isEmpty else { return }
+
+        let seed = Note(title: "Your Profile", content: legacy)
+        seed.sourceType = .profileSeed
+        context.insert(seed)
+        try? context.save()
+
+        // Mark the .self article dirty so the next compile builds it
+        KnowledgeCompiler.shared.markAffectedArticles(note: seed, context: context)
+
+        print("[AuthService] Migrated eeonContext → .profileSeed note (\(legacy.count) chars)")
     }
 
     // MARK: - Credential State Check

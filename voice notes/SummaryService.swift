@@ -86,6 +86,9 @@ struct CompileArticleResponse: Codable {
     let decisions: [ArticleDecision]?
     let relationshipContext: String?
     let thinkingEvolution: String?
+    // Only emitted by .purpose article compiles — a structured HomeLayout JSON string
+    // (stringified because nested heterogeneous structures are harder for the LLM to emit reliably)
+    let homeLayoutJSON: String?
 }
 
 enum SummaryService {
@@ -317,7 +320,7 @@ enum SummaryService {
 
     static var analysisPrompt: String {
         """
-        \(AuthService.shared.eeonContextPrefix)You are an AI assistant in a founder-focused voice note app.
+        \(ContextAssembler.flatPrefix(for: .extraction))You are an AI assistant in a voice note app.
 
     CORE RULE: Notes are events. Decisions, actions, and commitments are separate objects.
     A note may produce decisions or actions, but it does not own them.
@@ -430,7 +433,7 @@ enum SummaryService {
 
     static var intentPrompt: String {
         """
-        \(AuthService.shared.eeonContextPrefix)You are an AI assistant in a founder-focused voice note app that turns notes into actionable items.
+        \(ContextAssembler.flatPrefix(for: .extraction))You are an AI assistant in a voice note app that turns notes into actionable items.
 
     CORE RULES:
     1. Be DECISIVE - pick ONE intent, don't hedge
@@ -744,14 +747,63 @@ enum SummaryService {
             "thinkingEvolution": "How your thinking on this topic has evolved (1-2 sentences)",
             "sentimentArc": "Your emotional relationship with this topic over time",
             """
+        case .self:
+            typeSpecificFields = """
+            "relationshipContext": "Who this user is — their role, interests, skills, what they're currently working on (2-3 sentences)",
+            "thinkingEvolution": "How their focus has shifted over time based on what they've been capturing (1 sentence)",
+            """
+        case .purpose:
+            typeSpecificFields = """
+            "thinkingEvolution": "What this user uses EEON for — their role, goal, methodology. Write as a system-prompt directive that can be injected into other AI calls. Example: 'The user is a founder. Frame responses to prioritize and rank their projects by execution readiness. Flag decisions that unblock execution.' Or: 'The user is a Jungian dream interpreter. Frame all notes through archetypes; always surface the dreamer's feeling over the symbol's meaning.' Be specific, concrete, and actionable.",
+            "homeLayoutJSON": "A JSON STRING (stringified — escape quotes) describing the user's home-screen layout. The outer object has {\\"sections\\": [...], \\"version\\": 1}. Each section has {\\"kindRaw\\": <one of the allowed section IDs>, \\"title\\": <optional override>, \\"limit\\": <optional number>, \\"staleDaysThreshold\\": <optional number>}. Pick 3-5 sections that best match this user's role and how they'll want to see their compiled memory. Allowed kindRaw values: priorityProjects, silentProjects, openDecisions, ideaInbox, todayThree, openThreads, clientRoster, followUpsPerClient, relationshipArcs, recurringPatterns, emotionalToneArc, referenceResonance, activeInquiries, contradictionLedger, knowledgeCarousel, recentNotes, dailyBrief. FOUNDER example: priorityProjects, openDecisions, ideaInbox, silentProjects, recentNotes. COACH example: clientRoster, followUpsPerClient, relationshipArcs, recentNotes. DREAM INTERPRETER example: recurringPatterns, emotionalToneArc, referenceResonance, recentNotes. RESEARCHER example: activeInquiries, contradictionLedger, knowledgeCarousel, recentNotes. Always include recentNotes as a fallback at the end. Adapt based on the user's actual notes if you have evidence — e.g., if notes mention many clients, lean coach; many dreams, lean interpreter."
+            """
+        case .reference:
+            typeSpecificFields = """
+            "thinkingEvolution": "Key frameworks, concepts, or quotable passages from this reference material. Optimized for retrieval when the user asks questions this reference could answer.",
+            """
+        }
+
+        let articleKind: String
+        let compilationGuidance: String
+        switch articleType {
+        case .person, .project, .topic:
+            articleKind = "a \(articleType.label.lowercased()) named \"\(articleName)\""
+            compilationGuidance = """
+            Update the article with information from the new notes below.
+            Preserve existing information unless contradicted by newer notes.
+            Be concise — summaries should be 2-3 sentences max.
+            WEB SOURCE and DERIVED entries are reference material. They may inform connections and context but should not override summaries or timelines established by primary voice notes.
+            """
+        case .self:
+            articleKind = "the app's user (\"\(articleName)\")"
+            compilationGuidance = """
+            Compile a first-person profile: who the user is, what they care about, what they're working on, who they know, what they've made.
+            PROFILE SEED entries (user-authored, high authority) are canonical identity facts — never contradict them.
+            Use voice notes to surface current context: what they're focused on lately, recurring themes, who they mention often.
+            Be concise. The summary will be injected into every AI call as "About the user" context.
+            """
+        case .purpose:
+            articleKind = "what EEON is FOR this user"
+            compilationGuidance = """
+            Compile a directive that defines WHO the user is and HOW EEON should serve them.
+            PURPOSE SEED entries (user-authored, high authority) are the canonical role statement — start there.
+            Observe patterns from voice notes: what do they repeatedly ask for? What framings do they use? What decisions do they make?
+            The `thinkingEvolution` field is the most important — it will be injected as a system-prompt addition into every substantive AI call, so it must be a concrete, actionable directive.
+            The `summary` should be a 1-sentence human-readable version the user will see in Settings.
+            """
+        case .reference:
+            articleKind = "uploaded reference material about \"\(articleName)\""
+            compilationGuidance = """
+            This article indexes user-uploaded canon (books, essays, domain expertise). The user did NOT write these notes — they imported them as reference.
+            Summarize frameworks, key concepts, and quotable passages. Do NOT treat this as the user's own thinking.
+            This article will be retrieved by RAG when the user asks a question that maps to its domain.
+            Preserve quotes verbatim where useful. Attribution matters.
+            """
         }
 
         let systemPrompt = """
-        You maintain a living knowledge article about a \(articleType.label.lowercased()) named "\(articleName)".
-        Update the article with information from the new notes below.
-        Preserve existing information unless contradicted by newer notes.
-        Be concise — summaries should be 2-3 sentences max.
-        WEB SOURCE and DERIVED entries are reference material. They may inform connections and context but should not override summaries or timelines established by primary voice notes.
+        You maintain a living knowledge article about \(articleKind).
+        \(compilationGuidance)
 
         Return ONLY valid JSON with this structure:
         {
