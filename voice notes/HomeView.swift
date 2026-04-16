@@ -1767,7 +1767,29 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Tune EEON")
                                     .font(.body.weight(.medium))
-                                Text("Profile, purpose, reference material")
+                                Text("Who you are, what it's for")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+
+                    NavigationLink {
+                        KnowledgeBaseView()
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.brown.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+                                Image(systemName: "books.vertical.fill")
+                                    .foregroundStyle(.brown)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Knowledge Base")
+                                    .font(.body.weight(.medium))
+                                Text("Books, articles, domain expertise")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

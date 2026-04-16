@@ -2,18 +2,22 @@
 //  TuneConversationView.swift
 //  voice notes
 //
-//  Card-by-card conversational flow for personalizing EEON.
-//  Three steps: profile, purpose, knowledge base.
-//  Voice-first (reuses AudioRecorder + TranscriptionService + HomeRecordingOverlay)
-//  with a text fallback. Each step saves on Next with a forced compile so the user
-//  can see the LLM-compiled directive before advancing.
+//  Personalization screen for EEON — two fields (profile, purpose).
 //
-//  Replaces IdentityView's form-based screen.
+//  Open behavior:
+//    - First time (both empty): drops straight into the Profile editor
+//    - Returning user: shows Review mode with both fields displayed + Edit per field
+//
+//  Editing:
+//    - Big mic button → Whisper transcribe → appends to text field
+//    - Save: persists as a seed Note, force-compiles the article, returns to Review
+//    - Returning user sees "What EEON now understands" preview on the purpose field
+//
+//  Reference material lives in a separate KnowledgeBaseView (Settings).
 //
 
 import SwiftUI
 import SwiftData
-import UniformTypeIdentifiers
 
 struct TuneConversationView: View {
     @Environment(\.dismiss) private var dismiss
@@ -25,22 +29,18 @@ struct TuneConversationView: View {
     @Query(filter: #Predicate<Note> { $0.sourceTypeRaw == "purposeSeed" })
     private var purposeSeedNotes: [Note]
 
-    @Query(filter: #Predicate<KnowledgeArticle> { $0.articleTypeRaw == "reference" },
-           sort: [SortDescriptor(\.lastMentionedAt, order: .reverse)])
-    private var referenceArticles: [KnowledgeArticle]
-
     @Query(filter: #Predicate<KnowledgeArticle> { $0.articleTypeRaw == "purpose" })
     private var purposeArticles: [KnowledgeArticle]
 
+    enum Field: Hashable { case profile, purpose }
+
     // MARK: - State
 
-    enum Step: Int, CaseIterable { case profile = 0, purpose = 1, knowledge = 2 }
+    @State private var editingField: Field?
+    @State private var draftText: String = ""
+    @State private var originalDraftText: String = ""
 
-    @State private var step: Step = .profile
-    @State private var profileText: String = ""
-    @State private var purposeText: String = ""
-
-    // Voice capture state
+    // Voice capture
     @State private var audioRecorder = AudioRecorder()
     @State private var isRecording = false
     @State private var isTranscribing = false
@@ -48,16 +48,21 @@ struct TuneConversationView: View {
     @State private var errorMessage: String?
     @State private var showingError = false
 
-    // Save / compile state
+    // Save state
     @State private var isSaving = false
     @State private var savedConfirmation: String?
 
-    // Knowledge base state
-    @State private var showAddReferenceDialog = false
-    @State private var showURLInput = false
-    @State private var pastedURL = ""
-    @State private var isFetchingURL = false
-    @State private var showFilePicker = false
+    // MARK: - Derived
+
+    private var profileText: String { profileSeedNotes.first?.content ?? "" }
+    private var purposeText: String { purposeSeedNotes.first?.content ?? "" }
+
+    private var compiledPurposeDirective: String? {
+        guard let article = purposeArticles.first else { return nil }
+        if let directive = article.thinkingEvolution, !directive.isEmpty { return directive }
+        if !article.summary.isEmpty { return article.summary }
+        return nil
+    }
 
     // MARK: - Body
 
@@ -65,22 +70,13 @@ struct TuneConversationView: View {
         ZStack {
             Color.eeonBackground.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                header
-                Divider().opacity(0.2)
-
-                ScrollView {
-                    VStack(spacing: 28) {
-                        stepBody
-                    }
-                    .padding(.top, 24)
-                    .padding(.bottom, 120)
-                }
-
-                footerNav
+            if let field = editingField {
+                editorView(for: field)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            } else {
+                reviewView
+                    .transition(.opacity)
             }
-            .disabled(isRecording || isTranscribing)
-            .blur(radius: (isRecording || isTranscribing) ? 3 : 0)
 
             if isRecording {
                 HomeRecordingOverlay(
@@ -98,52 +94,55 @@ struct TuneConversationView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .onAppear(perform: loadSeeds)
+        .animation(.easeInOut(duration: 0.25), value: editingField)
+        .onAppear {
+            // First-time user: drop straight into profile editor.
+            if profileText.isEmpty && purposeText.isEmpty {
+                beginEditing(.profile)
+            }
+        }
         .alert("Something went wrong", isPresented: $showingError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage ?? "")
         }
-        .confirmationDialog("Add reference material", isPresented: $showAddReferenceDialog, titleVisibility: .visible) {
-            Button("Paste a link") { showURLInput = true }
-            Button("Pick a file from your phone") { showFilePicker = true }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Add canon (articles, books, domain expertise) for EEON to cite.")
-        }
-        .alert("Paste a link", isPresented: $showURLInput) {
-            TextField("https://...", text: $pastedURL)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.URL)
-            Button("Cancel", role: .cancel) { pastedURL = "" }
-            Button("Add") {
-                let trimmed = pastedURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                pastedURL = ""
-                guard !trimmed.isEmpty else { return }
-                Task { await ingestReferenceURL(trimmed) }
-            }
-        } message: {
-            Text("We'll fetch the page and add it to your knowledge base.")
-        }
-        .fileImporter(
-            isPresented: $showFilePicker,
-            allowedContentTypes: [.pdf, .plainText],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                Task { await ingestReferenceFile(url: url) }
-            case .failure(let error):
-                errorMessage = error.localizedDescription
-                showingError = true
+    }
+
+    // MARK: - Review Mode
+
+    private var reviewView: some View {
+        VStack(spacing: 0) {
+            reviewHeader
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    reviewCard(
+                        icon: "person.crop.circle.fill",
+                        iconColor: Color("EEONAccent"),
+                        title: "About You",
+                        emptyHint: "Tell EEON who you are so it can tailor every answer.",
+                        content: profileText,
+                        onEdit: { beginEditing(.profile) }
+                    )
+
+                    reviewCard(
+                        icon: "scope",
+                        iconColor: .indigo,
+                        title: "What EEON Is For You",
+                        emptyHint: "Your role, your methodology — what EEON should be for you.",
+                        content: purposeText,
+                        compiledDirective: compiledPurposeDirective,
+                        onEdit: { beginEditing(.purpose) }
+                    )
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 100)
             }
         }
     }
 
-    // MARK: - Header + Step Indicator
-
-    private var header: some View {
+    private var reviewHeader: some View {
         HStack {
             Button {
                 dismiss()
@@ -154,9 +153,9 @@ struct TuneConversationView: View {
                     .frame(width: 32, height: 32)
             }
             Spacer()
-            Text("Step \(step.rawValue + 1) of 3")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.eeonTextSecondary)
+            Text("Tune EEON")
+                .font(.headline)
+                .foregroundStyle(.eeonTextPrimary)
             Spacer()
             Color.clear.frame(width: 32, height: 32)
         }
@@ -164,166 +163,182 @@ struct TuneConversationView: View {
         .padding(.vertical, 12)
     }
 
-    // MARK: - Step Body
+    @ViewBuilder
+    private func reviewCard(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        emptyHint: String,
+        content: String,
+        compiledDirective: String? = nil,
+        onEdit: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 36, height: 36)
+                    .background(iconColor.opacity(0.12))
+                    .cornerRadius(10)
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.eeonTextPrimary)
+                Spacer()
+                Button(action: onEdit) {
+                    Text(content.isEmpty ? "Add" : "Edit")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color("EEONAccent"))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color("EEONAccent").opacity(0.12))
+                        .cornerRadius(10)
+                }
+            }
+
+            if content.isEmpty {
+                Text(emptyHint)
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(content)
+                    .font(.body)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let compiled = compiledDirective {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.caption)
+                                .foregroundStyle(.indigo)
+                            Text("What EEON now understands")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.eeonTextSecondary)
+                        }
+                        Text(compiled)
+                            .font(.footnote)
+                            .foregroundStyle(.eeonTextPrimary.opacity(0.9))
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.indigo.opacity(0.08))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.indigo.opacity(0.22), lineWidth: 1)
+                                    )
+                            )
+                    }
+                    .padding(.top, 4)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.eeonCard)
+        .cornerRadius(14)
+    }
+
+    // MARK: - Editor Mode
 
     @ViewBuilder
-    private var stepBody: some View {
-        switch step {
-        case .profile: profileStep
-        case .purpose: purposeStep
-        case .knowledge: knowledgeStep
-        }
-    }
+    private func editorView(for field: Field) -> some View {
+        VStack(spacing: 0) {
+            editorHeader(for: field)
 
-    // MARK: - Step 1: Profile
+            ScrollView {
+                VStack(spacing: 24) {
+                    editorPrompt(for: field)
 
-    private var profileStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            stepPrompt(
-                title: "Tell me about yourself.",
-                subtitle: "Your role, what you're working on, links, who you are in a paragraph. Tap the mic and talk — no need to write."
-            )
+                    bigMicButton
 
-            bigMicButton
+                    orTypeField(placeholder: editorPlaceholder(for: field))
 
-            orTypeField(text: $profileText, placeholder: "I'm …")
-        }
-        .padding(.horizontal, 20)
-    }
-
-    // MARK: - Step 2: Purpose
-
-    private var purposeStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            stepPrompt(
-                title: "What should EEON be for you?",
-                subtitle: "A founder, a coach, a dream interpreter, a researcher — tell me the lens you want EEON to use when it processes your notes."
-            )
-
-            bigMicButton
-
-            orTypeField(text: $purposeText, placeholder: "I want EEON to …")
-
-            if let compiled = compiledPurposePreview {
-                compiledPreview(compiled)
-            }
-        }
-        .padding(.horizontal, 20)
-    }
-
-    private var compiledPurposePreview: String? {
-        guard let article = purposeArticles.first else { return nil }
-        if let directive = article.thinkingEvolution, !directive.isEmpty { return directive }
-        if !article.summary.isEmpty { return article.summary }
-        return nil
-    }
-
-    private func compiledPreview(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .font(.caption)
-                    .foregroundStyle(.indigo)
-                Text("What EEON now understands")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.eeonTextSecondary)
-            }
-            Text(text)
-                .font(.footnote)
-                .foregroundStyle(.eeonTextPrimary.opacity(0.9))
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.indigo.opacity(0.08))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.indigo.opacity(0.22), lineWidth: 1)
-                        )
-                )
-        }
-    }
-
-    // MARK: - Step 3: Knowledge Base
-
-    private var knowledgeStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            stepPrompt(
-                title: "Share anything you want EEON to draw on.",
-                subtitle: "Books, articles, domain expertise. EEON will cite these when they're relevant to your questions."
-            )
-
-            HStack(spacing: 12) {
-                Button {
-                    showAddReferenceDialog = true
-                } label: {
-                    Label("Add reference", systemImage: "plus.circle.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color("EEONAccent"))
-                        .cornerRadius(12)
-                }
-                .disabled(isFetchingURL)
-            }
-
-            if isFetchingURL {
-                HStack(spacing: 8) {
-                    ProgressView().scaleEffect(0.8)
-                    Text("Fetching link…")
-                        .font(.caption)
-                        .foregroundStyle(.eeonTextSecondary)
-                }
-            }
-
-            if !referenceArticles.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Your library")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.eeonTextSecondary)
-                    ForEach(referenceArticles) { ref in
-                        HStack(spacing: 10) {
-                            Image(systemName: "books.vertical.fill")
-                                .foregroundStyle(.brown)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(ref.name)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.eeonTextPrimary)
-                                if !ref.summary.isEmpty {
-                                    Text(ref.summary)
-                                        .font(.caption)
-                                        .foregroundStyle(.eeonTextSecondary)
-                                        .lineLimit(2)
-                                }
+                    if field == .purpose, let compiled = compiledPurposeDirective {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "sparkles")
+                                    .font(.caption)
+                                    .foregroundStyle(.indigo)
+                                Text("What EEON currently understands")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.eeonTextSecondary)
                             }
-                            Spacer()
-                            Text("\(ref.mentionCount)")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.brown)
+                            Text(compiled)
+                                .font(.footnote)
+                                .foregroundStyle(.eeonTextPrimary.opacity(0.9))
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(Color.indigo.opacity(0.08))
+                                )
                         }
-                        .padding(10)
-                        .background(Color.eeonCard)
-                        .cornerRadius(10)
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+                .padding(.bottom, 120)
             }
+
+            editorFooter(for: field)
         }
-        .padding(.horizontal, 20)
+        .disabled(isRecording || isTranscribing)
+        .blur(radius: (isRecording || isTranscribing) ? 3 : 0)
     }
 
-    // MARK: - Shared Step Elements
-
-    private func stepPrompt(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.title2.weight(.bold))
+    private func editorHeader(for field: Field) -> some View {
+        HStack {
+            Button {
+                cancelEditing()
+            } label: {
+                Text("Cancel")
+                    .font(.body)
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+            Spacer()
+            Text(field == .profile ? "About You" : "What EEON Is For You")
+                .font(.headline)
                 .foregroundStyle(.eeonTextPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.eeonTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Color.clear.frame(width: 60)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    @ViewBuilder
+    private func editorPrompt(for field: Field) -> some View {
+        switch field {
+        case .profile:
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Tell me about yourself.")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.eeonTextPrimary)
+                Text("Your role, what you're working on, links, who you are in a paragraph. Tap the mic and talk — no need to write.")
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case .purpose:
+            VStack(alignment: .leading, spacing: 10) {
+                Text("What should EEON be for you?")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.eeonTextPrimary)
+                Text("A founder, a coach, a dream interpreter, a researcher — tell me the lens you want EEON to use when it processes your notes.")
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func editorPlaceholder(for field: Field) -> String {
+        switch field {
+        case .profile: return "I'm …"
+        case .purpose: return "I want EEON to …"
         }
     }
 
@@ -344,26 +359,25 @@ struct TuneConversationView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
     }
 
-    private func orTypeField(text: Binding<String>, placeholder: String) -> some View {
+    private func orTypeField(placeholder: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Or type — you can edit what EEON heard here.")
                 .font(.caption)
                 .foregroundStyle(.eeonTextSecondary)
 
             ZStack(alignment: .topLeading) {
-                if text.wrappedValue.isEmpty {
+                if draftText.isEmpty {
                     Text(placeholder)
                         .font(.body)
                         .foregroundStyle(.tertiary)
                         .padding(.vertical, 10)
                         .padding(.horizontal, 12)
                 }
-                TextEditor(text: text)
+                TextEditor(text: $draftText)
                     .font(.body)
-                    .frame(minHeight: 100)
+                    .frame(minHeight: 120)
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -373,57 +387,32 @@ struct TuneConversationView: View {
         }
     }
 
-    // MARK: - Footer Navigation
+    private func editorFooter(for field: Field) -> some View {
+        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let canSave = !trimmed.isEmpty && !isSaving
+        let hasChanged = trimmed != originalDraftText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-    private var footerNav: some View {
-        HStack(spacing: 12) {
-            if step != .profile {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        step = Step(rawValue: step.rawValue - 1) ?? .profile
-                    }
-                } label: {
-                    Text("Back")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.eeonTextSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.eeonCard)
-                        .cornerRadius(12)
+        return Button {
+            Task { await saveEdit(field: field) }
+        } label: {
+            HStack(spacing: 8) {
+                if isSaving {
+                    ProgressView().tint(.white).scaleEffect(0.9)
                 }
+                Text(hasChanged ? "Save" : "Done")
+                    .font(.body.weight(.bold))
             }
-
-            Button {
-                Task { await advanceFromCurrentStep() }
-            } label: {
-                HStack(spacing: 8) {
-                    if isSaving {
-                        ProgressView().tint(.white).scaleEffect(0.9)
-                    }
-                    Text(step == .knowledge ? "Done" : "Next")
-                        .font(.body.weight(.bold))
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color("EEONAccent"))
-                .cornerRadius(12)
-                .opacity(nextButtonDisabled ? 0.5 : 1.0)
-            }
-            .disabled(nextButtonDisabled)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(Color("EEONAccent"))
+            .cornerRadius(12)
+            .opacity(canSave ? 1.0 : 0.5)
         }
+        .disabled(!canSave)
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .background(Color.eeonBackground)
-    }
-
-    private var nextButtonDisabled: Bool {
-        if isSaving { return true }
-        switch step {
-        case .profile: return profileText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .purpose: return purposeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .knowledge: return false  // Knowledge base is optional — always allow Done
-        }
     }
 
     // MARK: - Saved Toast
@@ -449,21 +438,90 @@ struct TuneConversationView: View {
         }
     }
 
-    // MARK: - Load Seeds
+    // MARK: - Editing Lifecycle
 
-    private func loadSeeds() {
-        profileText = profileSeedNotes.first?.content ?? ""
-        purposeText = purposeSeedNotes.first?.content ?? ""
+    private func beginEditing(_ field: Field) {
+        switch field {
+        case .profile: draftText = profileText
+        case .purpose: draftText = purposeText
+        }
+        originalDraftText = draftText
+        editingField = field
+    }
+
+    private func cancelEditing() {
+        editingField = nil
+        draftText = ""
+        originalDraftText = ""
+    }
+
+    private func saveEdit(field: Field) async {
+        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let original = originalDraftText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // No changes — just dismiss the editor
+        if trimmed == original {
+            await MainActor.run { cancelEditing() }
+            return
+        }
+
+        guard !trimmed.isEmpty else {
+            await MainActor.run { cancelEditing() }
+            return
+        }
+
+        let sourceType: NoteSourceType = (field == .profile) ? .profileSeed : .purposeSeed
+        let title = (field == .profile) ? "Your Profile" : "Your Purpose"
+        let toast = (field == .profile) ? "EEON learned that" : "EEON is tuning itself to you"
+
+        await MainActor.run { isSaving = true }
+
+        upsertSeed(sourceType: sourceType, title: title, content: trimmed)
+        await KnowledgeCompiler.shared.recompileDirtyArticles(context: modelContext, force: true)
+
+        await MainActor.run {
+            ContextAssembler.shared.refresh(from: modelContext)
+            isSaving = false
+            withAnimation(.easeInOut(duration: 0.3)) { savedConfirmation = toast }
+            cancelEditing()
+        }
+
+        try? await Task.sleep(for: .milliseconds(1400))
+        await MainActor.run {
+            withAnimation(.easeInOut(duration: 0.3)) { savedConfirmation = nil }
+        }
+    }
+
+    private func upsertSeed(sourceType: NoteSourceType, title: String, content: String) {
+        let existingSeeds: [Note]
+        switch sourceType {
+        case .profileSeed: existingSeeds = profileSeedNotes
+        case .purposeSeed: existingSeeds = purposeSeedNotes
+        default: existingSeeds = []
+        }
+
+        if let existing = existingSeeds.first {
+            existing.content = content
+            existing.title = title
+            existing.updatedAt = Date()
+            try? modelContext.save()
+            KnowledgeCompiler.shared.markAffectedArticles(note: existing, context: modelContext)
+        } else {
+            let seed = Note(title: title, content: content)
+            seed.sourceType = sourceType
+            modelContext.insert(seed)
+            try? modelContext.save()
+            KnowledgeCompiler.shared.markAffectedArticles(note: seed, context: modelContext)
+        }
+
+        let keptId = existingSeeds.first?.id ?? UUID()
+        KnowledgeCompiler.replacePriorSeeds(for: sourceType, keeping: keptId, in: modelContext)
     }
 
     // MARK: - Recording
 
     private func toggleRecording() {
-        if isRecording {
-            stopRecording()
-        } else {
-            startRecording()
-        }
+        if isRecording { stopRecording() } else { startRecording() }
     }
 
     private func startRecording() {
@@ -518,7 +576,7 @@ struct TuneConversationView: View {
         do {
             let transcript = try await service.transcribe(audioURL: url)
             await MainActor.run {
-                appendTranscript(transcript)
+                draftText = draftText.isEmpty ? transcript : draftText + "\n\n" + transcript
                 isTranscribing = false
             }
             if let fileName = currentAudioFileName {
@@ -530,170 +588,6 @@ struct TuneConversationView: View {
                 errorMessage = "Transcription failed: \(error.localizedDescription)"
                 showingError = true
                 isTranscribing = false
-            }
-        }
-    }
-
-    private func appendTranscript(_ transcript: String) {
-        switch step {
-        case .profile:
-            profileText = profileText.isEmpty ? transcript : profileText + "\n\n" + transcript
-        case .purpose:
-            purposeText = purposeText.isEmpty ? transcript : purposeText + "\n\n" + transcript
-        case .knowledge:
-            break  // No voice input on knowledge step
-        }
-    }
-
-    // MARK: - Save + Advance
-
-    private func advanceFromCurrentStep() async {
-        switch step {
-        case .profile:
-            await saveStep(
-                sourceType: .profileSeed,
-                title: "Your Profile",
-                content: profileText,
-                toast: "EEON learned that"
-            )
-            await MainActor.run {
-                withAnimation(.easeInOut(duration: 0.25)) { step = .purpose }
-            }
-        case .purpose:
-            await saveStep(
-                sourceType: .purposeSeed,
-                title: "Your Purpose",
-                content: purposeText,
-                toast: "EEON is tuning itself to you"
-            )
-            await MainActor.run {
-                withAnimation(.easeInOut(duration: 0.25)) { step = .knowledge }
-            }
-        case .knowledge:
-            await MainActor.run { dismiss() }
-        }
-    }
-
-    /// Upsert the seed Note and trigger a forced compile so the user immediately sees
-    /// the LLM-compiled directive in the preview (bypassing the 15-min cooldown).
-    private func saveStep(sourceType: NoteSourceType, title: String, content: String, toast: String) async {
-        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        await MainActor.run { isSaving = true }
-
-        upsertSeed(sourceType: sourceType, title: title, content: trimmed)
-
-        await KnowledgeCompiler.shared.recompileDirtyArticles(context: modelContext, force: true)
-
-        await MainActor.run {
-            ContextAssembler.shared.refresh(from: modelContext)
-            isSaving = false
-            withAnimation(.easeInOut(duration: 0.3)) { savedConfirmation = toast }
-        }
-        try? await Task.sleep(for: .milliseconds(1400))
-        await MainActor.run {
-            withAnimation(.easeInOut(duration: 0.3)) { savedConfirmation = nil }
-        }
-    }
-
-    private func upsertSeed(sourceType: NoteSourceType, title: String, content: String) {
-        let existingSeeds: [Note]
-        switch sourceType {
-        case .profileSeed: existingSeeds = profileSeedNotes
-        case .purposeSeed: existingSeeds = purposeSeedNotes
-        default: existingSeeds = []
-        }
-
-        if let existing = existingSeeds.first {
-            existing.content = content
-            existing.title = title
-            existing.updatedAt = Date()
-            try? modelContext.save()
-            KnowledgeCompiler.shared.markAffectedArticles(note: existing, context: modelContext)
-        } else {
-            let seed = Note(title: title, content: content)
-            seed.sourceType = sourceType
-            modelContext.insert(seed)
-            try? modelContext.save()
-            KnowledgeCompiler.shared.markAffectedArticles(note: seed, context: modelContext)
-        }
-
-        let keptId = existingSeeds.first?.id ?? UUID()
-        KnowledgeCompiler.replacePriorSeeds(for: sourceType, keeping: keptId, in: modelContext)
-    }
-
-    // MARK: - Reference Ingest
-
-    private func ingestReferenceURL(_ urlString: String) async {
-        let normalized = urlString.lowercased().hasPrefix("http") ? urlString : "https://\(urlString)"
-        await MainActor.run { isFetchingURL = true }
-        defer { Task { @MainActor in isFetchingURL = false } }
-
-        do {
-            let content = try await WebContentService.fetchArticle(from: normalized)
-            await MainActor.run {
-                let note = Note(title: content.title, content: content.text)
-                note.sourceType = .document
-                note.originalURL = normalized
-                modelContext.insert(note)
-                try? modelContext.save()
-
-                Task {
-                    await IntelligenceService.shared.processNoteSave(
-                        note: note,
-                        transcript: content.text,
-                        projects: [],
-                        tags: [],
-                        context: modelContext
-                    )
-                }
-            }
-        } catch {
-            await MainActor.run {
-                errorMessage = "Couldn't fetch that link: \(error.localizedDescription)"
-                showingError = true
-            }
-        }
-    }
-
-    private func ingestReferenceFile(url: URL) async {
-        let isPDF = url.pathExtension.lowercased() == "pdf"
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-
-        do {
-            let (title, text): (String, String)
-            if isPDF {
-                let extracted = try await PDFExtractionService.shared.extractText(from: url)
-                title = extracted.title
-                text = extracted.text
-            } else {
-                let data = try Data(contentsOf: url)
-                title = url.deletingPathExtension().lastPathComponent
-                text = String(data: data, encoding: .utf8) ?? ""
-            }
-
-            await MainActor.run {
-                let note = Note(title: title, content: text)
-                note.sourceType = .document
-                modelContext.insert(note)
-                try? modelContext.save()
-
-                Task {
-                    await IntelligenceService.shared.processNoteSave(
-                        note: note,
-                        transcript: text,
-                        projects: [],
-                        tags: [],
-                        context: modelContext
-                    )
-                }
-            }
-        } catch {
-            await MainActor.run {
-                errorMessage = "Could not import: \(error.localizedDescription)"
-                showingError = true
             }
         }
     }
