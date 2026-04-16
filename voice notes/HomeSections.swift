@@ -171,6 +171,7 @@ struct SilentProjectsSection: View {
 
 struct OpenDecisionsSection: View {
     let decisions: [ExtractedDecision]
+    let notes: [Note]
     let title: String
     let limit: Int
 
@@ -182,38 +183,62 @@ struct OpenDecisionsSection: View {
             .map { $0 }
     }
 
+    private func sourceNote(for decision: ExtractedDecision) -> Note? {
+        guard let id = decision.sourceNoteId else { return nil }
+        return notes.first { $0.id == id }
+    }
+
     var body: some View {
         if !active.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HomeSectionHeader(title)
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(active) { decision in
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "checkmark.seal")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.green)
-                                .padding(.top, 2)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(decision.content)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.eeonTextPrimary)
-                                    .lineLimit(2)
-                                if !decision.affects.isEmpty {
-                                    Text("Affects: \(decision.affects)")
-                                        .font(.caption)
-                                        .foregroundStyle(.eeonTextSecondary)
-                                }
-                            }
-                            Spacer()
-                        }
-                        .padding(10)
-                        .background(Color.eeonCard)
-                        .cornerRadius(10)
+                        decisionRow(decision)
                     }
                 }
                 .padding(.horizontal)
             }
         }
+    }
+
+    @ViewBuilder
+    private func decisionRow(_ decision: ExtractedDecision) -> some View {
+        if let note = sourceNote(for: decision) {
+            NavigationLink(destination: NoteDetailView(note: note)) {
+                decisionContent(decision)
+            }
+            .buttonStyle(.plain)
+        } else {
+            decisionContent(decision)
+        }
+    }
+
+    private func decisionContent(_ decision: ExtractedDecision) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.seal")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.green)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(decision.content)
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(2)
+                if !decision.affects.isEmpty {
+                    Text("Affects: \(decision.affects)")
+                        .font(.caption)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.eeonTextSecondary)
+        }
+        .padding(10)
+        .background(Color.eeonCard)
+        .cornerRadius(10)
     }
 }
 
@@ -238,23 +263,29 @@ struct IdeaInboxSection: View {
                 HomeSectionHeader(title, subtitle: "\(ideas.count) unassigned")
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(ideas) { note in
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "lightbulb")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.yellow)
-                                .padding(.top, 2)
-                            Text(note.displayTitle)
-                                .font(.subheadline)
-                                .foregroundStyle(.eeonTextPrimary)
-                                .lineLimit(2)
-                            Spacer()
-                            Text(note.createdAt.formatted(.relative(presentation: .named)))
-                                .font(.caption)
-                                .foregroundStyle(.eeonTextSecondary)
+                        NavigationLink(destination: NoteDetailView(note: note)) {
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: "lightbulb")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.yellow)
+                                    .padding(.top, 2)
+                                Text(note.displayTitle)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.eeonTextPrimary)
+                                    .lineLimit(2)
+                                Spacer()
+                                Text(note.createdAt.formatted(.relative(presentation: .named)))
+                                    .font(.caption)
+                                    .foregroundStyle(.eeonTextSecondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.eeonTextSecondary)
+                            }
+                            .padding(10)
+                            .background(Color.eeonCard)
+                            .cornerRadius(10)
                         }
-                        .padding(10)
-                        .background(Color.eeonCard)
-                        .cornerRadius(10)
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal)
@@ -324,6 +355,7 @@ struct ClientRosterSection: View {
 
 struct FollowUpsPerClientSection: View {
     let commitments: [ExtractedCommitment]
+    let notes: [Note]
     let title: String
     let limit: Int
 
@@ -335,38 +367,62 @@ struct FollowUpsPerClientSection: View {
             .map { $0 }
     }
 
+    private func sourceNote(for commitment: ExtractedCommitment) -> Note? {
+        guard let id = commitment.sourceNoteId else { return nil }
+        return notes.first { $0.id == id }
+    }
+
     var body: some View {
         if !open.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HomeSectionHeader(title, subtitle: "\(open.count) open")
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(open) { c in
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "hand.raised.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.indigo)
-                                .padding(.top, 2)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(c.what)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.eeonTextPrimary)
-                                    .lineLimit(2)
-                                if !c.who.isEmpty {
-                                    Text(c.who)
-                                        .font(.caption)
-                                        .foregroundStyle(.indigo)
-                                }
-                            }
-                            Spacer()
-                        }
-                        .padding(10)
-                        .background(Color.eeonCard)
-                        .cornerRadius(10)
+                        commitmentRow(c)
                     }
                 }
                 .padding(.horizontal)
             }
         }
+    }
+
+    @ViewBuilder
+    private func commitmentRow(_ c: ExtractedCommitment) -> some View {
+        if let note = sourceNote(for: c) {
+            NavigationLink(destination: NoteDetailView(note: note)) {
+                commitmentContent(c)
+            }
+            .buttonStyle(.plain)
+        } else {
+            commitmentContent(c)
+        }
+    }
+
+    private func commitmentContent(_ c: ExtractedCommitment) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "hand.raised.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(.indigo)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(c.what)
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(2)
+                if !c.who.isEmpty {
+                    Text(c.who)
+                        .font(.caption)
+                        .foregroundStyle(.indigo)
+                }
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.eeonTextSecondary)
+        }
+        .padding(10)
+        .background(Color.eeonCard)
+        .cornerRadius(10)
     }
 }
 

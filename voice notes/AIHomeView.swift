@@ -220,10 +220,18 @@ struct AIHomeView: View {
 
                             // Layout-driven sections — order picked by the Karpathy LLM
                             // from the compiled .purpose article (or default layout pre-compile).
+                            // Skip .knowledgeCarousel in the loop — we always render it at the
+                            // end so the knowledge articles are reachable regardless of layout.
                             ForEach(activeLayout.sections) { section in
-                                if let kind = section.kind {
+                                if let kind = section.kind, kind != .knowledgeCarousel {
                                     sectionView(for: kind, section: section)
                                 }
+                            }
+
+                            // Knowledge articles are always visible — they're the entry point
+                            // to the full overview + article detail (arc, timeline, decisions).
+                            if !knowledgeArticles.isEmpty {
+                                knowledgeCardsSection
                             }
 
                             // Spacer so content doesn't show behind bottom bar
@@ -944,13 +952,13 @@ struct AIHomeView: View {
         case .silentProjects:
             SilentProjectsSection(projects: projects, title: t, staleDays: section.staleDaysThreshold ?? 9)
         case .openDecisions:
-            OpenDecisionsSection(decisions: extractedDecisions, title: t, limit: section.limit ?? 5)
+            OpenDecisionsSection(decisions: extractedDecisions, notes: notes, title: t, limit: section.limit ?? 5)
         case .ideaInbox:
             IdeaInboxSection(notes: notes, title: t, limit: section.limit ?? 5)
         case .clientRoster:
             ClientRosterSection(articles: knowledgeArticles, title: t, limit: section.limit ?? 8)
         case .followUpsPerClient:
-            FollowUpsPerClientSection(commitments: extractedCommitments, title: t, limit: section.limit ?? 6)
+            FollowUpsPerClientSection(commitments: extractedCommitments, notes: notes, title: t, limit: section.limit ?? 6)
         case .recurringPatterns:
             RecurringPatternsSection(articles: knowledgeArticles, title: t, limit: section.limit ?? 8)
         case .referenceResonance:
