@@ -67,50 +67,55 @@ struct TuneConversationView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.eeonBackground.ignoresSafeArea()
-
-            Group {
-                if let field = editingField {
-                    editorView(for: field)
-                        .transition(.opacity)
-                } else {
-                    reviewView
-                        .transition(.opacity)
+        mainContent
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color.eeonBackground.ignoresSafeArea())
+            .overlay { recordingAndTranscribingOverlays }
+            .overlay(alignment: .top) { toastOverlay }
+            .animation(.easeInOut(duration: 0.2), value: editingField)
+            // Hide any system nav bar (pushed from Settings) — we provide our own header.
+            .navigationBarBackButtonHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
+            .onAppear {
+                // First-time user: drop straight into profile editor.
+                if profileText.isEmpty && purposeText.isEmpty {
+                    beginEditing(.profile)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .alert("Something went wrong", isPresented: $showingError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage ?? "")
+            }
+    }
 
-            if isRecording {
-                HomeRecordingOverlay(
-                    onStop: stopRecording,
-                    onCancel: cancelRecording,
-                    audioRecorder: audioRecorder
-                )
-            }
-            if isTranscribing {
-                HomeTranscribingOverlay()
-            }
+    @ViewBuilder
+    private var mainContent: some View {
+        if let field = editingField {
+            editorView(for: field)
+        } else {
+            reviewView
+        }
+    }
 
-            if let confirmation = savedConfirmation {
-                savedToast(text: confirmation)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
+    @ViewBuilder
+    private var recordingAndTranscribingOverlays: some View {
+        if isRecording {
+            HomeRecordingOverlay(
+                onStop: stopRecording,
+                onCancel: cancelRecording,
+                audioRecorder: audioRecorder
+            )
+        } else if isTranscribing {
+            HomeTranscribingOverlay()
         }
-        .animation(.easeInOut(duration: 0.2), value: editingField)
-        // Hide any system nav bar (pushed from Settings) — we provide our own header.
-        .navigationBarBackButtonHidden(true)
-        .toolbar(.hidden, for: .navigationBar)
-        .onAppear {
-            // First-time user: drop straight into profile editor.
-            if profileText.isEmpty && purposeText.isEmpty {
-                beginEditing(.profile)
-            }
-        }
-        .alert("Something went wrong", isPresented: $showingError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(errorMessage ?? "")
+    }
+
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let confirmation = savedConfirmation {
+            savedToast(text: confirmation)
+                .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
@@ -145,7 +150,9 @@ struct TuneConversationView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 100)
             }
+            .frame(maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var reviewHeader: some View {
@@ -275,7 +282,7 @@ struct TuneConversationView: View {
             // Mic + Save live at the bottom, above the keyboard via safe area.
             editorActionBar(for: field)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .disabled(isRecording || isTranscribing)
         .blur(radius: (isRecording || isTranscribing) ? 3 : 0)
     }
@@ -514,21 +521,25 @@ struct TuneConversationView: View {
         default: existingSeeds = []
         }
 
+        // Track the ID of the note we're keeping so replacePriorSeeds doesn't delete it.
+        let keptId: UUID
+
         if let existing = existingSeeds.first {
             existing.content = content
             existing.title = title
             existing.updatedAt = Date()
             try? modelContext.save()
+            keptId = existing.id
             KnowledgeCompiler.shared.markAffectedArticles(note: existing, context: modelContext)
         } else {
             let seed = Note(title: title, content: content)
             seed.sourceType = sourceType
             modelContext.insert(seed)
             try? modelContext.save()
+            keptId = seed.id
             KnowledgeCompiler.shared.markAffectedArticles(note: seed, context: modelContext)
         }
 
-        let keptId = existingSeeds.first?.id ?? UUID()
         KnowledgeCompiler.replacePriorSeeds(for: sourceType, keeping: keptId, in: modelContext)
     }
 
