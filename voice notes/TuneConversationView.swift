@@ -67,16 +67,19 @@ struct TuneConversationView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Color.eeonBackground.ignoresSafeArea()
 
-            if let field = editingField {
-                editorView(for: field)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-            } else {
-                reviewView
-                    .transition(.opacity)
+            Group {
+                if let field = editingField {
+                    editorView(for: field)
+                        .transition(.opacity)
+                } else {
+                    reviewView
+                        .transition(.opacity)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
             if isRecording {
                 HomeRecordingOverlay(
@@ -94,7 +97,10 @@ struct TuneConversationView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: editingField)
+        .animation(.easeInOut(duration: 0.2), value: editingField)
+        // Hide any system nav bar (pushed from Settings) — we provide our own header.
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             // First-time user: drop straight into profile editor.
             if profileText.isEmpty && purposeText.isEmpty {
@@ -249,44 +255,51 @@ struct TuneConversationView: View {
             editorHeader(for: field)
 
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
                     editorPrompt(for: field)
 
-                    bigMicButton
-
-                    orTypeField(placeholder: editorPlaceholder(for: field))
+                    // The editable transcript IS the primary surface — like the main
+                    // capture screen, it shows what EEON heard and you can edit it.
+                    transcriptField(placeholder: editorPlaceholder(for: field))
 
                     if field == .purpose, let compiled = compiledPurposeDirective {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "sparkles")
-                                    .font(.caption)
-                                    .foregroundStyle(.indigo)
-                                Text("What EEON currently understands")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.eeonTextSecondary)
-                            }
-                            Text(compiled)
-                                .font(.footnote)
-                                .foregroundStyle(.eeonTextPrimary.opacity(0.9))
-                                .padding(12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color.indigo.opacity(0.08))
-                                )
-                        }
+                        compiledNote(compiled)
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 24)
-                .padding(.bottom, 120)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
+            .frame(maxHeight: .infinity)
 
-            editorFooter(for: field)
+            // Mic + Save live at the bottom, above the keyboard via safe area.
+            editorActionBar(for: field)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .disabled(isRecording || isTranscribing)
         .blur(radius: (isRecording || isTranscribing) ? 3 : 0)
+    }
+
+    private func compiledNote(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(.indigo)
+                Text("What EEON currently understands")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(.eeonTextPrimary.opacity(0.9))
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.indigo.opacity(0.08))
+                )
+        }
     }
 
     private func editorHeader(for field: Field) -> some View {
@@ -342,76 +355,77 @@ struct TuneConversationView: View {
         }
     }
 
-    private var bigMicButton: some View {
-        Button {
-            toggleRecording()
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(Color("EEONAccent").opacity(0.15))
-                    .frame(width: 140, height: 140)
-                Circle()
-                    .fill(Color("EEONAccent"))
-                    .frame(width: 100, height: 100)
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 40, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func orTypeField(placeholder: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Or type — you can edit what EEON heard here.")
-                .font(.caption)
-                .foregroundStyle(.eeonTextSecondary)
-
-            ZStack(alignment: .topLeading) {
-                if draftText.isEmpty {
-                    Text(placeholder)
-                        .font(.body)
-                        .foregroundStyle(.tertiary)
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
-                }
-                TextEditor(text: $draftText)
+    /// The main content surface. Shows what EEON heard (live-transcript results append here)
+    /// and is always editable so the user can clean up or type from scratch.
+    private func transcriptField(placeholder: String) -> some View {
+        ZStack(alignment: .topLeading) {
+            if draftText.isEmpty {
+                Text(placeholder)
                     .font(.body)
-                    .frame(minHeight: 120)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 14)
             }
-            .background(Color.eeonCard)
-            .cornerRadius(10)
+            TextEditor(text: $draftText)
+                .font(.body)
+                .foregroundStyle(.eeonTextPrimary)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(minHeight: 220)
         }
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.eeonCard)
+        )
     }
 
-    private func editorFooter(for field: Field) -> some View {
+    /// Bottom action bar — Mic (primary CTA) on the left, Save button on the right.
+    /// Pinned to the bottom via VStack, sits above the keyboard via safeAreaInset of scroll.
+    private func editorActionBar(for field: Field) -> some View {
         let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
         let canSave = !trimmed.isEmpty && !isSaving
         let hasChanged = trimmed != originalDraftText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return Button {
-            Task { await saveEdit(field: field) }
-        } label: {
-            HStack(spacing: 8) {
-                if isSaving {
-                    ProgressView().tint(.white).scaleEffect(0.9)
+        return HStack(spacing: 12) {
+            // Mic button — primary capture CTA. Same size as main app's capture button.
+            Button {
+                toggleRecording()
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color("EEONAccent"))
+                        .frame(width: 64, height: 64)
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(.white)
                 }
-                Text(hasChanged ? "Save" : "Done")
-                    .font(.body.weight(.bold))
             }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(Color("EEONAccent"))
-            .cornerRadius(12)
-            .opacity(canSave ? 1.0 : 0.5)
+
+            // Save — fills remaining width
+            Button {
+                Task { await saveEdit(field: field) }
+            } label: {
+                HStack(spacing: 8) {
+                    if isSaving {
+                        ProgressView().tint(.white).scaleEffect(0.9)
+                    }
+                    Text(hasChanged ? "Save" : "Done")
+                        .font(.body.weight(.bold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 64)
+                .background(
+                    RoundedRectangle(cornerRadius: 32)
+                        .fill(canSave ? Color("EEONAccent") : Color("EEONAccent").opacity(0.4))
+                )
+            }
+            .disabled(!canSave)
         }
-        .disabled(!canSave)
         .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
         .background(Color.eeonBackground)
     }
 
