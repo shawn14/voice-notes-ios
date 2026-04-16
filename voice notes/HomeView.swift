@@ -1754,7 +1754,7 @@ struct SettingsView: View {
                 // MARK: - Personalization
                 Section {
                     NavigationLink {
-                        IdentityView()
+                        TuneConversationView()
                     } label: {
                         HStack(spacing: 16) {
                             ZStack {

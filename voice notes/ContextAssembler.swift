@@ -74,6 +74,7 @@ final class ContextAssembler {
     func refresh(from context: ModelContext) {
         purposeDirective = Self.loadPurposeDirective(in: context) ?? ""
         profileContext = Self.loadProfileContext(in: context) ?? ""
+        print("[ContextAssembler] refreshed — purpose=\(String(purposeDirective.prefix(80))) profile=\(String(profileContext.prefix(60)))")
     }
 
     // MARK: - Static call-site API

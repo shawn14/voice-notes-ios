@@ -255,7 +255,7 @@ struct AIHomeView: View {
                 SettingsView()
             }
             .sheet(isPresented: $showingIdentity) {
-                NavigationStack { IdentityView() }
+                TuneConversationView()
             }
             .sheet(isPresented: $showingAssistant) {
                 AssistantView()

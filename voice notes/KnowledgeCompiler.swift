@@ -171,14 +171,19 @@ final class KnowledgeCompiler {
     // MARK: - Tier 2.5: Recompile Dirty Articles (on note save + app foreground)
 
     /// Recompile articles marked dirty. Max 5 per pass, 15-min cooldown.
-    func recompileDirtyArticles(context: ModelContext) async {
-        // 15-minute cooldown
-        if let lastCompile = lastCompileAt,
+    /// Pass `force: true` for user-initiated saves (Tune EEON) to bypass the cooldown.
+    func recompileDirtyArticles(context: ModelContext, force: Bool = false) async {
+        // 15-minute cooldown — skipped for user-initiated (force) compiles
+        if !force, let lastCompile = lastCompileAt,
            Date().timeIntervalSince(lastCompile) < 15 * 60 {
             return
         }
 
-        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else { return }
+        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
+            // Defensive — ensure isCompiling flag isn't left spinning if the UI flipped it
+            await MainActor.run { isCompiling = false }
+            return
+        }
         guard !isCompiling else { return }
 
         await MainActor.run { isCompiling = true }
@@ -191,7 +196,11 @@ final class KnowledgeCompiler {
         descriptor.fetchLimit = 5
 
         guard let dirtyArticles = try? context.fetch(descriptor), !dirtyArticles.isEmpty else {
-            await MainActor.run { isCompiling = false }
+            await MainActor.run {
+                isCompiling = false
+                // Even with nothing to compile, make sure downstream consumers see the latest cached state
+                ContextAssembler.shared.refresh(from: context)
+            }
             return
         }
 
@@ -297,13 +306,8 @@ final class KnowledgeCompiler {
             isCompiling = false
             lastCompileAt = Date()
             UserDefaults.standard.set(Date(), forKey: Keys.lastCompileDate)
-            // Refresh ContextAssembler cache if .self or .purpose article was touched this pass
-            let touchedUserArticles = dirtyArticles.contains {
-                $0.articleType == .self || $0.articleType == .purpose
-            }
-            if touchedUserArticles {
-                ContextAssembler.shared.refresh(from: context)
-            }
+            // Always refresh — cache is cheap to rebuild and being stale is the bug we just shipped
+            ContextAssembler.shared.refresh(from: context)
         }
     }
 
