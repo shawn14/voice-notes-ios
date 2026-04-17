@@ -1586,6 +1586,7 @@ struct SettingsView: View {
     @State private var isExporting = false
     @State private var exportURL: URL?
     @State private var exportError: String?
+    @State private var showingExportShareSheet = false
 
     @AppStorage("appearanceMode") private var appearanceMode: Int = 0
 
@@ -1670,12 +1671,9 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    if let url = exportURL {
-                        ShareLink(item: url) {
-                            Image(systemName: "arrow.up.forward.square")
-                                .foregroundStyle(.blue)
-                        }
-                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
             .buttonStyle(.plain)
@@ -2125,6 +2123,11 @@ struct SettingsView: View {
             } message: {
                 Text(exportError ?? "")
             }
+            .sheet(isPresented: $showingExportShareSheet) {
+                if let url = exportURL {
+                    ExportShareSheet(url: url)
+                }
+            }
         }
     }
 
@@ -2156,26 +2159,20 @@ struct SettingsView: View {
         }
     }
 
-    /// Generate the markdown export on a background task to avoid blocking
-    /// the settings UI, then surface a ShareLink-ready URL.
+    /// Generate the markdown export, then immediately present the iOS share
+    /// sheet so the user can save/share the file without a second tap.
     private func generateExport() {
         isExporting = true
-        exportURL = nil
         exportError = nil
         Task {
             do {
-                let url = try await MainActor.run {
-                    try ExportService.generateExport(context: modelContext)
-                }
-                await MainActor.run {
-                    exportURL = url
-                    isExporting = false
-                }
+                let url = try ExportService.generateExport(context: modelContext)
+                exportURL = url
+                isExporting = false
+                showingExportShareSheet = true
             } catch {
-                await MainActor.run {
-                    exportError = error.localizedDescription
-                    isExporting = false
-                }
+                exportError = error.localizedDescription
+                isExporting = false
             }
         }
     }
@@ -2548,6 +2545,22 @@ struct NotificationSettingsSection: View {
             Text("Notifications")
         }
     }
+}
+
+// MARK: - Export Share Sheet
+
+/// Wraps UIActivityViewController so we can present the iOS share sheet as a
+/// SwiftUI sheet. Used for the "Export My Data" flow — once the markdown file
+/// URL exists, this sheet lets the user save it to Files, AirDrop it, email it,
+/// or open it in Obsidian / Notion / any text editor.
+private struct ExportShareSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Preview
