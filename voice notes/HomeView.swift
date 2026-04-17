@@ -1582,9 +1582,112 @@ struct SettingsView: View {
     @State private var editedName = ""
     @State private var showSignIn = false
 
+    // Export state
+    @State private var isExporting = false
+    @State private var exportURL: URL?
+    @State private var exportError: String?
+
     @AppStorage("appearanceMode") private var appearanceMode: Int = 0
 
     private let usage = UsageService.shared
+
+    private var personalizationSection: some View {
+        Section {
+            NavigationLink {
+                TuneConversationView()
+            } label: {
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(Color("EEONAccent").opacity(0.15))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: "scope")
+                            .foregroundStyle(Color("EEONAccent"))
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Tune EEON")
+                            .font(.body.weight(.medium))
+                        Text("Who you are, what it's for")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+
+            NavigationLink {
+                KnowledgeBaseView()
+            } label: {
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.brown.opacity(0.15))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: "books.vertical.fill")
+                            .foregroundStyle(.brown)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Knowledge Base")
+                            .font(.body.weight(.medium))
+                        Text("Books, articles, domain expertise")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Personalization")
+        } footer: {
+            Text("Tell EEON who you are and what it's for. Auto-refines as you capture notes.")
+                .font(.caption)
+        }
+    }
+
+    private var dataSection: some View {
+        Section {
+            Button {
+                generateExport()
+            } label: {
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.15))
+                            .frame(width: 44, height: 44)
+                        if isExporting {
+                            ProgressView().tint(.blue)
+                        } else {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Export My Data")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.primary)
+                        Text("All notes + knowledge articles as markdown")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let url = exportURL {
+                        ShareLink(item: url) {
+                            Image(systemName: "arrow.up.forward.square")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(isExporting)
+            .padding(.vertical, 4)
+        } header: {
+            Text("Data")
+        } footer: {
+            Text("Your notes are yours. Export anytime as a single markdown file — opens in Obsidian, Notion, or any text editor.")
+                .font(.caption)
+        }
+    }
 
     private var accountSection: some View {
         Section {
@@ -1753,56 +1856,7 @@ struct SettingsView: View {
                 }
 
                 // MARK: - Personalization
-                Section {
-                    NavigationLink {
-                        TuneConversationView()
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color("EEONAccent").opacity(0.15))
-                                    .frame(width: 44, height: 44)
-                                Image(systemName: "scope")
-                                    .foregroundStyle(Color("EEONAccent"))
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Tune EEON")
-                                    .font(.body.weight(.medium))
-                                Text("Who you are, what it's for")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-
-                    NavigationLink {
-                        KnowledgeBaseView()
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.brown.opacity(0.15))
-                                    .frame(width: 44, height: 44)
-                                Image(systemName: "books.vertical.fill")
-                                    .foregroundStyle(.brown)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Knowledge Base")
-                                    .font(.body.weight(.medium))
-                                Text("Books, articles, domain expertise")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Personalization")
-                } footer: {
-                    Text("Tell EEON who you are and what it's for. Auto-refines as you capture notes.")
-                        .font(.caption)
-                }
+                personalizationSection
 
                 // MARK: - Usage Section
                 Section {
@@ -1968,6 +2022,9 @@ struct SettingsView: View {
                 }
                 #endif
 
+                // MARK: - Data (export)
+                dataSection
+
                 // MARK: - Danger Zone (at bottom)
                 Section {
                     Button {
@@ -2060,6 +2117,14 @@ struct SettingsView: View {
             } message: {
                 Text("This will permanently delete your account and all associated data including notes, projects, and recordings. This action cannot be undone.")
             }
+            .alert("Export failed", isPresented: Binding(
+                get: { exportError != nil },
+                set: { if !$0 { exportError = nil } }
+            )) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(exportError ?? "")
+            }
         }
     }
 
@@ -2088,6 +2153,30 @@ struct SettingsView: View {
         dismiss()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             AuthService.shared.signOut()
+        }
+    }
+
+    /// Generate the markdown export on a background task to avoid blocking
+    /// the settings UI, then surface a ShareLink-ready URL.
+    private func generateExport() {
+        isExporting = true
+        exportURL = nil
+        exportError = nil
+        Task {
+            do {
+                let url = try await MainActor.run {
+                    try ExportService.generateExport(context: modelContext)
+                }
+                await MainActor.run {
+                    exportURL = url
+                    isExporting = false
+                }
+            } catch {
+                await MainActor.run {
+                    exportError = error.localizedDescription
+                    isExporting = false
+                }
+            }
         }
     }
 
