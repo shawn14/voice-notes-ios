@@ -65,6 +65,18 @@ struct OnboardingPaywallView: View {
     private let authService = AuthService.shared
     private let subscriptionManager = SubscriptionManager.shared
 
+    /// "See how free works" with "free" in coral accent. AttributedString replaces
+    /// the deprecated Text + Text + Text concatenation pattern (removed in iOS 26).
+    private var seeHowFreeWorksAttributed: AttributedString {
+        var attr = AttributedString("See how free works")
+        attr.font = .system(size: 32, weight: .bold)
+        attr.foregroundColor = Color("EEONTextPrimary")
+        if let range = attr.range(of: "free") {
+            attr[range].foregroundColor = Color("EEONAccent")
+        }
+        return attr
+    }
+
     var body: some View {
         ZStack {
             Color("EEONBackground").ignoresSafeArea()
@@ -97,19 +109,9 @@ struct OnboardingPaywallView: View {
                             .padding(.bottom, 20)
 
                         // Headline — "See how free works" with coral "free"
-                        (
-                            Text("See how ")
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundStyle(Color("EEONTextPrimary"))
-                            + Text("free")
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundStyle(Color("EEONAccent"))
-                            + Text(" works")
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundStyle(Color("EEONTextPrimary"))
-                        )
-                        .multilineTextAlignment(.center)
-                        .padding(.bottom, 36)
+                        Text(seeHowFreeWorksAttributed)
+                            .multilineTextAlignment(.center)
+                            .padding(.bottom, 36)
 
                         // Timeline section
                         VStack(spacing: 0) {

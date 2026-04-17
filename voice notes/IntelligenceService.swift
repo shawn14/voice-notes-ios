@@ -272,7 +272,7 @@ final class IntelligenceService {
             )
 
             // Generate embedding
-            try? await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
+            await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
             await MainActor.run { try? context.save() }
         }
     }
