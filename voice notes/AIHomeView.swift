@@ -382,13 +382,20 @@ struct AIHomeView: View {
                 Text(greeting)
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(todayDateString)
                     .font(.subheadline)
                     .foregroundStyle(.eeonTextSecondary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             // Tag filter
             Button {

@@ -32,17 +32,24 @@ struct HomeSectionHeader: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(title)
                 .font(.headline)
                 .foregroundStyle(.eeonTextPrimary)
+                .lineLimit(3)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
             if let subtitle {
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.eeonTextSecondary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
     }
 }
@@ -90,38 +97,42 @@ struct PriorityProjectsSection: View {
 private struct ProjectRow: View {
     let project: Project
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: project.icon)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Color("EEONAccent"))
                 .frame(width: 36, height: 36)
                 .background(Color("EEONAccent").opacity(0.12))
                 .cornerRadius(10)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(project.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.eeonTextPrimary)
-                HStack(spacing: 8) {
-                    Text("\(project.noteCount) notes")
-                        .font(.caption)
-                        .foregroundStyle(.eeonTextSecondary)
-                    if project.openActionCount > 0 {
-                        Text("• \(project.openActionCount) open")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                    if let last = project.lastActivityAt {
-                        Text("• \(last.formatted(.relative(presentation: .named)))")
-                            .font(.caption)
-                            .foregroundStyle(.eeonTextSecondary)
-                    }
-                }
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                // Wrap metadata so long accessibility text flows vertically instead of clipping
+                Text(projectMetadata)
+                    .font(.caption)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(10)
         .background(Color.eeonCard)
         .cornerRadius(12)
+    }
+
+    private var projectMetadata: String {
+        var parts: [String] = ["\(project.noteCount) notes"]
+        if project.openActionCount > 0 {
+            parts.append("\(project.openActionCount) open")
+        }
+        if let last = project.lastActivityAt {
+            parts.append(last.formatted(.relative(presentation: .named)))
+        }
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -144,17 +155,21 @@ struct SilentProjectsSection: View {
                 HomeSectionHeader(title, subtitle: "Untouched \(staleDays)+ days")
                 VStack(spacing: 6) {
                     ForEach(stalled) { project in
-                        HStack(spacing: 12) {
+                        HStack(alignment: .top, spacing: 12) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 14))
                                 .foregroundStyle(.orange)
+                                .padding(.top, 2)
                             Text(project.name)
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(.eeonTextPrimary)
-                            Spacer()
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             Text("\(project.daysSinceActivity)d silent")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
+                                .lineLimit(1)
                         }
                         .padding(10)
                         .background(Color.orange.opacity(0.08))
@@ -224,17 +239,21 @@ struct OpenDecisionsSection: View {
                 Text(decision.content)
                     .font(.subheadline)
                     .foregroundStyle(.eeonTextPrimary)
-                    .lineLimit(2)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !decision.affects.isEmpty {
                     Text("Affects: \(decision.affects)")
                         .font(.caption)
                         .foregroundStyle(.eeonTextSecondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: "chevron.right")
                 .font(.caption2)
                 .foregroundStyle(.eeonTextSecondary)
+                .padding(.top, 4)
         }
         .padding(10)
         .background(Color.eeonCard)
@@ -269,17 +288,21 @@ struct IdeaInboxSection: View {
                                     .font(.system(size: 14))
                                     .foregroundStyle(.yellow)
                                     .padding(.top, 2)
-                                Text(note.displayTitle)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.eeonTextPrimary)
-                                    .lineLimit(2)
-                                Spacer()
-                                Text(note.createdAt.formatted(.relative(presentation: .named)))
-                                    .font(.caption)
-                                    .foregroundStyle(.eeonTextSecondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(note.displayTitle)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.eeonTextPrimary)
+                                        .lineLimit(3)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text(note.createdAt.formatted(.relative(presentation: .named)))
+                                        .font(.caption)
+                                        .foregroundStyle(.eeonTextSecondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 Image(systemName: "chevron.right")
                                     .font(.caption2)
                                     .foregroundStyle(.eeonTextSecondary)
+                                    .padding(.top, 4)
                             }
                             .padding(10)
                             .background(Color.eeonCard)
@@ -408,17 +431,20 @@ struct FollowUpsPerClientSection: View {
                 Text(c.what)
                     .font(.subheadline)
                     .foregroundStyle(.eeonTextPrimary)
-                    .lineLimit(2)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !c.who.isEmpty {
                     Text(c.who)
                         .font(.caption)
                         .foregroundStyle(.indigo)
+                        .lineLimit(2)
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: "chevron.right")
                 .font(.caption2)
                 .foregroundStyle(.eeonTextSecondary)
+                .padding(.top, 4)
         }
         .padding(10)
         .background(Color.eeonCard)
