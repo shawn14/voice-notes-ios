@@ -259,6 +259,7 @@ struct AIHomeView: View {
                 }
             }
             .navigationBarHidden(true)
+            .background(DisableBackSwipe())
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
@@ -1691,6 +1692,31 @@ struct NoteFeedCard: View {
             }
         }
         .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, y: 2)
+    }
+}
+
+// MARK: - Disable Interactive Pop Gesture
+
+/// Disables iOS's interactive back-swipe gesture at the NavigationStack's root
+/// so horizontal drags on the home screen don't trigger the edge-swipe feedback.
+/// Walks up to the hosting UINavigationController and sets
+/// interactivePopGestureRecognizer.isEnabled = false.
+private struct DisableBackSwipe: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UIViewController {
+        UIViewController()
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        DispatchQueue.main.async {
+            var current: UIViewController? = uiViewController
+            while let vc = current {
+                if let nav = vc.navigationController {
+                    nav.interactivePopGestureRecognizer?.isEnabled = false
+                    return
+                }
+                current = vc.parent
+            }
+        }
     }
 }
 
