@@ -169,6 +169,8 @@ struct TuneConversationView: View {
             Text("Tune EEON")
                 .font(.headline)
                 .foregroundStyle(.eeonTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer()
             Color.clear.frame(width: 32, height: 32)
         }
@@ -187,7 +189,7 @@ struct TuneConversationView: View {
         onEdit: @escaping () -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(iconColor)
@@ -197,7 +199,10 @@ struct TuneConversationView: View {
                 Text(title)
                     .font(.headline)
                     .foregroundStyle(.eeonTextPrimary)
-                Spacer()
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
                 Button(action: onEdit) {
                     Text(content.isEmpty ? "Add" : "Edit")
                         .font(.subheadline.weight(.semibold))
@@ -206,6 +211,7 @@ struct TuneConversationView: View {
                         .padding(.vertical, 8)
                         .background(Color("EEONAccent").opacity(0.12))
                         .cornerRadius(10)
+                        .fixedSize()
                 }
             }
 
@@ -218,6 +224,7 @@ struct TuneConversationView: View {
                 Text(content)
                     .font(.body)
                     .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let compiled = compiledDirective {
@@ -310,19 +317,22 @@ struct TuneConversationView: View {
     }
 
     private func editorHeader(for field: Field) -> some View {
-        HStack {
+        HStack(spacing: 8) {
             Button {
                 cancelEditing()
             } label: {
                 Text("Cancel")
                     .font(.body)
                     .foregroundStyle(.eeonTextSecondary)
+                    .lineLimit(1)
             }
-            Spacer()
+            Spacer(minLength: 8)
             Text(field == .profile ? "About You" : "What EEON Is For You")
                 .font(.headline)
                 .foregroundStyle(.eeonTextPrimary)
-            Spacer()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Spacer(minLength: 8)
             Color.clear.frame(width: 60)
         }
         .padding(.horizontal, 16)
@@ -337,21 +347,29 @@ struct TuneConversationView: View {
                 Text("Tell me about yourself.")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(nil)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("Your role, what you're working on, links, who you are in a paragraph. Tap the mic and talk — no need to write.")
                     .font(.subheadline)
                     .foregroundStyle(.eeonTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .purpose:
             VStack(alignment: .leading, spacing: 10) {
                 Text("What should EEON be for you?")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(nil)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("A founder, a coach, a dream interpreter, a researcher — tell me the lens you want EEON to use when it processes your notes.")
                     .font(.subheadline)
                     .foregroundStyle(.eeonTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

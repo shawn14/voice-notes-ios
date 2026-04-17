@@ -115,11 +115,15 @@ struct KnowledgeBaseView: View {
             Text("Your reference library")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(.eeonTextPrimary)
+                .lineLimit(nil)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
             Text("Share books, essays, and domain expertise. EEON will cite these when they're relevant to your questions.")
                 .font(.subheadline)
                 .foregroundStyle(.eeonTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var addButton: some View {
@@ -166,7 +170,7 @@ struct KnowledgeBaseView: View {
 
             ForEach(referenceArticles) { ref in
                 NavigationLink(destination: KnowledgeArticleDetailView(article: ref)) {
-                    HStack(spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
                         Image(systemName: "books.vertical.fill")
                             .font(.title3)
                             .foregroundStyle(.brown)
@@ -177,16 +181,17 @@ struct KnowledgeBaseView: View {
                             Text(ref.name)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.eeonTextPrimary)
-                                .lineLimit(1)
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
                             if !ref.summary.isEmpty {
                                 Text(ref.summary)
                                     .font(.caption)
                                     .foregroundStyle(.eeonTextSecondary)
-                                    .lineLimit(2)
+                                    .lineLimit(3)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        Spacer()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         VStack(spacing: 2) {
                             Text("\(ref.mentionCount)")
                                 .font(.caption.weight(.bold))
@@ -195,6 +200,7 @@ struct KnowledgeBaseView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.eeonTextSecondary)
                         }
+                        .fixedSize()
                     }
                     .padding(12)
                     .background(Color.eeonCard)
