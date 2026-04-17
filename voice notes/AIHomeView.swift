@@ -1697,25 +1697,32 @@ struct NoteFeedCard: View {
 
 // MARK: - Disable Interactive Pop Gesture
 
-/// Disables iOS's interactive back-swipe gesture at the NavigationStack's root
-/// so horizontal drags on the home screen don't trigger the edge-swipe feedback.
-/// Walks up to the hosting UINavigationController and sets
-/// interactivePopGestureRecognizer.isEnabled = false.
+/// Disables iOS's NavigationStack interactive back-swipe at the root so horizontal
+/// drags on the home screen don't trigger edge-swipe feedback. Uses viewDidAppear
+/// for reliable timing — updateUIViewController fires before the view is actually
+/// in the UIKit hierarchy, so navigationController is nil there.
+///
+/// Note: this doesn't disable the iOS system "back to previous app" gesture that
+/// appears when launching from TestFlight or another app (the "◀ TestFlight" chip).
+/// That's a system gesture apps can't control; it disappears when users launch
+/// from the home screen directly.
 private struct DisableBackSwipe: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> UIViewController {
-        UIViewController()
+    func makeUIViewController(context: Context) -> DisableBackSwipeVC {
+        DisableBackSwipeVC()
     }
+    func updateUIViewController(_ uiViewController: DisableBackSwipeVC, context: Context) {}
+}
 
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
-        DispatchQueue.main.async {
-            var current: UIViewController? = uiViewController
-            while let vc = current {
-                if let nav = vc.navigationController {
-                    nav.interactivePopGestureRecognizer?.isEnabled = false
-                    return
-                }
-                current = vc.parent
+private final class DisableBackSwipeVC: UIViewController {
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        var current: UIViewController? = self
+        while let vc = current {
+            if let nav = vc.navigationController {
+                nav.interactivePopGestureRecognizer?.isEnabled = false
+                return
             }
+            current = vc.parent
         }
     }
 }
