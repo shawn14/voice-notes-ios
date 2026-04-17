@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import AVFoundation
 import PhotosUI
+import LinkPresentation
 
 enum NoteTab: String, CaseIterable {
     case insights = "Insights"
@@ -380,7 +381,15 @@ struct NoteDetailView: View {
             ShareNoteView(note: note)
         }
         .sheet(isPresented: $showingTextShareSheet) {
-            ActivityViewControllerRepresentable(activityItems: [shareableText])
+            // Use a UIActivityItemSource so iMessage/Slack/Mail get a real preview
+            // (title + snippet + app icon) instead of a generic text card.
+            ActivityViewControllerRepresentable(activityItems: [
+                NoteShareItemSource(
+                    title: note.displayTitle,
+                    body: note.enhancedNoteText ?? note.transcript ?? note.content,
+                    sharedText: shareableText
+                )
+            ])
         }
         .sheet(isPresented: $showingAssistant) {
             NavigationStack {
@@ -1455,6 +1464,63 @@ struct ActivityViewControllerRepresentable: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Rich Note Share Item Source
+
+/// Wraps a note's text for UIActivityViewController so the share sheet shows a
+/// real preview (title + snippet + icon) instead of generic text.
+/// iMessage bubbles, Mail headers, Slack cards all use LPLinkMetadata to render.
+final class NoteShareItemSource: NSObject, UIActivityItemSource {
+    let title: String
+    let body: String
+    let sharedText: String
+
+    init(title: String, body: String, sharedText: String) {
+        self.title = title
+        self.body = body
+        self.sharedText = sharedText
+    }
+
+    // Placeholder shown while the share sheet decides how to render
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        sharedText
+    }
+
+    // The actual payload sent to the chosen destination
+    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+        sharedText
+    }
+
+    // Email subject line (Mail app uses this)
+    func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String {
+        title.isEmpty ? "Note from EEON" : title
+    }
+
+    // Rich preview metadata — iMessage, Slack, Mail render this as a title + icon card
+    // using the actual note's title instead of a generic "Shared with you" fallback.
+    func activityViewControllerLinkMetadata(_ activityViewController: UIActivityViewController) -> LPLinkMetadata? {
+        let metadata = LPLinkMetadata()
+        metadata.title = title.isEmpty ? "Note from EEON" : title
+        metadata.originalURL = URL(string: "https://eeon.com")
+
+        if let icon = Self.appIconImage() {
+            metadata.iconProvider = NSItemProvider(object: icon)
+        }
+
+        return metadata
+    }
+
+    /// Pulls the primary AppIcon out of the bundle for use as the preview icon.
+    private static func appIconImage() -> UIImage? {
+        guard let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+              let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+              let files = primary["CFBundleIconFiles"] as? [String],
+              let lastIcon = files.last else {
+            return UIImage(named: "AppIcon")
+        }
+        return UIImage(named: lastIcon) ?? UIImage(named: "AppIcon")
+    }
 }
 
 // MARK: - Preview
