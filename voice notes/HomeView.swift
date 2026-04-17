@@ -1359,17 +1359,18 @@ struct HomeRecordingOverlay: View {
     }
 
     private func buildTranscriptText(confirmed: String, active: String) -> Text {
-        var result = Text(confirmed)
-            .foregroundColor(.white)
+        let confirmedText = Text(confirmed).foregroundColor(.white)
 
-        if !active.isEmpty {
-            let separator = confirmed.isEmpty ? "" : " "
-            result = result + Text(separator) + Text(active)
-                .foregroundColor(accentRed)
-                .fontWeight(.bold)
+        guard !active.isEmpty else {
+            return confirmedText
         }
 
-        return result
+        let separator = confirmed.isEmpty ? "" : " "
+        let activeText = Text(active)
+            .foregroundColor(accentRed)
+            .fontWeight(.bold)
+
+        return Text("\(confirmedText)\(separator)\(activeText)")
     }
 
     // MARK: - Bottom Controls

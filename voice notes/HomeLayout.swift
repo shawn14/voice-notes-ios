@@ -73,7 +73,7 @@ enum HomeSectionKind: String, Codable, CaseIterable {
 
 // MARK: - Section + Layout
 
-struct HomeSection: Codable, Identifiable, Equatable {
+struct HomeSection: Codable, Identifiable, Equatable, Sendable {
     var id: String { kindRaw + (title ?? "") }
     let kindRaw: String           // Raw value of HomeSectionKind
     let title: String?            // Override default title (LLM-picked, archetype-specific)
@@ -89,7 +89,10 @@ struct HomeSection: Codable, Identifiable, Equatable {
     }
 }
 
-struct HomeLayout: Codable, Equatable {
+// Sendable + explicit Codable lets JSONEncoder/Decoder use the conformance from
+// nonisolated contexts. Default MainActor project isolation would otherwise make
+// the synthesized Codable MainActor-isolated and throw a Swift 6 warning.
+struct HomeLayout: Equatable, Sendable {
     let sections: [HomeSection]
     let version: Int  // Bump when section schema changes
 
@@ -117,6 +120,26 @@ struct HomeLayout: Codable, Equatable {
             print("[HomeLayout] decode failed, using default: \(error)")
             return .default
         }
+    }
+}
+
+// Explicit, nonisolated Codable conformance — avoids inheriting MainActor
+// isolation from the project's default setting.
+extension HomeLayout: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case sections, version
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.sections = try container.decode([HomeSection].self, forKey: .sections)
+        self.version = try container.decode(Int.self, forKey: .version)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(sections, forKey: .sections)
+        try container.encode(version, forKey: .version)
     }
 }
 
