@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Export compliance: app only uses HTTPS/TLS (Apple-exempt encryption).
+	     Setting this to false skips the compliance prompt every submission. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Voice Notes uses speech recognition to show a live preview of your words as you speak.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
