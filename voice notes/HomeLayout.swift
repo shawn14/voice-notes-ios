@@ -77,6 +77,7 @@ struct HomeSection: Codable, Identifiable, Equatable, Sendable {
     var id: String { kindRaw + (title ?? "") }
     let kindRaw: String           // Raw value of HomeSectionKind
     let title: String?            // Override default title (LLM-picked, archetype-specific)
+    let rationale: String?        // LLM-emitted "Because you said X" byline (one short sentence)
     let limit: Int?               // Optional cap on rows shown
     let staleDaysThreshold: Int?  // For silentProjects / openThreads
 
@@ -102,8 +103,8 @@ struct HomeLayout: Equatable, Sendable {
     /// Matches today's AIHomeView ordering so behavior is unchanged pre-compile.
     static let `default` = HomeLayout(
         sections: [
-            HomeSection(kindRaw: HomeSectionKind.knowledgeCarousel.rawValue, title: nil, limit: nil, staleDaysThreshold: nil),
-            HomeSection(kindRaw: HomeSectionKind.recentNotes.rawValue, title: nil, limit: nil, staleDaysThreshold: nil),
+            HomeSection(kindRaw: HomeSectionKind.knowledgeCarousel.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
+            HomeSection(kindRaw: HomeSectionKind.recentNotes.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
         ],
         version: currentVersion
     )

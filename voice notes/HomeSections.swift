@@ -23,31 +23,44 @@ import SwiftData
 struct HomeSectionHeader: View {
     let title: String
     let subtitle: String?
+    let rationale: String?
     let accentColor: Color
 
-    init(_ title: String, subtitle: String? = nil, accentColor: Color = Color("EEONAccent")) {
+    init(_ title: String, subtitle: String? = nil, rationale: String? = nil, accentColor: Color = Color("EEONAccent")) {
         self.title = title
         self.subtitle = subtitle
+        self.rationale = rationale
         self.accentColor = accentColor
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.eeonTextPrimary)
-                .lineLimit(3)
-                .minimumScaleFactor(0.8)
-                .fixedSize(horizontal: false, vertical: true)
-            if let subtitle {
-                Text(subtitle)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.eeonTextSecondary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            // LLM-emitted rationale — "Because you said X" byline under the title.
+            // Only shown when the purpose compile produced one for this section.
+            if let rationale, !rationale.isEmpty {
+                Text(rationale)
                     .font(.caption)
-                    .foregroundStyle(.eeonTextSecondary)
+                    .foregroundStyle(.eeonTextSecondary.opacity(0.85))
                     .lineLimit(2)
-                    .minimumScaleFactor(0.85)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
@@ -59,6 +72,7 @@ struct HomeSectionHeader: View {
 struct PriorityProjectsSection: View {
     let projects: [Project]
     let title: String
+    let rationale: String?
     let limit: Int
 
     @Environment(\.modelContext) private var modelContext
@@ -82,7 +96,7 @@ struct PriorityProjectsSection: View {
     var body: some View {
         if !active.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                HomeSectionHeader(title)
+                HomeSectionHeader(title, rationale: rationale)
                 VStack(spacing: 6) {
                     ForEach(active) { project in
                         ProjectRow(project: project)
@@ -141,6 +155,7 @@ private struct ProjectRow: View {
 struct SilentProjectsSection: View {
     let projects: [Project]
     let title: String
+    let rationale: String?
     let staleDays: Int
 
     private var stalled: [Project] {
@@ -152,7 +167,7 @@ struct SilentProjectsSection: View {
     var body: some View {
         if !stalled.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                HomeSectionHeader(title, subtitle: "Untouched \(staleDays)+ days")
+                HomeSectionHeader(title, subtitle: "Untouched \(staleDays)+ days", rationale: rationale)
                 VStack(spacing: 6) {
                     ForEach(stalled) { project in
                         HStack(alignment: .top, spacing: 12) {
@@ -188,6 +203,7 @@ struct OpenDecisionsSection: View {
     let decisions: [ExtractedDecision]
     let notes: [Note]
     let title: String
+    let rationale: String?
     let limit: Int
 
     private var active: [ExtractedDecision] {
@@ -206,7 +222,7 @@ struct OpenDecisionsSection: View {
     var body: some View {
         if !active.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                HomeSectionHeader(title)
+                HomeSectionHeader(title, rationale: rationale)
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(active) { decision in
                         decisionRow(decision)
@@ -266,6 +282,7 @@ struct OpenDecisionsSection: View {
 struct IdeaInboxSection: View {
     let notes: [Note]
     let title: String
+    let rationale: String?
     let limit: Int
 
     private var ideas: [Note] {
@@ -279,7 +296,7 @@ struct IdeaInboxSection: View {
     var body: some View {
         if !ideas.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                HomeSectionHeader(title, subtitle: "\(ideas.count) unassigned")
+                HomeSectionHeader(title, subtitle: "\(ideas.count) unassigned", rationale: rationale)
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(ideas) { note in
                         NavigationLink(destination: NoteDetailView(note: note)) {
@@ -322,6 +339,7 @@ struct IdeaInboxSection: View {
 struct ClientRosterSection: View {
     let articles: [KnowledgeArticle]
     let title: String
+    let rationale: String?
     let limit: Int
 
     private var people: [KnowledgeArticle] {
@@ -335,7 +353,7 @@ struct ClientRosterSection: View {
     var body: some View {
         if !people.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                HomeSectionHeader(title)
+                HomeSectionHeader(title, rationale: rationale)
                 VStack(spacing: 6) {
                     ForEach(people) { person in
                         NavigationLink(destination: KnowledgeArticleDetailView(article: person)) {
@@ -380,6 +398,7 @@ struct FollowUpsPerClientSection: View {
     let commitments: [ExtractedCommitment]
     let notes: [Note]
     let title: String
+    let rationale: String?
     let limit: Int
 
     private var open: [ExtractedCommitment] {
@@ -398,7 +417,7 @@ struct FollowUpsPerClientSection: View {
     var body: some View {
         if !open.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                HomeSectionHeader(title, subtitle: "\(open.count) open")
+                HomeSectionHeader(title, subtitle: "\(open.count) open", rationale: rationale)
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(open) { c in
                         commitmentRow(c)
@@ -457,6 +476,7 @@ struct FollowUpsPerClientSection: View {
 struct RecurringPatternsSection: View {
     let articles: [KnowledgeArticle]
     let title: String
+    let rationale: String?
     let limit: Int
 
     private var topics: [KnowledgeArticle] {
@@ -470,7 +490,7 @@ struct RecurringPatternsSection: View {
     var body: some View {
         if !topics.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                HomeSectionHeader(title, subtitle: "Across your notes")
+                HomeSectionHeader(title, subtitle: "Across your notes", rationale: rationale)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(topics) { topic in
@@ -515,6 +535,7 @@ struct RecurringPatternsSection: View {
 struct ReferenceResonanceSection: View {
     let articles: [KnowledgeArticle]
     let title: String
+    let rationale: String?
     let limit: Int
 
     private var refs: [KnowledgeArticle] {
@@ -528,7 +549,7 @@ struct ReferenceResonanceSection: View {
     var body: some View {
         if !refs.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                HomeSectionHeader(title, subtitle: "Canon you've uploaded")
+                HomeSectionHeader(title, subtitle: "Canon you've uploaded", rationale: rationale)
                 VStack(spacing: 6) {
                     ForEach(refs) { ref in
                         NavigationLink(destination: KnowledgeArticleDetailView(article: ref)) {

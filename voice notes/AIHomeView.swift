@@ -44,6 +44,7 @@ struct AIHomeView: View {
     @State private var showingSettings = false
     @State private var showingAssistant = false
     @State private var showingIdentity = false
+    @State private var showingWhyThisHome = false
     @State private var showPaywall = false
     @State private var showSignIn = false
     @AppStorage("tuneBannerDismissedAt") private var tuneBannerDismissedRaw: Double = 0
@@ -266,6 +267,11 @@ struct AIHomeView: View {
             .sheet(isPresented: $showingIdentity) {
                 TuneConversationView()
             }
+            .sheet(isPresented: $showingWhyThisHome) {
+                WhyThisHomeSheet(onTune: {
+                    showingIdentity = true
+                })
+            }
             .sheet(isPresented: $showingAssistant) {
                 AssistantView()
             }
@@ -376,6 +382,13 @@ struct AIHomeView: View {
 
     // MARK: - 1. Greeting Bar
 
+    /// True once the .purpose article has a compiled directive — used to gate the
+    /// "Tuned for you" chip so pre-tune users don't see it.
+    private var hasCompiledPurpose: Bool {
+        guard let article = purposeArticles.first else { return false }
+        return (article.thinkingEvolution?.isEmpty == false) || !article.summary.isEmpty
+    }
+
     private var greetingBar: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
@@ -392,6 +405,12 @@ struct AIHomeView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .fixedSize(horizontal: false, vertical: true)
+
+                // Provenance chip — only after tuning has compiled at least once
+                if hasCompiledPurpose {
+                    tunedForYouChip
+                        .padding(.top, 2)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -421,6 +440,32 @@ struct AIHomeView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    /// Small chip shown under the greeting once the user has a compiled .purpose article.
+    /// Tapping opens the "Why this home?" sheet so the magic is legible, not opaque.
+    private var tunedForYouChip: some View {
+        Button {
+            showingWhyThisHome = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "scope")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("Tuned for you")
+                    .font(.caption.weight(.semibold))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .opacity(0.7)
+            }
+            .foregroundStyle(Color("EEONAccent"))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(Color("EEONAccent").opacity(0.12))
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var greeting: String {
@@ -956,21 +1001,21 @@ struct AIHomeView: View {
         let t = section.effectiveTitle
         switch kind {
         case .priorityProjects:
-            PriorityProjectsSection(projects: projects, title: t, limit: section.limit ?? 5)
+            PriorityProjectsSection(projects: projects, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .silentProjects:
-            SilentProjectsSection(projects: projects, title: t, staleDays: section.staleDaysThreshold ?? 9)
+            SilentProjectsSection(projects: projects, title: t, rationale: section.rationale, staleDays: section.staleDaysThreshold ?? 9)
         case .openDecisions:
-            OpenDecisionsSection(decisions: extractedDecisions, notes: notes, title: t, limit: section.limit ?? 5)
+            OpenDecisionsSection(decisions: extractedDecisions, notes: notes, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .ideaInbox:
-            IdeaInboxSection(notes: notes, title: t, limit: section.limit ?? 5)
+            IdeaInboxSection(notes: notes, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .clientRoster:
-            ClientRosterSection(articles: knowledgeArticles, title: t, limit: section.limit ?? 8)
+            ClientRosterSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 8)
         case .followUpsPerClient:
-            FollowUpsPerClientSection(commitments: extractedCommitments, notes: notes, title: t, limit: section.limit ?? 6)
+            FollowUpsPerClientSection(commitments: extractedCommitments, notes: notes, title: t, rationale: section.rationale, limit: section.limit ?? 6)
         case .recurringPatterns:
-            RecurringPatternsSection(articles: knowledgeArticles, title: t, limit: section.limit ?? 8)
+            RecurringPatternsSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 8)
         case .referenceResonance:
-            ReferenceResonanceSection(articles: knowledgeArticles, title: t, limit: section.limit ?? 5)
+            ReferenceResonanceSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .knowledgeCarousel:
             if !knowledgeArticles.isEmpty { knowledgeCardsSection }
         case .recentNotes:
