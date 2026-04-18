@@ -116,15 +116,19 @@ struct AIHomeView: View {
     /// Filtered notes based on selected tab and optional tag filter
     private var filteredNotes: [Note] {
         var base: [Note]
+        // Always exclude Tune EEON seed notes — they're configuration, not memory.
+        // They live inside Tune EEON; showing them in the feed would inflate counts,
+        // pollute search, and let users accidentally delete their own config.
+        let visible = notes.filter { $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed }
         switch selectedTab {
         case .all:
-            base = notes.filter { !$0.isArchived }
+            base = visible.filter { !$0.isArchived }
         case .ai:
-            base = notes.filter { !$0.isArchived }
+            base = visible.filter { !$0.isArchived }
         case .favorites:
-            base = notes.filter { $0.isFavorite && !$0.isArchived }
+            base = visible.filter { $0.isFavorite && !$0.isArchived }
         case .archive:
-            base = notes.filter { $0.isArchived }
+            base = visible.filter { $0.isArchived }
         }
         // Apply tag filter if selected
         if let tag = selectedTagFilter {

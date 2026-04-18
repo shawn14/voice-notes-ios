@@ -22,9 +22,15 @@ enum ExportService {
     /// the final URL is returned on the caller's actor.
     @MainActor
     static func generateExport(context: ModelContext) throws -> URL {
-        let notes = (try? context.fetch(FetchDescriptor<Note>(
+        let allNotes = (try? context.fetch(FetchDescriptor<Note>(
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         ))) ?? []
+
+        // Separate Tune EEON seeds from memory notes — they export to a dedicated
+        // "Your EEON Profile" section at the top, not mixed into the note log.
+        let profileSeed = allNotes.first { $0.sourceType == .profileSeed }
+        let purposeSeed = allNotes.first { $0.sourceType == .purposeSeed }
+        let notes = allNotes.filter { $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed }
 
         let articles = (try? context.fetch(FetchDescriptor<KnowledgeArticle>(
             sortBy: [SortDescriptor(\.articleTypeRaw), SortDescriptor(\.lastMentionedAt, order: .reverse)]
@@ -40,6 +46,8 @@ enum ExportService {
         let commitmentsByNote = Dictionary(grouping: commitments, by: { $0.sourceNoteId ?? UUID() })
 
         let markdown = buildMarkdown(
+            profileSeed: profileSeed,
+            purposeSeed: purposeSeed,
             notes: notes,
             articles: articles,
             decisionsByNote: decisionsByNote,
@@ -56,6 +64,8 @@ enum ExportService {
     // MARK: - Markdown Assembly
 
     private static func buildMarkdown(
+        profileSeed: Note?,
+        purposeSeed: Note?,
         notes: [Note],
         articles: [KnowledgeArticle],
         decisionsByNote: [UUID: [ExtractedDecision]],
@@ -87,6 +97,19 @@ enum ExportService {
         }
         """
         out += "\n```\n\n---\n\n"
+
+        // Your EEON Profile (profile + purpose seeds, if set)
+        if profileSeed != nil || purposeSeed != nil {
+            out += "# Your EEON Profile\n\n"
+            out += "*This is what you've told EEON about yourself — it shapes every AI response.*\n\n"
+            if let profile = profileSeed, !profile.content.isEmpty {
+                out += "## About You\n\n\(profile.content)\n\n"
+            }
+            if let purpose = purposeSeed, !purpose.content.isEmpty {
+                out += "## What EEON Is For You\n\n\(purpose.content)\n\n"
+            }
+            out += "---\n\n"
+        }
 
         // Notes
         out += "# Notes\n\n"
