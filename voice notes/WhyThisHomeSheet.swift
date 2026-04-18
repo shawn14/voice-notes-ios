@@ -16,6 +16,7 @@ import SwiftData
 
 struct WhyThisHomeSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     let onTune: () -> Void
 
     @Query(filter: #Predicate<Note> { $0.sourceTypeRaw == "purposeSeed" })
@@ -23,6 +24,9 @@ struct WhyThisHomeSheet: View {
 
     @Query(filter: #Predicate<KnowledgeArticle> { $0.articleTypeRaw == "purpose" })
     private var purposeArticles: [KnowledgeArticle]
+
+    @State private var isEditingDirective = false
+    @State private var editableDirective = ""
 
     private var purposeText: String { purposeSeedNotes.first?.content ?? "" }
     private var directive: String {
@@ -60,10 +64,7 @@ struct WhyThisHomeSheet: View {
 
                         if !directive.isEmpty {
                             section(title: "What EEON now understands", icon: "sparkles", color: .indigo) {
-                                Text(directive)
-                                    .font(.body)
-                                    .foregroundStyle(.eeonTextPrimary.opacity(0.9))
-                                    .fixedSize(horizontal: false, vertical: true)
+                                directiveEditor
                             }
                         }
 
@@ -94,6 +95,78 @@ struct WhyThisHomeSheet: View {
     }
 
     // MARK: - Pieces
+
+    /// Editable view of the compiled directive. Tap "Edit" to tweak it directly —
+    /// the edited version persists to the .purpose article's thinkingEvolution and
+    /// is picked up by ContextAssembler on its next refresh, so every AI call
+    /// downstream uses the user's own words.
+    @ViewBuilder
+    private var directiveEditor: some View {
+        if isEditingDirective {
+            VStack(alignment: .leading, spacing: 10) {
+                TextEditor(text: $editableDirective)
+                    .font(.body)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .frame(minHeight: 120)
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+                    .background(Color.eeonBackground)
+                    .cornerRadius(8)
+                HStack(spacing: 8) {
+                    Button("Cancel") {
+                        isEditingDirective = false
+                        editableDirective = directive
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.eeonTextSecondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.eeonBackground)
+                    .cornerRadius(8)
+                    Spacer()
+                    Button("Save directive") { saveDirective() }
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.indigo)
+                        .cornerRadius(8)
+                        .disabled(editableDirective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(directive)
+                    .font(.body)
+                    .foregroundStyle(.eeonTextPrimary.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    editableDirective = directive
+                    isEditingDirective = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "pencil")
+                            .font(.caption2)
+                        Text("Edit directive")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(.indigo)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func saveDirective() {
+        guard let article = purposeArticles.first else { return }
+        let trimmed = editableDirective.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        article.thinkingEvolution = trimmed
+        article.updatedAt = Date()
+        try? modelContext.save()
+        ContextAssembler.shared.refresh(from: modelContext)
+        isEditingDirective = false
+    }
 
     private var intro: some View {
         Text("This is how EEON has shaped itself around what you've told it. Re-tune anytime to update.")

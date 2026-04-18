@@ -530,6 +530,283 @@ struct RecurringPatternsSection: View {
     }
 }
 
+// MARK: - Open Threads (cross-article — universal)
+
+struct OpenThreadsSection: View {
+    let articles: [KnowledgeArticle]
+    let title: String
+    let rationale: String?
+    let limit: Int
+
+    /// Struct for a thread + which article it belongs to. Flattened from every article's openThreads.
+    private struct FlatThread: Identifiable {
+        let id: String
+        let articleName: String
+        let articleId: UUID
+        let thread: OpenThread
+    }
+
+    private var flatThreads: [FlatThread] {
+        articles.flatMap { article in
+            article.openThreads.map { t in
+                FlatThread(id: "\(article.id)-\(t.thread)", articleName: article.name, articleId: article.id, thread: t)
+            }
+        }
+        .sorted { $0.thread.daysOpen > $1.thread.daysOpen }
+        .prefix(limit)
+        .map { $0 }
+    }
+
+    var body: some View {
+        if !flatThreads.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HomeSectionHeader(title, subtitle: "\(flatThreads.count) unresolved", rationale: rationale)
+                VStack(spacing: 6) {
+                    ForEach(flatThreads) { ft in
+                        if let article = articles.first(where: { $0.id == ft.articleId }) {
+                            NavigationLink(destination: KnowledgeArticleDetailView(article: article)) {
+                                threadRow(ft)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            threadRow(ft)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    private func threadRow(_ ft: FlatThread) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "bubble.left.and.bubble.right.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(.blue)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(ft.thread.thread)
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    Text(ft.articleName)
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                    Text("·")
+                        .foregroundStyle(.eeonTextSecondary)
+                    Text("\(ft.thread.daysOpen)d open")
+                        .font(.caption)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.eeonTextSecondary)
+                .padding(.top, 4)
+        }
+        .padding(10)
+        .background(Color.eeonCard)
+        .cornerRadius(10)
+    }
+}
+
+// MARK: - Emotional Tone Arc (journaler / dream interpreter / therapist)
+
+struct EmotionalToneArcSection: View {
+    let notes: [Note]
+    let title: String
+    let rationale: String?
+    let limit: Int
+
+    private struct ToneDay: Identifiable {
+        let id: String  // "yyyy-MM-dd"
+        let date: Date
+        let dominantTone: String
+        let noteCount: Int
+    }
+
+    private var recentDays: [ToneDay] {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -limit, to: Date()) ?? Date()
+        let recent = notes.filter { $0.createdAt >= cutoff && ($0.emotionalTone?.isEmpty == false) }
+        let grouped = Dictionary(grouping: recent) { note -> String in
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd"
+            return f.string(from: note.createdAt)
+        }
+        return grouped.map { (key, dayNotes) in
+            let tones = dayNotes.compactMap { $0.emotionalTone }
+            let dominant = mostFrequent(tones) ?? "neutral"
+            let date = dayNotes.first?.createdAt ?? Date()
+            return ToneDay(id: key, date: date, dominantTone: dominant, noteCount: dayNotes.count)
+        }
+        .sorted { $0.date < $1.date }
+    }
+
+    private func mostFrequent(_ items: [String]) -> String? {
+        let counts = items.reduce(into: [:]) { $0[$1, default: 0] += 1 }
+        return counts.max(by: { $0.value < $1.value })?.key
+    }
+
+    private func toneColor(_ tone: String) -> Color {
+        switch tone.lowercased() {
+        case "positive", "focused", "excited", "hopeful", "grateful": return .green
+        case "negative", "anxious", "frustrated", "angry", "sad", "fearful": return .red
+        case "mixed", "conflicted": return .orange
+        default: return .gray
+        }
+    }
+
+    var body: some View {
+        if !recentDays.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HomeSectionHeader(title, subtitle: "\(recentDays.count) days with captures", rationale: rationale)
+                HStack(spacing: 4) {
+                    ForEach(recentDays) { day in
+                        VStack(spacing: 4) {
+                            Circle()
+                                .fill(toneColor(day.dominantTone))
+                                .frame(width: 16, height: 16)
+                            Text(shortDay(day.date))
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.eeonTextSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(12)
+                .background(Color.eeonCard)
+                .cornerRadius(12)
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    private func shortDay(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "E"
+        return f.string(from: date).uppercased()
+    }
+}
+
+// MARK: - Active Inquiries (researcher / academic)
+
+struct ActiveInquiriesSection: View {
+    let articles: [KnowledgeArticle]
+    let title: String
+    let rationale: String?
+    let limit: Int
+
+    private var inquiries: [KnowledgeArticle] {
+        articles
+            .filter { $0.articleType == .topic && !$0.openThreads.isEmpty }
+            .sorted { $0.openThreads.count > $1.openThreads.count }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    var body: some View {
+        if !inquiries.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HomeSectionHeader(title, subtitle: "\(inquiries.count) with open questions", rationale: rationale)
+                VStack(spacing: 6) {
+                    ForEach(inquiries) { topic in
+                        NavigationLink(destination: KnowledgeArticleDetailView(article: topic)) {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: "questionmark.circle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.purple)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(topic.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.eeonTextPrimary)
+                                        .lineLimit(2)
+                                    Text("\(topic.openThreads.count) open question\(topic.openThreads.count == 1 ? "" : "s")")
+                                        .font(.caption)
+                                        .foregroundStyle(.purple)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.eeonTextSecondary)
+                                    .padding(.top, 4)
+                            }
+                            .padding(10)
+                            .background(Color.eeonCard)
+                            .cornerRadius(10)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
+// MARK: - Relationship Arcs (coach / therapist)
+
+struct RelationshipArcsSection: View {
+    let articles: [KnowledgeArticle]
+    let title: String
+    let rationale: String?
+    let limit: Int
+
+    private var people: [KnowledgeArticle] {
+        articles
+            .filter { $0.articleType == .person && ($0.sentimentArc?.isEmpty == false) }
+            .sorted { ($0.lastMentionedAt ?? .distantPast) > ($1.lastMentionedAt ?? .distantPast) }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    var body: some View {
+        if !people.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HomeSectionHeader(title, rationale: rationale)
+                VStack(spacing: 6) {
+                    ForEach(people) { person in
+                        NavigationLink(destination: KnowledgeArticleDetailView(article: person)) {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: "heart.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.pink)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.pink.opacity(0.12))
+                                    .cornerRadius(10)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(person.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.eeonTextPrimary)
+                                    if let arc = person.sentimentArc {
+                                        Text(arc)
+                                            .font(.caption)
+                                            .foregroundStyle(.eeonTextSecondary)
+                                            .lineLimit(2)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.eeonTextSecondary)
+                                    .padding(.top, 4)
+                            }
+                            .padding(10)
+                            .background(Color.eeonCard)
+                            .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
 // MARK: - Reference Resonance (dream interpreter / researcher)
 
 struct ReferenceResonanceSection: View {

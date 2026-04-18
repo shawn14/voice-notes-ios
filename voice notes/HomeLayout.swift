@@ -103,6 +103,8 @@ struct HomeLayout: Equatable, Sendable {
     /// Matches today's AIHomeView ordering so behavior is unchanged pre-compile.
     static let `default` = HomeLayout(
         sections: [
+            // Today's 3 is universal — show it even pre-tune so the daily ritual is always discoverable
+            HomeSection(kindRaw: HomeSectionKind.todayThree.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
             HomeSection(kindRaw: HomeSectionKind.knowledgeCarousel.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
             HomeSection(kindRaw: HomeSectionKind.recentNotes.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
         ],

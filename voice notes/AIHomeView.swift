@@ -47,6 +47,7 @@ struct AIHomeView: View {
     @State private var showingWhyThisHome = false
     @State private var showPaywall = false
     @State private var showSignIn = false
+    @State private var driftStatus: DriftStatus = .fresh
     @AppStorage("tuneBannerDismissedAt") private var tuneBannerDismissedRaw: Double = 0
 
     // Recording state
@@ -208,6 +209,12 @@ struct AIHomeView: View {
                                     .padding(.horizontal)
                             }
 
+                            // Drift / staleness banner — only after a purpose has been compiled
+                            if driftStatus != .fresh {
+                                driftBanner
+                                    .padding(.horizontal)
+                            }
+
                             // Daily brief removed — AI tab handles organization
 
                             // Free tier warning
@@ -365,6 +372,8 @@ struct AIHomeView: View {
                 // Sync free note counter with actual database count
                 let actualCount = notes.filter { !$0.isArchived }.count
                 UsageService.shared.syncNoteCount(actualCount: actualCount)
+                // Run drift check (local-only, throttled inside the service)
+                driftStatus = DriftDetector.shared.check(in: modelContext)
 
                 // Check for pending share extension ingests
                 Task {
@@ -985,6 +994,89 @@ struct AIHomeView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Drift Banner
+
+    /// Gentle prompt when the purpose article is stale or when recent captures
+    /// don't match the declared role. Tap to re-tune; tap × to dismiss for 14 days.
+    private var driftBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "scope")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.indigo)
+                .frame(width: 36, height: 36)
+                .background(Color.indigo.opacity(0.15))
+                .cornerRadius(10)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(driftBannerTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.eeonTextPrimary)
+                Text(driftBannerBody)
+                    .font(.caption)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                showingIdentity = true
+            } label: {
+                Text("Re-tune")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.indigo)
+                    .cornerRadius(8)
+            }
+            Button {
+                DriftDetector.shared.dismissBanner()
+                withAnimation { driftStatus = .fresh }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.eeonTextSecondary)
+                    .padding(6)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .background(Color.indigo.opacity(0.08))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.indigo.opacity(0.25), lineWidth: 1)
+        )
+        .cornerRadius(12)
+    }
+
+    private var driftBannerTitle: String {
+        switch driftStatus {
+        case .stale: return "It's been a while since you tuned EEON"
+        case .drifted: return "Your captures are telling a different story"
+        case .fresh: return ""
+        }
+    }
+
+    private var driftBannerBody: String {
+        switch driftStatus {
+        case .stale:
+            return "EEON's lens is over a month old. Update it to match how you think today."
+        case .drifted(let role, _):
+            let roleName: String = {
+                switch role {
+                case .founder: return "founder"
+                case .coach: return "coach"
+                case .interpreter: return "dream interpreter"
+                case .researcher: return "researcher"
+                case .journaler: return "journaler"
+                case .unknown: return "your lens"
+                }
+            }()
+            return "You told EEON you're a \(roleName), but recent notes don't match. Want to re-tune?"
+        case .fresh:
+            return ""
+        }
+    }
+
     // MARK: - Layout-Driven Sections
 
     /// Active home layout — compiled by the Karpathy LLM on the .purpose article,
@@ -1020,9 +1112,19 @@ struct AIHomeView: View {
             if !knowledgeArticles.isEmpty { knowledgeCardsSection }
         case .recentNotes:
             noteFeed
-        // Planned but not yet built — fall through to recentNotes as safe default.
-        case .captureHero, .todayThree, .openThreads, .relationshipArcs, .emotionalToneArc,
-             .activeInquiries, .contradictionLedger, .dailyBrief:
+        case .todayThree:
+            TodaysThreeSection(title: t, rationale: section.rationale)
+        case .openThreads:
+            OpenThreadsSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+        case .emotionalToneArc:
+            EmotionalToneArcSection(notes: notes, title: t, rationale: section.rationale, limit: section.limit ?? 14)
+        case .activeInquiries:
+            ActiveInquiriesSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+        case .relationshipArcs:
+            RelationshipArcsSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+        // Still stubs — captureHero is always rendered elsewhere; dailyBrief needs a DailyBrief model display;
+        // contradictionLedger needs persisted lint results (deferred, see plan).
+        case .captureHero, .contradictionLedger, .dailyBrief:
             EmptyView()
         }
     }
