@@ -37,9 +37,11 @@ final class AudioRecorder: NSObject {
     }
 
     func startRecording() throws -> String {
+        #if !targetEnvironment(macCatalyst)
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.playAndRecord, mode: .default)
         try audioSession.setActive(true)
+        #endif
 
         let fileName = "\(UUID().uuidString).m4a"
         let url = getDocumentsDirectory().appendingPathComponent(fileName)
@@ -78,9 +80,11 @@ final class AudioRecorder: NSObject {
     }
 
     func playAudio(url: URL) throws {
+        #if !targetEnvironment(macCatalyst)
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.playback, mode: .default)
         try audioSession.setActive(true)
+        #endif
 
         audioPlayer = try AVAudioPlayer(contentsOf: url)
         audioPlayer?.delegate = self
