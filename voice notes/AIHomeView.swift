@@ -16,6 +16,7 @@ import AVFoundation
 struct AIHomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Query(sort: \Project.sortOrder) private var projects: [Project]
@@ -195,6 +196,37 @@ struct AIHomeView: View {
     }
 
     var body: some View {
+        if horizontalSizeClass == .regular {
+            regularBody
+        } else {
+            compactBody
+        }
+    }
+
+    // MARK: - Adaptive bodies
+
+    /// iPad / Mac Catalyst layout: sidebar-first split view.
+    /// Sidebar shows a simple list of recent notes; the detail keeps the full
+    /// capture surface (the existing iPhone experience) so every section is
+    /// still reachable. This avoids restructuring any state or subview
+    /// ownership — it's purely a layout branch.
+    @ViewBuilder
+    private var regularBody: some View {
+        NavigationSplitView {
+            RecentNotesSidebar(
+                notes: notes.filter {
+                    $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed && !$0.isArchived
+                }
+            )
+            .navigationTitle("Recent")
+        } detail: {
+            compactBody
+        }
+    }
+
+    /// iPhone / compact layout — the original body, unchanged.
+    @ViewBuilder
+    private var compactBody: some View {
         NavigationStack {
             ZStack {
                 Color.eeonBackground.ignoresSafeArea()
@@ -1850,6 +1882,77 @@ struct NoteFeedCard: View {
             }
         }
         .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, y: 2)
+    }
+}
+
+// MARK: - Recent Notes Sidebar (iPad / Regular size class)
+
+/// Simple list of recent notes rendered in the NavigationSplitView sidebar on
+/// iPad and Mac Catalyst. Intentionally independent of the main feed's tab /
+/// sort / tag-filter state so it stays a pure "recent notes" lens and doesn't
+/// require threading AIHomeView state through to the sidebar.
+fileprivate struct RecentNotesSidebar: View {
+    let notes: [Note]
+
+    var body: some View {
+        List {
+            if notes.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "waveform.circle")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.eeonTextTertiary)
+                    Text("No notes yet")
+                        .font(.subheadline)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            } else {
+                ForEach(notes.prefix(50)) { note in
+                    NavigationLink(destination: NoteDetailView(note: note)) {
+                        RecentNotesSidebarRow(note: note)
+                    }
+                }
+            }
+        }
+        .listStyle(.sidebar)
+    }
+}
+
+fileprivate struct RecentNotesSidebarRow: View {
+    let note: Note
+
+    private var preview: String {
+        if let transcript = note.transcript, !transcript.isEmpty {
+            let firstLine = transcript.components(separatedBy: .newlines).first ?? transcript
+            return String(firstLine.prefix(80))
+        }
+        if !note.content.isEmpty {
+            let firstLine = note.content.components(separatedBy: .newlines).first ?? note.content
+            return String(firstLine.prefix(80))
+        }
+        return "Untitled note"
+    }
+
+    private var timeString: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: note.updatedAt, relativeTo: Date())
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(preview)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.eeonTextPrimary)
+                .lineLimit(2)
+            Text(timeString)
+                .font(.caption)
+                .foregroundStyle(.eeonTextSecondary)
+        }
+        .padding(.vertical, 2)
     }
 }
 
