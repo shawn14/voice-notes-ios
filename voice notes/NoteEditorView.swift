@@ -9,6 +9,7 @@ import SwiftData
 struct NoteEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @Bindable var note: Note
     @Query private var allTags: [Tag]
@@ -378,6 +379,8 @@ struct NoteEditorView: View {
                 }
             }
             .padding()
+            .frame(maxWidth: horizontalSizeClass == .regular ? 720 : .infinity)
+            .frame(maxWidth: .infinity)
         }
         .background(Color(.systemBackground))
         .navigationTitle(isNewNote ? "New Note" : "")
