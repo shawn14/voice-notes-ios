@@ -66,6 +66,7 @@ struct NoteDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @Bindable var note: Note
     var initialTab: NoteTab = .insights
@@ -213,6 +214,8 @@ struct NoteDetailView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 80) // Space for bottom toolbar
+                    .frame(maxWidth: horizontalSizeClass == .regular ? 720 : .infinity)
+                    .frame(maxWidth: .infinity)
                 }
 
                 Spacer(minLength: 0)
