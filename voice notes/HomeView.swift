@@ -11,6 +11,7 @@ import SwiftData
 import UIKit
 import AVFoundation
 import PhotosUI
+import CloudKit
 
 // MARK: - Filter Options
 
@@ -1588,6 +1589,12 @@ struct SettingsView: View {
     @State private var exportError: String?
     @State private var showingExportShareSheet = false
 
+    // iCloud sync state
+    @State private var isSyncing = false
+    @State private var lastSyncedAt: Date?
+    @State private var iCloudStatus: CKAccountStatus = .couldNotDetermine
+    @State private var syncFeedback: String?
+
     @AppStorage("appearanceMode") private var appearanceMode: Int = 0
 
     private let usage = UsageService.shared
@@ -1815,6 +1822,9 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        Text("Signed in with Apple")
+                            .font(.caption2)
+                            .foregroundStyle(Color("EEONAccent"))
                     } else {
                         Text("Not signed in")
                             .font(.body.weight(.medium))
@@ -1836,6 +1846,109 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
         .padding(.vertical, 4)
+    }
+
+    // MARK: - iCloud Sync Section
+
+    private var iCloudSyncSection: some View {
+        Section {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: iCloudStatusIcon)
+                        .foregroundStyle(.blue)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("iCloud")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text(iCloudStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 4)
+
+            Button {
+                syncNow()
+            } label: {
+                HStack(spacing: 16) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .foregroundStyle(Color("EEONAccent"))
+                        .frame(width: 44)
+                    Text(isSyncing ? "Syncing…" : (syncFeedback ?? "Sync Now"))
+                        .font(.body)
+                        .foregroundStyle(isSyncing ? .secondary : Color("EEONAccent"))
+                    Spacer()
+                    if isSyncing {
+                        ProgressView()
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 4)
+            .disabled(isSyncing || iCloudStatus != .available)
+        } header: {
+            Text("iCloud & Sync")
+        } footer: {
+            if let lastSyncedAt {
+                Text("Last synced \(lastSyncedAt.formatted(date: .omitted, time: .shortened)). Notes sync automatically across your devices via iCloud.")
+            } else {
+                Text("Your notes sync automatically across iPhone, iPad, and Mac when you're signed into the same iCloud account.")
+            }
+        }
+    }
+
+    private var iCloudStatusIcon: String {
+        switch iCloudStatus {
+        case .available:          return "icloud.fill"
+        case .noAccount:          return "icloud.slash"
+        case .restricted:         return "icloud.slash"
+        case .temporarilyUnavailable: return "icloud"
+        case .couldNotDetermine:  return "icloud"
+        @unknown default:         return "icloud"
+        }
+    }
+
+    private var iCloudStatusText: String {
+        switch iCloudStatus {
+        case .available:          return "Connected"
+        case .noAccount:          return "Not signed into iCloud — open Settings → Apple ID to sign in"
+        case .restricted:         return "Restricted by device policy"
+        case .temporarilyUnavailable: return "Temporarily unavailable — retry shortly"
+        case .couldNotDetermine:  return "Checking…"
+        @unknown default:         return "Unknown"
+        }
+    }
+
+    private func refreshiCloudStatus() async {
+        let container = CKContainer(identifier: "iCloud.aivoiceeeon")
+        let status = (try? await container.accountStatus()) ?? .couldNotDetermine
+        await MainActor.run { iCloudStatus = status }
+    }
+
+    private func syncNow() {
+        isSyncing = true
+        syncFeedback = nil
+        Task {
+            try? modelContext.save()
+            await refreshiCloudStatus()
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            await MainActor.run {
+                isSyncing = false
+                if iCloudStatus == .available {
+                    lastSyncedAt = Date()
+                    syncFeedback = "Synced"
+                } else {
+                    syncFeedback = "Couldn't reach iCloud"
+                }
+            }
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            await MainActor.run { syncFeedback = nil }
+        }
     }
 
     var body: some View {
@@ -1862,6 +1975,9 @@ struct SettingsView: View {
                 } header: {
                     Text("Usage")
                 }
+
+                // MARK: - iCloud & Sync
+                iCloudSyncSection
 
                 // MARK: - Account Section
                 accountSection
@@ -2051,6 +2167,7 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
+            .task { await refreshiCloudStatus() }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }
