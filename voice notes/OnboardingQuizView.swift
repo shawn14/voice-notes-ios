@@ -204,7 +204,7 @@ struct OnboardingQuizView: View {
                 }
 
                 Button {
-                    OnboardingState.set(.completed)
+                    signInAsReturningUser()
                 } label: {
                     Text("Already have an account?")
                         .font(.subheadline)
@@ -526,6 +526,42 @@ struct OnboardingQuizView: View {
         .buttonStyle(.plain)
     }
 
+    private func signInAsReturningUser() {
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        let delegate = QuizSignInDelegate { result in
+            switch result {
+            case .success(let authorization):
+                authService.handleSignInResult(.success(authorization))
+                if authService.isSignedIn {
+                    OnboardingState.set(.completed)
+                }
+            case .failure(let error):
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+        QuizSignInDelegate.current = delegate
+        controller.delegate = delegate
+
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+            ?? UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first
+        let window = scene?.windows.first(where: { $0.isKeyWindow }) ?? scene?.windows.first
+        if let window {
+            let contextProvider = QuizSignInPresentationContext(window: window)
+            controller.presentationContextProvider = contextProvider
+            QuizSignInPresentationContext.current = contextProvider
+        }
+        controller.performRequests()
+    }
+
     private func purchaseSubscription() {
         isPurchasing = true
         Task {
@@ -661,5 +697,37 @@ struct OnboardingQuizView: View {
             .foregroundStyle(Color("EEONBackground"))
             .cornerRadius(14)
         }
+    }
+}
+
+private class QuizSignInDelegate: NSObject, ASAuthorizationControllerDelegate {
+    static var current: QuizSignInDelegate?
+    let completion: (Result<ASAuthorization, Error>) -> Void
+
+    init(completion: @escaping (Result<ASAuthorization, Error>) -> Void) {
+        self.completion = completion
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        completion(.success(authorization))
+        QuizSignInDelegate.current = nil
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        completion(.failure(error))
+        QuizSignInDelegate.current = nil
+    }
+}
+
+private class QuizSignInPresentationContext: NSObject, ASAuthorizationControllerPresentationContextProviding {
+    static var current: QuizSignInPresentationContext?
+    let window: UIWindow
+
+    init(window: UIWindow) {
+        self.window = window
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        window
     }
 }
