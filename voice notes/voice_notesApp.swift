@@ -114,6 +114,40 @@ struct voice_notesApp: App {
             AuthService.shared.migrateEeonContextToSeedIfNeeded(context: mainContext)
             ContextAssembler.shared.refresh(from: mainContext)
         }
+
+        #if DEBUG
+        // CloudKit schema registration seed.
+        // Development environment auto-registers a record type the first time a
+        // record of that type is pushed. Production (TestFlight/App Store) can
+        // only use types that were previously deployed from Development — it
+        // cannot register new ones. This block guarantees Debug builds push one
+        // record of every SwiftData type on first launch, so the full schema
+        // lands in CloudKit Development. After that, "Deploy Schema Changes…"
+        // in CloudKit Dashboard promotes it to Production.
+        //
+        // Guarded by a UserDefaults flag so it only runs once per install.
+        let seedKey = "cloudKitSchemaSeedDidRun_v1"
+        if !UserDefaults.standard.bool(forKey: seedKey) {
+            let seedContext = container.mainContext
+            Task { @MainActor in
+                let seed = Note(title: "__cloudkit_schema_seed", content: "")
+                seed.sourceType = .profileSeed  // filtered out of main view
+                seedContext.insert(seed)
+                do {
+                    try seedContext.save()
+                    print("[Schema] Seed record inserted — waiting 90s for CloudKit Development to auto-register record types…")
+                } catch {
+                    print("[Schema] Seed save failed: \(error)")
+                }
+
+                // Give CloudKit time to push the record + register the schema.
+                try? await Task.sleep(nanoseconds: 90_000_000_000) // 90s
+
+                UserDefaults.standard.set(true, forKey: seedKey)
+                print("[Schema] Seed run complete. Check CloudKit Dashboard → Development → Record Types. You should now see CD_Note (and other CD_* types as SwiftData pushes them).")
+            }
+        }
+        #endif
     }
 
     var body: some Scene {
