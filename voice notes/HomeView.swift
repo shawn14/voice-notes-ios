@@ -1595,6 +1595,12 @@ struct SettingsView: View {
     @State private var iCloudStatus: CKAccountStatus = .couldNotDetermine
     @State private var syncFeedback: String?
 
+    // Diagnostic state (populated lazily by loadDiagnostics)
+    @State private var diagUserRecordID: String = "—"
+    @State private var diagZones: [String] = []
+    @State private var diagZonesError: String?
+    @State private var diagIsLoading = false
+
     @AppStorage("appearanceMode") private var appearanceMode: Int = 0
 
     private let usage = UsageService.shared
@@ -1891,6 +1897,43 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .padding(.vertical, 4)
             .disabled(isSyncing || iCloudStatus != .available)
+
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 8) {
+                    diagRow(label: "Container init", value: diagInitOutcome, detail: diagInitError)
+                    diagRow(label: "Account status", value: iCloudStatusText, detail: nil)
+                    diagRow(label: "iCloud user ID", value: diagUserRecordID, detail: nil)
+                    diagRow(label: "Local notes", value: "\(notes.count)", detail: nil)
+                    diagRow(
+                        label: "Private zones",
+                        value: diagZones.isEmpty ? "(none found)" : "\(diagZones.count)",
+                        detail: diagZones.isEmpty ? diagZonesError : diagZones.joined(separator: "\n")
+                    )
+
+                    Button {
+                        Task { await loadDiagnostics() }
+                    } label: {
+                        HStack {
+                            if diagIsLoading { ProgressView().scaleEffect(0.7) }
+                            Text(diagIsLoading ? "Refreshing…" : "Refresh diagnostics")
+                                .font(.caption.weight(.medium))
+                        }
+                    }
+                    .disabled(diagIsLoading)
+                    .padding(.top, 4)
+                }
+                .font(.caption)
+                .padding(.vertical, 6)
+            } label: {
+                HStack(spacing: 16) {
+                    Image(systemName: "stethoscope")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44)
+                    Text("CloudKit diagnostics")
+                        .font(.body)
+                }
+            }
+            .padding(.vertical, 4)
         } header: {
             Text("iCloud & Sync")
         } footer: {
@@ -1928,6 +1971,67 @@ struct SettingsView: View {
         let container = CKContainer(identifier: "iCloud.aivoiceeeon")
         let status = (try? await container.accountStatus()) ?? .couldNotDetermine
         await MainActor.run { iCloudStatus = status }
+    }
+
+    private var diagInitOutcome: String {
+        UserDefaults.standard.string(forKey: "cloudKitInitOutcome") ?? "unknown"
+    }
+
+    private var diagInitError: String? {
+        UserDefaults.standard.string(forKey: "cloudKitInitError")
+    }
+
+    @ViewBuilder
+    private func diagRow(label: String, value: String, detail: String?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .top) {
+                Text(label)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(value)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.trailing)
+            }
+            if let detail, !detail.isEmpty {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    private func loadDiagnostics() async {
+        await MainActor.run { diagIsLoading = true }
+        await refreshiCloudStatus()
+
+        let container = CKContainer(identifier: "iCloud.aivoiceeeon")
+
+        // User record ID — proves CloudKit can identify the signed-in iCloud user
+        var userID = "—"
+        do {
+            let recordID = try await container.userRecordID()
+            userID = recordID.recordName
+        } catch {
+            userID = "error: \(error.localizedDescription)"
+        }
+
+        // Private DB zone list — the real answer to "did SwiftData create its zone?"
+        var zones: [String] = []
+        var zonesError: String?
+        do {
+            let all = try await container.privateCloudDatabase.allRecordZones()
+            zones = all.map { $0.zoneID.zoneName }
+        } catch {
+            zonesError = error.localizedDescription
+        }
+
+        await MainActor.run {
+            diagUserRecordID = userID
+            diagZones = zones
+            diagZonesError = zonesError
+            diagIsLoading = false
+        }
     }
 
     private func syncNow() {
@@ -2167,7 +2271,10 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
-            .task { await refreshiCloudStatus() }
+            .task {
+                await refreshiCloudStatus()
+                await loadDiagnostics()
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }

@@ -44,10 +44,16 @@ struct voice_notesApp: App {
             )
 
             container = try ModelContainer(for: schema, configurations: [config])
+            UserDefaults.standard.set("cloudKit", forKey: "cloudKitInitOutcome")
+            UserDefaults.standard.removeObject(forKey: "cloudKitInitError")
+            UserDefaults.standard.set(Date(), forKey: "cloudKitInitAt")
             cleanupDuplicateTags(in: container.mainContext)
         } catch {
             // If CloudKit fails, try without CloudKit
             print("CloudKit container failed, trying local: \(error)")
+            UserDefaults.standard.set("localFallback", forKey: "cloudKitInitOutcome")
+            UserDefaults.standard.set(String(describing: error), forKey: "cloudKitInitError")
+            UserDefaults.standard.set(Date(), forKey: "cloudKitInitAt")
 
             do {
                 let localConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
@@ -81,10 +87,13 @@ struct voice_notesApp: App {
                         cloudKitDatabase: .private("iCloud.aivoiceeeon")
                     )
                     container = try ModelContainer(for: schema, configurations: [freshConfig])
+                    UserDefaults.standard.set("recoveredCloudKit", forKey: "cloudKitInitOutcome")
                     print("Recovery succeeded — notes will re-sync from CloudKit")
                 } catch {
                     // Absolute last resort — in-memory so app doesn't crash
                     print("All storage options failed, using in-memory: \(error)")
+                    UserDefaults.standard.set("inMemory", forKey: "cloudKitInitOutcome")
+                    UserDefaults.standard.set(String(describing: error), forKey: "cloudKitInitError")
                     do {
                         let memConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
                         container = try ModelContainer(for: schema, configurations: [memConfig])
