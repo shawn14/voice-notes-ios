@@ -121,61 +121,69 @@ struct voice_notesApp: App {
         }
 
         #if DEBUG
-        // CloudKit schema registration seed (v2 — covers ALL @Model types).
+        // CloudKit schema registration seed (v3 — one record at a time).
         //
-        // CloudKit Development auto-registers a record type the first time a
-        // record of that type is pushed. v1 only seeded Note, which meant
-        // CD_Tag / CD_Project / CD_Extracted* / CD_Kanban* / etc. never got
-        // registered. Pushes of any Note-with-tags then failed silently in
-        // Production because CloudKit didn't know those record types — which
-        // is the exact "Local 33, CloudKit 0" symptom we hit.
+        // v2 inserted all 16 records in a single save, which CloudKit
+        // batched into one or two upload operations. Per-record validation
+        // failures on a few types collapsed the whole batch and only
+        // 8 of 16 record types ended up registered in Development —
+        // missing CD_Project, CD_ExtractedDecision, CD_ExtractedCommitment,
+        // CD_KanbanMovement, CD_WeeklyDebrief, CD_ExtractedURL,
+        // CD_MentionedPerson, CD_DailyIntention. v2 also deleted everything
+        // 90s later, cutting off NSPersistentCloudKitContainer's retry.
         //
-        // v2 inserts one record of every @Model in the schema array so the
-        // full type set lands in Development. After this runs, click
-        // "Deploy Schema Changes…" in CloudKit Dashboard to promote to
-        // Production. Seeds are deleted after the push completes so they
-        // don't linger in user-facing UI.
-        let seedKey = "cloudKitSchemaSeedDidRun_v2"
+        // v3 saves one type at a time with a delay between each so each
+        // record gets its own upload operation, one failure can't take
+        // down others, and the framework has time to push each record
+        // before any cleanup.
+        let seedKey = "cloudKitSchemaSeedDidRun_v3"
         if !UserDefaults.standard.bool(forKey: seedKey) {
             let seedContext = container.mainContext
             Task { @MainActor in
-                let seedNote = Note(title: "__seed_v2", content: "")
+                let seedNote = Note(title: "__seed_v3", content: "")
                 seedNote.sourceType = .profileSeed
 
-                let seeds: [any PersistentModel] = [
-                    seedNote,
-                    Tag(name: "__seed_tag_v2"),
-                    Project(name: "__seed_project_v2"),
-                    ExtractedDecision(content: "__seed"),
-                    ExtractedAction(content: "__seed"),
-                    ExtractedCommitment(who: "__seed", what: "__seed"),
-                    UnresolvedItem(content: "__seed", reason: "__seed"),
-                    KanbanItem(content: "__seed"),
-                    KanbanMovement(itemId: UUID(), fromColumn: .thinking, toColumn: .decided),
-                    WeeklyDebrief(weekStartDate: Date()),
-                    DailyBrief(briefDate: Date()),
-                    ExtractedURL(url: "https://example.invalid"),
-                    MentionedPerson(name: "__seed"),
-                    KnowledgeArticle(name: "__seed", articleType: .topic),
-                    KnowledgeEvent(eventType: .ingest, title: "__seed"),
-                    DailyIntention(dateKey: "__seed", order: 0, content: "__seed"),
+                let seeds: [(model: any PersistentModel, name: String)] = [
+                    (seedNote, "Note"),
+                    (Tag(name: "__seed_tag_v3"), "Tag"),
+                    (Project(name: "__seed_project_v3"), "Project"),
+                    (ExtractedDecision(content: "__seed_v3"), "ExtractedDecision"),
+                    (ExtractedAction(content: "__seed_v3"), "ExtractedAction"),
+                    (ExtractedCommitment(who: "__seed", what: "__seed_v3"), "ExtractedCommitment"),
+                    (UnresolvedItem(content: "__seed", reason: "__seed_v3"), "UnresolvedItem"),
+                    (KanbanItem(content: "__seed_v3"), "KanbanItem"),
+                    (KanbanMovement(itemId: UUID(), fromColumn: .thinking, toColumn: .decided), "KanbanMovement"),
+                    (WeeklyDebrief(weekStartDate: Date()), "WeeklyDebrief"),
+                    (DailyBrief(briefDate: Date()), "DailyBrief"),
+                    (ExtractedURL(url: "https://example.invalid/seed"), "ExtractedURL"),
+                    (MentionedPerson(name: "__seed_v3"), "MentionedPerson"),
+                    (KnowledgeArticle(name: "__seed_v3", articleType: .topic), "KnowledgeArticle"),
+                    (KnowledgeEvent(eventType: .ingest, title: "__seed_v3"), "KnowledgeEvent"),
+                    (DailyIntention(dateKey: "__seed_v3", order: 0, content: "__seed"), "DailyIntention"),
                 ]
 
-                for seed in seeds { seedContext.insert(seed) }
-                do {
-                    try seedContext.save()
-                    print("[Schema v2] Inserted \(seeds.count) seeds across all model types — waiting 90s for CloudKit Development to register record types…")
-                } catch {
-                    print("[Schema v2] Seed save failed: \(error)")
+                var inserted: [any PersistentModel] = []
+                for entry in seeds {
+                    seedContext.insert(entry.model)
+                    inserted.append(entry.model)
+                    do {
+                        try seedContext.save()
+                        print("[Schema v3] Saved \(entry.name)")
+                    } catch {
+                        print("[Schema v3] FAILED to save \(entry.name): \(error)")
+                    }
+                    // Per-record delay so each push gets its own CloudKit operation.
+                    try? await Task.sleep(nanoseconds: 5_000_000_000) // 5s
                 }
 
-                try? await Task.sleep(nanoseconds: 90_000_000_000) // 90s
+                print("[Schema v3] All \(seeds.count) types saved. Waiting 60s for any in-flight pushes to complete…")
+                try? await Task.sleep(nanoseconds: 60_000_000_000) // 60s buffer
 
-                for seed in seeds { seedContext.delete(seed) }
+                for seed in inserted { seedContext.delete(seed) }
                 try? seedContext.save()
 
                 UserDefaults.standard.set(true, forKey: seedKey)
-                print("[Schema v2] Done. CloudKit Dashboard → Development → Record Types should now list CD_Note, CD_Tag, CD_Project, CD_ExtractedDecision, CD_ExtractedAction, CD_ExtractedCommitment, CD_UnresolvedItem, CD_KanbanItem, CD_KanbanMovement, CD_WeeklyDebrief, CD_DailyBrief, CD_ExtractedURL, CD_MentionedPerson, CD_KnowledgeArticle, CD_KnowledgeEvent, CD_DailyIntention. Click Deploy Schema Changes… to promote to Production.")
+                print("[Schema v3] Done. CloudKit Dashboard → Development → Record Types should now list all 16 CD_* types. Click Deploy Schema Changes… to promote to Production.")
             }
         }
         #endif

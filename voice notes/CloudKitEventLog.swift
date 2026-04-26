@@ -79,45 +79,7 @@ enum CloudKitEventLog {
 
     private static func ckCodeName(_ code: Int) -> String {
         guard let c = CKError.Code(rawValue: code) else { return "CKError(\(code))" }
-        switch c {
-        case .internalError: return "internalError"
-        case .partialFailure: return "partialFailure"
-        case .networkUnavailable: return "networkUnavailable"
-        case .networkFailure: return "networkFailure"
-        case .badContainer: return "badContainer"
-        case .serviceUnavailable: return "serviceUnavailable"
-        case .requestRateLimited: return "requestRateLimited"
-        case .missingEntitlement: return "missingEntitlement"
-        case .notAuthenticated: return "notAuthenticated"
-        case .permissionFailure: return "permissionFailure"
-        case .unknownItem: return "unknownItem"
-        case .invalidArguments: return "invalidArguments"
-        case .resultsTruncated: return "resultsTruncated"
-        case .serverRecordChanged: return "serverRecordChanged"
-        case .serverRejectedRequest: return "serverRejectedRequest"
-        case .assetFileNotFound: return "assetFileNotFound"
-        case .assetFileModified: return "assetFileModified"
-        case .incompatibleVersion: return "incompatibleVersion"
-        case .constraintViolation: return "constraintViolation"
-        case .operationCancelled: return "operationCancelled"
-        case .changeTokenExpired: return "changeTokenExpired"
-        case .batchRequestFailed: return "batchRequestFailed"
-        case .zoneBusy: return "zoneBusy"
-        case .badDatabase: return "badDatabase"
-        case .quotaExceeded: return "quotaExceeded"
-        case .zoneNotFound: return "zoneNotFound"
-        case .limitExceeded: return "limitExceeded"
-        case .userDeletedZone: return "userDeletedZone"
-        case .tooManyParticipants: return "tooManyParticipants"
-        case .alreadyShared: return "alreadyShared"
-        case .referenceViolation: return "referenceViolation"
-        case .managedAccountRestricted: return "managedAccountRestricted"
-        case .participantMayNeedVerification: return "participantMayNeedVerification"
-        case .serverResponseLost: return "serverResponseLost"
-        case .assetNotAvailable: return "assetNotAvailable"
-        case .accountTemporarilyUnavailable: return "accountTemporarilyUnavailable"
-        @unknown default: return "CKError(\(code))"
-        }
+        return String(describing: c)
     }
 
     private static func describeID(_ id: AnyHashable) -> String {
