@@ -106,6 +106,11 @@ struct voice_notesApp: App {
 
         // Background task for proactive alerts is registered via .backgroundTask(.appRefresh) modifier on the Scene
 
+        // Capture CloudKit setup/import/export events into a rolling log we
+        // surface in Settings → CloudKit diagnostics. This is the only
+        // user-visible window into why pushes are silently failing.
+        CloudKitEventLog.register()
+
         // Prime ContextAssembler cache from compiled .self / .purpose articles.
         // Also runs the one-time eeonContext → .profileSeed migration if needed.
         // Capture container locally — escaping the closure would capture mutating self.
@@ -116,35 +121,61 @@ struct voice_notesApp: App {
         }
 
         #if DEBUG
-        // CloudKit schema registration seed.
-        // Development environment auto-registers a record type the first time a
-        // record of that type is pushed. Production (TestFlight/App Store) can
-        // only use types that were previously deployed from Development — it
-        // cannot register new ones. This block guarantees Debug builds push one
-        // record of every SwiftData type on first launch, so the full schema
-        // lands in CloudKit Development. After that, "Deploy Schema Changes…"
-        // in CloudKit Dashboard promotes it to Production.
+        // CloudKit schema registration seed (v2 — covers ALL @Model types).
         //
-        // Guarded by a UserDefaults flag so it only runs once per install.
-        let seedKey = "cloudKitSchemaSeedDidRun_v1"
+        // CloudKit Development auto-registers a record type the first time a
+        // record of that type is pushed. v1 only seeded Note, which meant
+        // CD_Tag / CD_Project / CD_Extracted* / CD_Kanban* / etc. never got
+        // registered. Pushes of any Note-with-tags then failed silently in
+        // Production because CloudKit didn't know those record types — which
+        // is the exact "Local 33, CloudKit 0" symptom we hit.
+        //
+        // v2 inserts one record of every @Model in the schema array so the
+        // full type set lands in Development. After this runs, click
+        // "Deploy Schema Changes…" in CloudKit Dashboard to promote to
+        // Production. Seeds are deleted after the push completes so they
+        // don't linger in user-facing UI.
+        let seedKey = "cloudKitSchemaSeedDidRun_v2"
         if !UserDefaults.standard.bool(forKey: seedKey) {
             let seedContext = container.mainContext
             Task { @MainActor in
-                let seed = Note(title: "__cloudkit_schema_seed", content: "")
-                seed.sourceType = .profileSeed  // filtered out of main view
-                seedContext.insert(seed)
+                let seedNote = Note(title: "__seed_v2", content: "")
+                seedNote.sourceType = .profileSeed
+
+                let seeds: [any PersistentModel] = [
+                    seedNote,
+                    Tag(name: "__seed_tag_v2"),
+                    Project(name: "__seed_project_v2"),
+                    ExtractedDecision(content: "__seed"),
+                    ExtractedAction(content: "__seed"),
+                    ExtractedCommitment(who: "__seed", what: "__seed"),
+                    UnresolvedItem(content: "__seed", reason: "__seed"),
+                    KanbanItem(content: "__seed"),
+                    KanbanMovement(itemId: UUID(), fromColumn: .thinking, toColumn: .decided),
+                    WeeklyDebrief(weekStartDate: Date()),
+                    DailyBrief(briefDate: Date()),
+                    ExtractedURL(url: "https://example.invalid"),
+                    MentionedPerson(name: "__seed"),
+                    KnowledgeArticle(name: "__seed", articleType: .topic),
+                    KnowledgeEvent(eventType: .ingest, title: "__seed"),
+                    DailyIntention(dateKey: "__seed", order: 0, content: "__seed"),
+                ]
+
+                for seed in seeds { seedContext.insert(seed) }
                 do {
                     try seedContext.save()
-                    print("[Schema] Seed record inserted — waiting 90s for CloudKit Development to auto-register record types…")
+                    print("[Schema v2] Inserted \(seeds.count) seeds across all model types — waiting 90s for CloudKit Development to register record types…")
                 } catch {
-                    print("[Schema] Seed save failed: \(error)")
+                    print("[Schema v2] Seed save failed: \(error)")
                 }
 
-                // Give CloudKit time to push the record + register the schema.
                 try? await Task.sleep(nanoseconds: 90_000_000_000) // 90s
 
+                for seed in seeds { seedContext.delete(seed) }
+                try? seedContext.save()
+
                 UserDefaults.standard.set(true, forKey: seedKey)
-                print("[Schema] Seed run complete. Check CloudKit Dashboard → Development → Record Types. You should now see CD_Note (and other CD_* types as SwiftData pushes them).")
+                print("[Schema v2] Done. CloudKit Dashboard → Development → Record Types should now list CD_Note, CD_Tag, CD_Project, CD_ExtractedDecision, CD_ExtractedAction, CD_ExtractedCommitment, CD_UnresolvedItem, CD_KanbanItem, CD_KanbanMovement, CD_WeeklyDebrief, CD_DailyBrief, CD_ExtractedURL, CD_MentionedPerson, CD_KnowledgeArticle, CD_KnowledgeEvent, CD_DailyIntention. Click Deploy Schema Changes… to promote to Production.")
             }
         }
         #endif

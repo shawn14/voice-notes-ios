@@ -1602,6 +1602,7 @@ struct SettingsView: View {
     @State private var diagIsLoading = false
     @State private var diagCKNoteCount: String = "—"
     @State private var diagCKNoteError: String?
+    @State private var diagEvents: [CloudKitEventLogEntry] = []
 
     @AppStorage("appearanceMode") private var appearanceMode: Int = 0
 
@@ -1917,6 +1918,33 @@ struct SettingsView: View {
                         detail: diagCKNoteError
                     )
 
+                    if !diagEvents.isEmpty {
+                        Divider().padding(.vertical, 4)
+                        Text("Recent CloudKit events")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        ForEach(diagEvents.reversed()) { event in
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text("\(event.type) \(event.succeeded ? "✓" : "✗")")
+                                        .foregroundStyle(event.succeeded ? Color.primary : Color.red)
+                                    Spacer()
+                                    Text(event.date.formatted(date: .omitted, time: .standard))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                if let err = event.errorDescription, !err.isEmpty {
+                                    Text(err)
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.red)
+                                        .textSelection(.enabled)
+                                        .lineLimit(nil)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+
                     Button {
                         Task { await loadDiagnostics() }
                     } label: {
@@ -2035,27 +2063,43 @@ struct SettingsView: View {
             zonesError = error.localizedDescription
         }
 
-        // Live count of CD_Note records in CloudKit — tells us whether iPhone's
-        // writes actually made it to the cloud. If this returns 0 while the
-        // iPhone's local count is 31, writes are failing silently.
+        // Live count of CD_Note records in CloudKit — walks the zone via
+        // recordZoneChanges instead of CKQuery so the count works regardless
+        // of whether `recordName` has a queryable index in the Production
+        // schema. This is the same primitive NSPersistentCloudKitContainer
+        // uses for sync, so the count reflects what SwiftData would actually
+        // pull on this device.
         var ckNoteCount = "—"
         var ckNoteError: String?
         let swiftDataZoneID = CKRecordZone.ID(
             zoneName: "com.apple.coredata.cloudkit.zone",
             ownerName: CKCurrentUserDefaultName
         )
-        let query = CKQuery(recordType: "CD_Note", predicate: NSPredicate(value: true))
         do {
-            let (matches, _) = try await container.privateCloudDatabase.records(
-                matching: query,
-                inZoneWith: swiftDataZoneID,
-                resultsLimit: 500
-            )
-            ckNoteCount = "\(matches.count)"
+            var count = 0
+            var token: CKServerChangeToken? = nil
+            var more = true
+            while more {
+                let result = try await container.privateCloudDatabase.recordZoneChanges(
+                    inZoneWith: swiftDataZoneID,
+                    since: token
+                )
+                for (_, modResult) in result.modificationResultsByID {
+                    if case .success(let mod) = modResult,
+                       mod.record.recordType == "CD_Note" {
+                        count += 1
+                    }
+                }
+                token = result.changeToken
+                more = result.moreComing
+            }
+            ckNoteCount = "\(count)"
         } catch {
             ckNoteCount = "error"
             ckNoteError = error.localizedDescription
         }
+
+        let events = CloudKitEventLog.recent()
 
         await MainActor.run {
             diagUserRecordID = userID
@@ -2063,6 +2107,7 @@ struct SettingsView: View {
             diagZonesError = zonesError
             diagCKNoteCount = ckNoteCount
             diagCKNoteError = ckNoteError
+            diagEvents = events
             diagIsLoading = false
         }
     }
