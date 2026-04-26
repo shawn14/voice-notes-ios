@@ -1901,6 +1901,7 @@ struct SettingsView: View {
             .padding(.vertical, 4)
             .disabled(isSyncing || iCloudStatus != .available)
 
+            #if DEBUG
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 8) {
                     diagRow(label: "Container init", value: diagInitOutcome, detail: diagInitError)
@@ -1969,6 +1970,7 @@ struct SettingsView: View {
                 }
             }
             .padding(.vertical, 4)
+            #endif
         } header: {
             Text("iCloud & Sync")
         } footer: {
