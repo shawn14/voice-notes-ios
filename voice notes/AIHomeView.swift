@@ -20,6 +20,11 @@ fileprivate struct AnswerQuery: Identifiable {
     let query: String
 }
 
+enum NotesViewMode: String, CaseIterable {
+    case list = "List"
+    case mood = "Mood"
+}
+
 struct AIHomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) var colorScheme
@@ -91,6 +96,7 @@ struct AIHomeView: View {
     }
     @State private var selectedTab: FeedTab = .all
     @State private var sortNewestFirst = true
+    @State private var viewMode: NotesViewMode = .list
     @State private var selectedTagFilter: Tag?
     @State private var showingTagManagement = false
     @State private var showingTagFilter = false
@@ -799,6 +805,16 @@ struct AIHomeView: View {
                     .frame(maxWidth: .infinity)
                 }
 
+                // View mode toggle
+                Picker("View", selection: $viewMode) {
+                    ForEach(NotesViewMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 160)
+                .padding(.trailing, 8)
+
                 // Sort toggle
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -878,6 +894,22 @@ struct AIHomeView: View {
                 .padding(.bottom, 4)
             }
 
+            if viewMode == .mood && selectedTab != .ai {
+                HStack(spacing: 6) {
+                    Text("Last 7 days")
+                        .font(.caption2)
+                        .foregroundStyle(.eeonTextTertiary)
+                    ForEach(Array(MoodTimelineHelpers.moodSparkline(notes: filteredNotes).enumerated()), id: \.offset) { _, color in
+                        Circle()
+                            .fill(color == .clear ? Color.eeonCard : color)
+                            .frame(width: 10, height: 10)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
+
             // Active tag filter chip
             if let tag = selectedTagFilter {
                 HStack(spacing: 6) {
@@ -948,7 +980,15 @@ struct AIHomeView: View {
                             LazyVGrid(columns: columns, spacing: 10) {
                                 ForEach(monthNotes) { note in
                                     NavigationLink(destination: NoteDetailView(note: note)) {
-                                        NoteFeedCard(note: note)
+                                        HStack(spacing: 0) {
+                                            if viewMode == .mood {
+                                                Rectangle()
+                                                    .fill(MoodTimelineHelpers.moodColor(for: note.emotionalTone))
+                                                    .frame(width: 4)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                                            }
+                                            NoteFeedCard(note: note)
+                                        }
                                     }
                                     .buttonStyle(.plain)
                                     .contextMenu {
