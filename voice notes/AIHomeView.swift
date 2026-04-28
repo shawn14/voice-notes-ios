@@ -100,6 +100,7 @@ struct AIHomeView: View {
     @State private var selectedTagFilter: Tag?
     @State private var showingTagManagement = false
     @State private var showingTagFilter = false
+    @State private var showingDecisionLog = false
     @State private var selectedIntents: Set<NoteIntent> = []
 
     // Today's daily brief
@@ -356,6 +357,9 @@ struct AIHomeView: View {
                 TagFilterSheet(selectedTagFilter: $selectedTagFilter)
                     .presentationDetents([.medium])
             }
+            .sheet(isPresented: $showingDecisionLog) {
+                DecisionLogView()
+            }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -482,6 +486,16 @@ struct AIHomeView: View {
                 showingTagFilter = true
             } label: {
                 Image(systemName: "tag")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+            .padding(.trailing, 8)
+
+            // Decisions log
+            Button {
+                showingDecisionLog = true
+            } label: {
+                Image(systemName: "checkmark.seal")
                     .font(.system(size: 16))
                     .foregroundStyle(.eeonTextSecondary)
             }
