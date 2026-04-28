@@ -158,6 +158,8 @@ final class UnresolvedItem {
     var reason: String = ""  // "No decision", "No owner", "Ambiguous"
     var createdAt: Date = Date()
     var sourceNoteId: UUID?
+    /// Set when the user marks the question answered. nil = still open.
+    var resolvedAt: Date?
 
     init(content: String, reason: String, sourceNoteId: UUID? = nil) {
         self.id = UUID()
@@ -165,5 +167,8 @@ final class UnresolvedItem {
         self.reason = reason
         self.createdAt = Date()
         self.sourceNoteId = sourceNoteId
+        self.resolvedAt = nil
     }
+
+    var isOpen: Bool { resolvedAt == nil }
 }

@@ -900,6 +900,21 @@ struct AIHomeView: View {
                 .padding(.bottom, 8)
             }
 
+            // Loose Ends — surfaces unresolved questions extracted from voice notes.
+            // Hidden on AI/Favorites/Archive tabs to keep them focused.
+            if selectedTab == .all {
+                LooseEndsLane(
+                    openItems: unresolvedItems.filter { $0.isOpen }
+                        .sorted { $0.createdAt > $1.createdAt }
+                ) { item in
+                    // Tap: open source note if available
+                    if let id = item.sourceNoteId,
+                       let note = notes.first(where: { $0.id == id }) {
+                        navigateToNote = note
+                    }
+                }
+            }
+
             if selectedTab == .ai {
                 // AI-organized view
                 AITabView(data: aiTabData, noteCount: notes.filter { !$0.isArchived }.count)
