@@ -94,6 +94,7 @@ struct AIHomeView: View {
     @State private var selectedTagFilter: Tag?
     @State private var showingTagManagement = false
     @State private var showingTagFilter = false
+    @State private var selectedIntents: Set<NoteIntent> = []
 
     // Today's daily brief
     private var todaysBrief: DailyBrief? {
@@ -142,6 +143,8 @@ struct AIHomeView: View {
         if let tag = selectedTagFilter {
             base = base.filter { $0.tags.contains(where: { $0.id == tag.id }) }
         }
+        // Apply intent filter if any selected
+        base = NotesReorgHelpers.filterByIntents(notes: base, selected: selectedIntents)
         if sortNewestFirst {
             return base // Already sorted newest first by @Query
         } else {
@@ -863,6 +866,15 @@ struct AIHomeView: View {
                     }
                     .padding(.horizontal)
                 }
+                .padding(.bottom, 4)
+            }
+
+            // Intent filter chips (hidden on AI tab)
+            if selectedTab != .ai {
+                IntentFilterChips(
+                    counts: NotesReorgHelpers.intentCounts(notes: filteredNotes),
+                    selected: $selectedIntents
+                )
                 .padding(.bottom, 4)
             }
 
