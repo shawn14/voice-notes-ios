@@ -2,7 +2,7 @@
 //  ExtractionChipsView.swift
 //  voice notes
 //
-//  Tappable extraction chips that flow into AssistantView queries.
+//  Tappable extraction chips that flow into AnswerSheet queries.
 //
 
 import SwiftUI

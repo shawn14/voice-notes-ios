@@ -13,6 +13,13 @@ import WidgetKit
 import UniformTypeIdentifiers
 import AVFoundation
 
+/// Identifiable wrapper that drives `.sheet(item:)` for the AnswerSheet.
+/// Setting this to a non-nil value presents the sheet with the wrapped query.
+fileprivate struct AnswerQuery: Identifiable {
+    let id = UUID()
+    let query: String
+}
+
 struct AIHomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) var colorScheme
@@ -43,7 +50,7 @@ struct AIHomeView: View {
     }
 
     @State private var showingSettings = false
-    @State private var showingAssistant = false
+    @State private var pendingAnswerQuery: AnswerQuery?
     @State private var showingIdentity = false
     @State private var showingWhyThisHome = false
     @State private var showPaywall = false
@@ -315,8 +322,8 @@ struct AIHomeView: View {
                     showingIdentity = true
                 })
             }
-            .sheet(isPresented: $showingAssistant) {
-                AssistantView()
+            .sheet(item: $pendingAnswerQuery) { item in
+                AnswerSheet(initialQuery: item.query)
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView(onDismiss: { showPaywall = false })
@@ -754,16 +761,6 @@ struct AIHomeView: View {
                 .background(Color.eeonAccent)
                 .clipShape(Capsule())
             }
-
-            // Search button (far right)
-            Button {
-                showingAssistant = true
-            } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(.eeonTextSecondary)
-            }
-            .frame(width: 50)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -1365,8 +1362,30 @@ struct AIHomeView: View {
                     transcript = rawTranscript
                 }
 
+                // Classify intent: question routes to AnswerSheet, note saves as usual.
+                // On classifier failure we fall back to .newNote — the safer default is
+                // "your speech became a note" rather than swallowing it into a Q&A.
+                let intent: IntentType
+                do {
+                    intent = try await IntentClassifier.shared.classify(transcript: transcript)
+                } catch {
+                    print("[IntentClassifier] classification failed, defaulting to newNote: \(error)")
+                    intent = .newNote
+                }
+
                 await MainActor.run {
-                    saveNote(transcript: transcript)
+                    switch intent {
+                    case .question:
+                        // Discard the audio file — questions don't get saved as notes.
+                        if let fileName = currentAudioFileName {
+                            audioRecorder.deleteRecording(fileName: fileName)
+                        }
+                        currentAudioFileName = nil
+                        isTranscribing = false
+                        pendingAnswerQuery = AnswerQuery(query: transcript)
+                    case .newNote:
+                        saveNote(transcript: transcript)
+                    }
                 }
             } catch {
                 await MainActor.run {

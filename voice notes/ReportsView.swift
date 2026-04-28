@@ -8,6 +8,29 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - Chat Message Model
+// Local to ReportsView (legacy view, not in active navigation). Previously lived
+// in AssistantView; lifted here so ReportsView still compiles after AssistantView
+// was deleted in favor of the one-shot AnswerSheet.
+
+struct ChatMessage: Identifiable, Equatable {
+    let id = UUID()
+    let role: Role
+    let content: String
+    let timestamp: Date
+    var sourceNotes: [Note]?
+    var suggestedFollowUps: [String]?
+
+    enum Role {
+        case user
+        case assistant
+    }
+
+    static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
 struct ReportsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss

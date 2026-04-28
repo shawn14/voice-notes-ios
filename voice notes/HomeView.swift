@@ -435,7 +435,7 @@ struct HomeView: View {
                 SettingsView()
             }
             .sheet(isPresented: $showingAssistant) {
-                AssistantView()
+                AnswerSheet(initialQuery: "What should I focus on today?")
             }
             .sheet(isPresented: $showSignIn) {
                 SignInView()

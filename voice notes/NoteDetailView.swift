@@ -109,7 +109,7 @@ struct NoteDetailView: View {
     // Tag picker
     @State private var showingTagPicker = false
 
-    // Navigation to AssistantView with pre-filled query
+    // Navigation to AnswerSheet with pre-filled query
     @State private var assistantQuery: String?
     @State private var showingAssistant = false
 
@@ -395,8 +395,8 @@ struct NoteDetailView: View {
             ])
         }
         .sheet(isPresented: $showingAssistant) {
-            NavigationStack {
-                AssistantView(initialQuery: assistantQuery)
+            if let query = assistantQuery, !query.isEmpty {
+                AnswerSheet(initialQuery: query)
             }
         }
         .sheet(isPresented: $showingProjectPicker) {
