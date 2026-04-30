@@ -85,10 +85,21 @@ struct RewriteTemplatePickerSheet: View {
                             .font(.title3)
                     }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        editorTarget = .create
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                            .font(.title3)
+                    }
+                    .accessibilityLabel("New custom template")
+                }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationContentInteraction(.scrolls)
         .sheet(item: $editorTarget) { target in
             switch target {
             case .create:
