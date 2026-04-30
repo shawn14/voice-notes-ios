@@ -6,18 +6,42 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct RewriteTemplatePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     let onSelectTemplate: (RewriteTemplate) -> Void
 
     private let sections = RewriteTemplateSection.allCases
 
+    @Query(sort: [SortDescriptor(\CustomRewriteTemplate.sortOrder, order: .forward)])
+    private var customTemplates: [CustomRewriteTemplate]
+
+    @State private var editorTarget: EditorTarget?
+    @State private var pendingDelete: CustomRewriteTemplate?
+
+    enum EditorTarget: Identifiable {
+        case create
+        case edit(CustomRewriteTemplate)
+
+        var id: String {
+            switch self {
+            case .create: return "create"
+            case .edit(let t): return t.id.uuidString
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if !customTemplates.isEmpty {
+                        customTemplatesSection
+                    }
+
                     ForEach(sections) { section in
                         let templates = RewriteTemplateCatalog.templates(for: section)
                         if !templates.isEmpty {
@@ -25,25 +49,21 @@ struct RewriteTemplatePickerSheet: View {
                         }
                     }
 
-                    // Bottom actions
                     HStack(spacing: 16) {
-                        // + New custom template (disabled for now)
                         Button {
-                            // Future: custom template creation
+                            editorTarget = .create
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "plus")
                                 Text("New")
                             }
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
-                            .background(Color(.systemGray5))
+                            .background(Color.accentColor.opacity(0.12))
                             .cornerRadius(10)
                         }
-                        .disabled(true)
-                        .opacity(0.5)
 
                         Spacer()
                     }
@@ -69,9 +89,47 @@ struct RewriteTemplatePickerSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .sheet(item: $editorTarget) { target in
+            switch target {
+            case .create:
+                CustomRewriteTemplateEditorSheet(editing: nil)
+            case .edit(let template):
+                CustomRewriteTemplateEditorSheet(editing: template)
+            }
+        }
+        .confirmationDialog(
+            "Delete this template?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            presenting: pendingDelete
+        ) { template in
+            Button("Delete \"\(template.name)\"", role: .destructive) {
+                deleteTemplate(template)
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        }
     }
 
-    // MARK: - Section View
+    // MARK: - Sections
+
+    private var customTemplatesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Your Templates")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal)
+
+            VStack(spacing: 2) {
+                ForEach(customTemplates) { custom in
+                    customTemplateRow(custom)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
 
     private func templateSection(title: String, templates: [RewriteTemplate]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -90,12 +148,54 @@ struct RewriteTemplatePickerSheet: View {
         }
     }
 
-    // MARK: - Template Row
+    // MARK: - Rows
+
+    private func customTemplateRow(_ custom: CustomRewriteTemplate) -> some View {
+        Button {
+            onSelectTemplate(custom.asRewriteTemplate)
+            dismiss()
+        } label: {
+            HStack(spacing: 14) {
+                Text(custom.emoji.isEmpty ? "✨" : custom.emoji)
+                    .font(.title3)
+                    .frame(width: 36, height: 36)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+
+                Text(custom.name)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Image(systemName: "ellipsis.circle")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Color(.systemGray6).opacity(0.5))
+            .cornerRadius(10)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                editorTarget = .edit(custom)
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                pendingDelete = custom
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
 
     private func templateRow(_ template: RewriteTemplate) -> some View {
         Button {
             if template.isPro && !SubscriptionManager.shared.isSubscribed {
-                // Will be handled by caller — pass template anyway so caller can show paywall
                 onSelectTemplate(template)
             } else {
                 onSelectTemplate(template)
@@ -103,21 +203,18 @@ struct RewriteTemplatePickerSheet: View {
             dismiss()
         } label: {
             HStack(spacing: 14) {
-                // Emoji icon
                 Text(template.emoji)
                     .font(.title3)
                     .frame(width: 36, height: 36)
                     .background(Color(.systemGray6))
                     .cornerRadius(8)
 
-                // Template name
                 Text(template.name)
                     .font(.body.weight(.medium))
                     .foregroundStyle(.primary)
 
                 Spacer()
 
-                // Favorite star for favorites section, PRO badge otherwise
                 if template.section == .favorites {
                     Image(systemName: "star.fill")
                         .font(.caption)
@@ -153,6 +250,14 @@ struct RewriteTemplatePickerSheet: View {
         }
         .buttonStyle(.plain)
     }
+
+    // MARK: - Actions
+
+    private func deleteTemplate(_ template: CustomRewriteTemplate) {
+        modelContext.delete(template)
+        try? modelContext.save()
+        pendingDelete = nil
+    }
 }
 
 // MARK: - Preview
@@ -161,4 +266,5 @@ struct RewriteTemplatePickerSheet: View {
     RewriteTemplatePickerSheet { template in
         print("Selected: \(template.name)")
     }
+    .modelContainer(for: CustomRewriteTemplate.self, inMemory: true)
 }

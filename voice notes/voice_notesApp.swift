@@ -33,7 +33,7 @@ struct voice_notesApp: App {
     static let proactiveAlertsTaskId = "com.eeon.proactiveAlerts"
 
     init() {
-        let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self, DailyBrief.self, ExtractedURL.self, MentionedPerson.self, KnowledgeArticle.self, KnowledgeEvent.self, DailyIntention.self])
+        let schema = Schema([Note.self, Tag.self, ExtractedDecision.self, ExtractedAction.self, ExtractedCommitment.self, UnresolvedItem.self, KanbanItem.self, KanbanMovement.self, WeeklyDebrief.self, Project.self, DailyBrief.self, ExtractedURL.self, MentionedPerson.self, KnowledgeArticle.self, KnowledgeEvent.self, DailyIntention.self, CustomRewriteTemplate.self])
 
         do {
             // Configure for CloudKit sync
@@ -136,7 +136,7 @@ struct voice_notesApp: App {
         // record gets its own upload operation, one failure can't take
         // down others, and the framework has time to push each record
         // before any cleanup.
-        let seedKey = "cloudKitSchemaSeedDidRun_v3"
+        let seedKey = "cloudKitSchemaSeedDidRun_v4"
         if !UserDefaults.standard.bool(forKey: seedKey) {
             let seedContext = container.mainContext
             Task { @MainActor in
@@ -160,6 +160,7 @@ struct voice_notesApp: App {
                     (KnowledgeArticle(name: "__seed_v3", articleType: .topic), "KnowledgeArticle"),
                     (KnowledgeEvent(eventType: .ingest, title: "__seed_v3"), "KnowledgeEvent"),
                     (DailyIntention(dateKey: "__seed_v3", order: 0, content: "__seed"), "DailyIntention"),
+                    (CustomRewriteTemplate(name: "__seed_v4", systemPrompt: "__seed"), "CustomRewriteTemplate"),
                 ]
 
                 var inserted: [any PersistentModel] = []
@@ -183,7 +184,7 @@ struct voice_notesApp: App {
                 try? seedContext.save()
 
                 UserDefaults.standard.set(true, forKey: seedKey)
-                print("[Schema v3] Done. CloudKit Dashboard → Development → Record Types should now list all 16 CD_* types. Click Deploy Schema Changes… to promote to Production.")
+                print("[Schema v4] Done. CloudKit Dashboard → Development → Record Types should now list all 17 CD_* types (added CD_CustomRewriteTemplate). Click Deploy Schema Changes… to promote to Production.")
             }
         }
         #endif
