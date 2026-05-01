@@ -89,6 +89,15 @@ struct CompileArticleResponse: Codable {
     // Only emitted by .purpose article compiles — a structured HomeLayout JSON string
     // (stringified because nested heterogeneous structures are harder for the LLM to emit reliably)
     let homeLayoutJSON: String?
+    // Only emitted by .purpose article compiles — Karpathy persona extraction schema as a JSON string.
+    // Drives SummaryService.extractPersonaItems for tuned users; permanent baseline still always runs.
+    let noteExtractionSchemaJSON: String?
+}
+
+struct CompileIndexResponse: Codable {
+    let summary: String                       // 3-5 sentence prose overview of the wiki's shape
+    let openThreads: [OpenThread]?            // wiki-level patterns (e.g. "5 articles unmentioned >14 days")
+    let connections: [ArticleConnection]?     // cross-article themes (theme name + which articles span it)
 }
 
 enum SummaryService {
@@ -600,6 +609,95 @@ enum SummaryService {
         )
     }
 
+    // MARK: - Persona Extraction (Karpathy schema-driven, additive to baseline)
+
+    /// Run a second extraction pass through the user's persona schema.
+    /// Always additive — baseline extraction (decisions/actions/commitments/etc.) ran first
+    /// and produced ExtractedDecision/Action/Commitment SwiftData rows already.
+    /// Returns [] on any failure rather than throwing — persona extraction is non-fatal.
+    static func extractPersonaItems(
+        text: String,
+        schemaJSON: String,
+        apiKey: String
+    ) async -> [PersonaExtractionItem] {
+        guard !text.isEmpty,
+              let data = schemaJSON.data(using: .utf8),
+              let schema = try? JSONDecoder().decode(PersonaExtractionSchema.self, from: data),
+              !schema.categories.isEmpty else { return [] }
+
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let categoryLines = schema.categories
+            .map { "- \($0.key): \($0.label) — \($0.description)" }
+            .joined(separator: "\n")
+
+        let categoryKeys = schema.categories.map(\.key).joined(separator: ", ")
+
+        let systemPrompt = """
+        \(ContextAssembler.flatPrefix(for: .extraction))\(schema.extractionPromptFragment)
+
+        Extract items from this note that match the user's persona categories below.
+        DO NOT extract generic decisions/actions/commitments — those are handled separately.
+        Only surface items that fit the user's personalized lens.
+
+        Categories:
+        \(categoryLines)
+
+        Return ONLY valid JSON — an array of items. Each item:
+        {
+            "category": "<one of: \(categoryKeys)>",
+            "content": "<the extracted phrase, concise>",
+            "metadata": {"<optional structured key>": "<value>"}
+        }
+
+        Rules:
+        - Skip categories with nothing to extract — better empty than hallucinated.
+        - Maximum 8 items total.
+        - "content" must be a short phrase pulled from or paraphrasing the note.
+        - "metadata" is optional; omit if no structured detail to add.
+        - Return ONLY the JSON array, no other text. If nothing applies, return [].
+        """
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": text]
+            ],
+            "temperature": 0.3,
+            "max_tokens": 800
+        ]
+
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return [] }
+        request.httpBody = httpBody
+
+        do {
+            let (responseData, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return [] }
+
+            struct ChatResponse: Codable {
+                struct Choice: Codable {
+                    struct Message: Codable { let content: String }
+                    let message: Message
+                }
+                let choices: [Choice]
+            }
+
+            let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: responseData)
+            guard let content = chatResponse.choices.first?.message.content,
+                  let jsonData = content.data(using: .utf8) else { return [] }
+
+            return (try? JSONDecoder().decode([PersonaExtractionItem].self, from: jsonData)) ?? []
+        } catch {
+            print("[SummaryService] Persona extraction failed: \(error)")
+            return []
+        }
+    }
+
     // MARK: - Lightweight Extraction (for web articles and derived notes)
 
     /// Lighter extraction for non-voice sources — topics, people, summary only.
@@ -755,12 +853,16 @@ enum SummaryService {
         case .purpose:
             typeSpecificFields = """
             "thinkingEvolution": "What this user uses EEON for — their role, goal, methodology. Write as a system-prompt directive that can be injected into other AI calls. Example: 'The user is a founder. Frame responses to prioritize and rank their projects by execution readiness. Flag decisions that unblock execution.' Or: 'The user is a Jungian dream interpreter. Frame all notes through archetypes; always surface the dreamer's feeling over the symbol's meaning.' Be specific, concrete, and actionable.",
-            "homeLayoutJSON": "A JSON STRING (stringified — escape quotes) describing the user's home-screen layout. The outer object has {\\"sections\\": [...], \\"version\\": 1}. Each section has {\\"kindRaw\\": <one of the allowed section IDs>, \\"title\\": <optional override>, \\"rationale\\": <REQUIRED — one short sentence explaining WHY this section is here for THIS user, written in second person, max 80 chars, e.g. 'Because you ship AI apps and want to flag silent projects.'>, \\"limit\\": <optional number>, \\"staleDaysThreshold\\": <optional number>}. Pick 4-6 sections that best match this user's role. **ALWAYS put `todayThree` as the FIRST section regardless of archetype** — it is the daily-intentions ritual and universal across roles. Allowed kindRaw values: todayThree, priorityProjects, silentProjects, openDecisions, ideaInbox, openThreads, clientRoster, followUpsPerClient, relationshipArcs, recurringPatterns, emotionalToneArc, referenceResonance, activeInquiries, contradictionLedger, knowledgeCarousel, recentNotes, dailyBrief. FOUNDER example: todayThree, priorityProjects, openDecisions, ideaInbox, silentProjects, recentNotes. COACH example: todayThree, clientRoster, followUpsPerClient, relationshipArcs, recentNotes. DREAM INTERPRETER example: todayThree, recurringPatterns, emotionalToneArc, referenceResonance, recentNotes. RESEARCHER example: todayThree, activeInquiries, contradictionLedger, knowledgeCarousel, recentNotes. Always include recentNotes as a fallback at the end. Adapt based on the user's actual notes if you have evidence — e.g., if notes mention many clients, lean coach; many dreams, lean interpreter. Rationales must be specific to the user's stated purpose — not generic. For todayThree, rationale should be about daily intentions in their role's language — e.g., 'Because staying on your three things is how you keep shipping.'"
+            "homeLayoutJSON": "A JSON STRING (stringified — escape quotes) describing the user's home-screen layout. The outer object has {\\"sections\\": [...], \\"version\\": 1}. Each section has {\\"kindRaw\\": <one of the allowed section IDs>, \\"title\\": <optional override>, \\"rationale\\": <REQUIRED — one short sentence explaining WHY this section is here for THIS user, written in second person, max 80 chars, e.g. 'Because you ship AI apps and want to flag silent projects.'>, \\"limit\\": <optional number>, \\"staleDaysThreshold\\": <optional number>}. Pick 4-6 sections that best match this user's role. **ALWAYS put `todayThree` as the FIRST section regardless of archetype** — it is the daily-intentions ritual and universal across roles. Allowed kindRaw values: todayThree, priorityProjects, silentProjects, openDecisions, ideaInbox, openThreads, clientRoster, followUpsPerClient, relationshipArcs, recurringPatterns, emotionalToneArc, referenceResonance, activeInquiries, contradictionLedger, knowledgeCarousel, recentNotes, dailyBrief. FOUNDER example: todayThree, priorityProjects, openDecisions, ideaInbox, silentProjects, recentNotes. COACH example: todayThree, clientRoster, followUpsPerClient, relationshipArcs, recentNotes. DREAM INTERPRETER example: todayThree, recurringPatterns, emotionalToneArc, referenceResonance, recentNotes. RESEARCHER example: todayThree, activeInquiries, contradictionLedger, knowledgeCarousel, recentNotes. Always include recentNotes as a fallback at the end. Adapt based on the user's actual notes if you have evidence — e.g., if notes mention many clients, lean coach; many dreams, lean interpreter. Rationales must be specific to the user's stated purpose — not generic. For todayThree, rationale should be about daily intentions in their role's language — e.g., 'Because staying on your three things is how you keep shipping.'",
+            "noteExtractionSchemaJSON": "A JSON STRING (stringified — escape quotes) defining how notes should be extracted for THIS user. Outer object: {\\"version\\": 1, \\"categories\\": [...], \\"extractionPromptFragment\\": <string>}. Each category has {\\"key\\": <snake_case stable id>, \\"label\\": <short noun phrase>, \\"icon\\": <SF Symbol name>, \\"description\\": <second-person sentence>}. Pick 4-6 categories matching this user's role. The extractionPromptFragment is one or two sentences that will be injected into the LLM call when extracting from this user's notes — it should bias the LLM toward what THIS user cares about. FOUNDER example: [{key:'businesses_touched',label:'Businesses',icon:'building.2.fill',description:'Which of your businesses this affects'},{key:'decisions',label:'Decisions',icon:'checkmark.seal.fill',description:'Choices made or pending'},{key:'blockers',label:'Blockers',icon:'exclamationmark.triangle.fill',description:'What is stuck and needs unblocking'},{key:'resource_pulls',label:'Resource Pulls',icon:'arrow.left.arrow.right',description:'Money, time, or people being requested'},{key:'follow_ups',label:'Follow-ups',icon:'arrow.uturn.right',description:'Things you owe someone'}], extractionPromptFragment: 'You are extracting from a note by a founder running multiple businesses. Look for which business each item affects, decisions, blockers, resource asks, and personal follow-ups. Be concise — extract only what is clearly present, do not infer.' COACH example: categories = client_session, session_theme, breakthroughs, follow_ups, action_homework. DREAM INTERPRETER example: categories = symbols, archetypes, recurring_imagery, dreamer_feeling, emotional_tone, with extractionPromptFragment focused on Jungian/symbolic interpretation. RESEARCHER example: categories = open_questions, evidence, contradictions, citations, hypotheses. Be ROLE-SPECIFIC — do not default to generic 'decisions/actions/commitments' (those run as the permanent baseline anyway). Surface what THIS persona uniquely needs. Use SF Symbols icon names that exist."
             """
         case .reference:
             typeSpecificFields = """
             "thinkingEvolution": "Key frameworks, concepts, or quotable passages from this reference material. Optimized for retrieval when the user asks questions this reference could answer.",
             """
+        case .index:
+            // .index is compiled via compileIndex, not compileArticle. Defensive empty default.
+            typeSpecificFields = ""
         }
 
         let articleKind: String
@@ -799,6 +901,10 @@ enum SummaryService {
             This article will be retrieved by RAG when the user asks a question that maps to its domain.
             Preserve quotes verbatim where useful. Attribution matters.
             """
+        case .index:
+            // .index is compiled via compileIndex, not compileArticle. Defensive defaults.
+            articleKind = "the wiki overview"
+            compilationGuidance = "(unused — index articles are compiled via compileIndex)"
         }
 
         let systemPrompt = """
@@ -864,6 +970,100 @@ enum SummaryService {
         }
 
         return try JSONDecoder().decode(CompileArticleResponse.self, from: jsonData)
+    }
+
+    // MARK: - Index Article Compilation (Karpathy index.md equivalent)
+
+    /// Compile the singleton .index article — a synthesized prose overview of the user's whole wiki.
+    /// Input is article summaries (not raw notes) so the LLM produces a meta-view: counts, hot areas,
+    /// drifting areas, emerging themes. Distinct from compileArticle because the input shape differs.
+    static func compileIndex(
+        articles: [(name: String, type: String, summary: String, daysSinceMention: Int, mentionCount: Int)],
+        apiKey: String
+    ) async throws -> CompileIndexResponse {
+        guard !articles.isEmpty else {
+            return CompileIndexResponse(summary: "", openThreads: nil, connections: nil)
+        }
+
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Group counts by type
+        let counts = Dictionary(grouping: articles, by: { $0.type }).mapValues(\.count)
+        let countsLine = counts
+            .sorted { $0.key < $1.key }
+            .map { "\($0.value) \($0.key)\($0.value == 1 ? "" : "s")" }
+            .joined(separator: ", ")
+
+        let articlesText = articles.map { a in
+            let lastSeen = a.daysSinceMention >= 9_999 ? "never" : "\(a.daysSinceMention)d ago"
+            return "[\(a.type)] \(a.name) — \(a.summary.isEmpty ? "(no summary)" : a.summary) (last: \(lastSeen), mentions: \(a.mentionCount))"
+        }.joined(separator: "\n")
+
+        let systemPrompt = """
+        You are maintaining the index page of a personal knowledge base — the "you are here" overview.
+        Given the article summaries below, produce a 3-5 sentence prose overview that surfaces:
+        - Total counts by type (people, projects, topics, etc.)
+        - Most active areas right now (recently mentioned, high mention count)
+        - Drifting areas (not mentioned in >14 days but previously active)
+        - Emerging themes that span multiple articles
+        Write directly to the user in second person ("You're tracking…", "You've been thinking about…").
+        Be specific — name the actual people, projects, topics. Do not invent.
+
+        Return ONLY valid JSON:
+        {
+            "summary": "3-5 sentence prose overview, second person, factual",
+            "openThreads": [{"thread": "wiki-level pattern, e.g. 'Hiring threads have gone quiet for 12 days'", "status": "open|waiting|stale", "daysOpen": 0}],
+            "connections": [{"articleName": "theme or umbrella name", "reason": "which articles span this theme"}]
+        }
+
+        Rules:
+        - Keep summary under 600 characters
+        - Max 3 openThreads, max 5 connections
+        - Skip openThreads/connections if nothing meaningful to say (return empty arrays)
+        - Return ONLY valid JSON, no other text
+        """
+
+        let userContent = "Counts: \(countsLine)\n\nArticles:\n\(articlesText)"
+
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": userContent]
+            ],
+            "temperature": 0.3,
+            "max_tokens": 800
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SummaryError.apiError(errorMessage)
+        }
+
+        struct ChatResponse: Codable {
+            struct Choice: Codable {
+                struct Message: Codable { let content: String }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+
+        let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+
+        guard let content = chatResponse.choices.first?.message.content,
+              let jsonData = content.data(using: .utf8) else {
+            throw SummaryError.apiError("Empty response")
+        }
+
+        return try JSONDecoder().decode(CompileIndexResponse.self, from: jsonData)
     }
 
     /// Lint all knowledge articles for stale threads, contradictions, connections, and gaps.

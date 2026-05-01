@@ -199,6 +199,14 @@ struct NoteDetailView: View {
                         noteBodySection
                             .padding(.bottom, 20)
 
+                        // 4a. Persona chips — Karpathy schema-driven extraction (additive to baseline)
+                        PersonaChipsView(note: note)
+                            .padding(.bottom, 20)
+
+                        // 4b. Wiki connections — which articles this note touched (Karpathy index)
+                        NoteWikiConnectionsView(noteId: note.id)
+                            .padding(.bottom, 20)
+
                         // 5. AI generating indicator
                         if isGeneratingAI || isRewriting {
                             HStack(spacing: 12) {

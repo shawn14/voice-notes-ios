@@ -43,6 +43,18 @@ struct IdentityView: View {
     @State private var pastedURL = ""
     @State private var isFetchingURL = false
     @State private var importError: String?
+    @State private var isRegeneratingSchema = false
+    @State private var showReextractConfirm = false
+    @State private var pendingReextractCount: Int = 0
+    @State private var pendingReextractCostCents: Int = 0
+    @State private var isReextracting = false
+    @State private var reextractProgress: (current: Int, total: Int) = (0, 0)
+    @State private var lastReextractMessage: String?
+
+    private static let reextractWindowDays: Int = 30
+    /// Token-cost estimate per note for persona extraction (rough: gpt-4o-mini at ~$0.0001/note).
+    /// Used only for the confirmation dialog — not authoritative billing.
+    private static let reextractEstimatedCentsPerNote: Double = 0.1
 
     private let profileCharGuide = 800
     private let purposeCharGuide = 400
@@ -68,6 +80,7 @@ struct IdentityView: View {
         Form {
             profileSection
             purposeSection
+            extractionLensSection
             knowledgeBaseSection
             footerSection
         }
@@ -118,6 +131,21 @@ struct IdentityView: View {
         } message: {
             Text(importError ?? "")
         }
+        .alert("Re-extract recent notes?", isPresented: $showReextractConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Re-extract") { runReextraction() }
+        } message: {
+            Text(reextractConfirmMessage)
+        }
+    }
+
+    private var reextractConfirmMessage: String {
+        if pendingReextractCount == 0 {
+            return "No notes from the last \(Self.reextractWindowDays) days to re-extract."
+        }
+        let cents = Double(pendingReextractCount) * Self.reextractEstimatedCentsPerNote
+        let costStr = cents < 1 ? String(format: "less than 1¢") : String(format: "≈%.0f¢", cents)
+        return "Re-extract \(pendingReextractCount) note\(pendingReextractCount == 1 ? "" : "s") from the last \(Self.reextractWindowDays) days through your current lens. Estimated cost: \(costStr). Existing chips on each note are kept if the new pass returns nothing."
     }
 
     // MARK: - Sections
@@ -206,6 +234,100 @@ struct IdentityView: View {
         }
     }
 
+    private var extractionLensSection: some View {
+        Section {
+            if let schema = purposeArticles.first?.noteExtractionSchema, !schema.categories.isEmpty {
+                ForEach(schema.categories) { category in
+                    HStack(spacing: 10) {
+                        Image(systemName: category.icon)
+                            .foregroundStyle(.eeonAccent)
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(category.label)
+                                .font(.subheadline.weight(.medium))
+                            Text(category.description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                if !schema.extractionPromptFragment.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("How I'll read your notes")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
+                        Text(schema.extractionPromptFragment)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Button {
+                    regeneratePurposeSchema()
+                } label: {
+                    Label(isRegeneratingSchema ? "Regenerating..." : "Regenerate", systemImage: "arrow.triangle.2.circlepath")
+                        .foregroundStyle(.eeonAccent)
+                }
+                .disabled(isRegeneratingSchema || isReextracting)
+
+                Button {
+                    prepareReextract()
+                } label: {
+                    if isReextracting {
+                        HStack(spacing: 6) {
+                            ProgressView().scaleEffect(0.7)
+                            Text("Re-extracting \(reextractProgress.current) of \(reextractProgress.total)…")
+                        }
+                        .foregroundStyle(.secondary)
+                    } else {
+                        Label("Re-extract last \(Self.reextractWindowDays) days", systemImage: "arrow.counterclockwise.circle")
+                            .foregroundStyle(.eeonAccent)
+                    }
+                }
+                .disabled(isRegeneratingSchema || isReextracting)
+
+                if let message = lastReextractMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 10) {
+                    Image(systemName: "wand.and.stars")
+                        .foregroundStyle(.eeonAccent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Not yet tuned")
+                            .font(.subheadline)
+                        Text("Save your purpose above and EEON will compile a personalized lens for your notes.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+
+                if purposeArticles.first != nil {
+                    Button {
+                        regeneratePurposeSchema()
+                    } label: {
+                        Label(isRegeneratingSchema ? "Generating..." : "Generate now", systemImage: "sparkles")
+                            .foregroundStyle(.eeonAccent)
+                    }
+                    .disabled(isRegeneratingSchema)
+                }
+            }
+        } header: {
+            Text("How EEON sees your notes")
+        } footer: {
+            Text("Your tuned lens. EEON adds these chips to every note alongside the standard ones — never replacing them.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var knowledgeBaseSection: some View {
         Section {
             if referenceArticles.isEmpty {
@@ -288,6 +410,99 @@ struct IdentityView: View {
     }
 
     // MARK: - Actions
+
+    private func prepareReextract() {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -Self.reextractWindowDays, to: Date()) ?? Date()
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { note in
+                note.sourceTypeRaw != "profileSeed"
+                && note.sourceTypeRaw != "purposeSeed"
+                && note.createdAt >= cutoff
+            }
+        )
+        let notes = (try? modelContext.fetch(descriptor)) ?? []
+        pendingReextractCount = notes.count
+        showReextractConfirm = true
+    }
+
+    private func runReextraction() {
+        guard let purpose = purposeArticles.first,
+              let schemaJSON = purpose.noteExtractionSchemaJSON,
+              !schemaJSON.isEmpty,
+              let apiKey = APIKeys.openAI,
+              !apiKey.isEmpty else {
+            lastReextractMessage = "Tune your purpose first."
+            return
+        }
+
+        let cutoff = Calendar.current.date(byAdding: .day, value: -Self.reextractWindowDays, to: Date()) ?? Date()
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { note in
+                note.sourceTypeRaw != "profileSeed"
+                && note.sourceTypeRaw != "purposeSeed"
+                && note.createdAt >= cutoff
+            },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        let notes = (try? modelContext.fetch(descriptor)) ?? []
+        guard !notes.isEmpty else {
+            lastReextractMessage = "Nothing to re-extract in the window."
+            return
+        }
+
+        isReextracting = true
+        lastReextractMessage = nil
+        reextractProgress = (0, notes.count)
+
+        // Snapshot the persistent IDs + transcripts upfront so the async loop doesn't
+        // race against the live SwiftData query (which can shuffle as we mutate).
+        let payloads: [(noteId: PersistentIdentifier, transcript: String)] = notes.compactMap { note in
+            let text = note.enhancedNoteText ?? note.transcript ?? note.content
+            guard !text.isEmpty else { return nil }
+            return (note.persistentModelID, text)
+        }
+
+        Task {
+            var updated = 0
+            for (idx, payload) in payloads.enumerated() {
+                let items = await SummaryService.extractPersonaItems(
+                    text: payload.transcript,
+                    schemaJSON: schemaJSON,
+                    apiKey: apiKey
+                )
+
+                await MainActor.run {
+                    reextractProgress = (idx + 1, payloads.count)
+                    if !items.isEmpty,
+                       let note = modelContext.model(for: payload.noteId) as? Note {
+                        note.personaExtractions = items
+                        note.updatedAt = Date()
+                        updated += 1
+                    }
+                }
+            }
+
+            await MainActor.run {
+                try? modelContext.save()
+                isReextracting = false
+                lastReextractMessage = "Re-extracted \(updated) of \(payloads.count) note\(payloads.count == 1 ? "" : "s")."
+            }
+        }
+    }
+
+    private func regeneratePurposeSchema() {
+        guard let purpose = purposeArticles.first, !isRegeneratingSchema else { return }
+        isRegeneratingSchema = true
+
+        purpose.isDirty = true
+        purpose.updatedAt = Date()
+        try? modelContext.save()
+
+        Task {
+            await KnowledgeCompiler.shared.recompileDirtyArticles(context: modelContext, force: true)
+            await MainActor.run { isRegeneratingSchema = false }
+        }
+    }
 
     private func loadSeeds() {
         profileText = profileSeedNotes.first?.content ?? ""

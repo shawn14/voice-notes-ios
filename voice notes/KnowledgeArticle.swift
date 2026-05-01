@@ -18,6 +18,7 @@ enum KnowledgeArticleType: String, CaseIterable, Codable {
     case `self` = "self"          // The user's own profile — compiled from .profileSeed + "I" notes
     case purpose = "purpose"      // What EEON is FOR this user — compiled from .purposeSeed + usage
     case reference = "reference"  // Uploaded canon (Bible, books, domain expertise)
+    case index = "index"          // Singleton — LLM-compiled overview of the wiki itself (Karpathy index.md)
 
     var icon: String {
         switch self {
@@ -27,6 +28,7 @@ enum KnowledgeArticleType: String, CaseIterable, Codable {
         case .self: return "person.crop.circle.fill"
         case .purpose: return "scope"
         case .reference: return "books.vertical.fill"
+        case .index: return "map.fill"
         }
     }
 
@@ -38,6 +40,7 @@ enum KnowledgeArticleType: String, CaseIterable, Codable {
         case .self: return "You"
         case .purpose: return "Purpose"
         case .reference: return "Reference"
+        case .index: return "Overview"
         }
     }
 }
@@ -113,6 +116,10 @@ final class KnowledgeArticle {
 
     // Home layout (only populated on .purpose article — LLM-compiled section order)
     var homeLayoutJSON: String?
+
+    // Persona note-extraction schema (only populated on .purpose article — LLM-compiled
+    // category list + extraction-prompt fragment used by SummaryService.extractPersonaItems).
+    var noteExtractionSchemaJSON: String?
 
     init(name: String, articleType: KnowledgeArticleType) {
         self.id = UUID()
@@ -203,6 +210,24 @@ final class KnowledgeArticle {
         set {
             let data = try? JSONEncoder().encode(newValue)
             aliasesJSON = data.flatMap { String(data: $0, encoding: .utf8) }
+        }
+    }
+
+    /// Typed accessor for the LLM-compiled persona extraction schema.
+    /// Only meaningful on `.purpose` articles; nil on every other type.
+    var noteExtractionSchema: PersonaExtractionSchema? {
+        get {
+            guard let json = noteExtractionSchemaJSON, let data = json.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(PersonaExtractionSchema.self, from: data)
+        }
+        set {
+            guard let value = newValue,
+                  let data = try? JSONEncoder().encode(value),
+                  let str = String(data: data, encoding: .utf8) else {
+                noteExtractionSchemaJSON = nil
+                return
+            }
+            noteExtractionSchemaJSON = str
         }
     }
 

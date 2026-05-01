@@ -20,6 +20,7 @@ struct KnowledgeCardView: View {
         case .self: return Color("EEONAccent")
         case .purpose: return .indigo
         case .reference: return .brown
+        case .index: return .cyan
         }
     }
 
@@ -161,7 +162,7 @@ struct KnowledgeCardView: View {
                 return OpenSignal(icon: "circle.dotted", label: "\(article.openThreads.count) threads")
             }
             return nil
-        case .topic, .`self`, .purpose:
+        case .topic, .`self`, .purpose, .index:
             if !article.openThreads.isEmpty {
                 return OpenSignal(icon: "questionmark.circle", label: "\(article.openThreads.count) open")
             }

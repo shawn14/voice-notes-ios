@@ -18,7 +18,13 @@ final class KnowledgeCompiler {
 
     private enum Keys {
         static let lastCompileDate = "knowledgeCompiler.lastCompileDate"
+        static let lastIndexCompileDate = "knowledgeCompiler.lastIndexCompileDate"
     }
+
+    private static let indexArticleName = "Overview"
+    private static let indexMinChanges = 3
+    private static let indexCompileCooldown: TimeInterval = 60 * 60          // 1 hour
+    private static let indexStaleAfter: TimeInterval = 24 * 60 * 60          // 24 hours
 
     private init() {
         lastCompileAt = UserDefaults.standard.object(forKey: Keys.lastCompileDate) as? Date
@@ -279,6 +285,11 @@ final class KnowledgeCompiler {
                     if article.articleType == .purpose, let layout = response.homeLayoutJSON, !layout.isEmpty {
                         article.homeLayoutJSON = layout
                     }
+                    // Purpose-only: persist the compiled persona extraction schema. SummaryService.extractPersonaItems
+                    // uses this to drive note extraction for tuned users (additive to permanent baseline).
+                    if article.articleType == .purpose, let schema = response.noteExtractionSchemaJSON, !schema.isEmpty {
+                        article.noteExtractionSchemaJSON = schema
+                    }
 
                     article.isDirty = false
                     article.lastCompiledAt = Date()
@@ -306,8 +317,104 @@ final class KnowledgeCompiler {
             isCompiling = false
             lastCompileAt = Date()
             UserDefaults.standard.set(Date(), forKey: Keys.lastCompileDate)
+        }
+
+        // Index is downstream of article compiles. Run AFTER articles have been persisted
+        // so the index sees fresh summaries.
+        await recompileIndexIfNeeded(context: context, force: false)
+
+        await MainActor.run {
             // Always refresh — cache is cheap to rebuild and being stale is the bug we just shipped
             ContextAssembler.shared.refresh(from: context)
+        }
+    }
+
+    // MARK: - Index Article (Karpathy index.md equivalent)
+
+    /// Recompile the singleton .index article when enough downstream articles have changed.
+    /// Force=true bypasses both the change threshold and the 1h cooldown — used by Tier 3.
+    func recompileIndexIfNeeded(context: ModelContext, force: Bool) async {
+        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else { return }
+
+        // Match recompileDirtyArticles' pattern: read SwiftData on the main actor,
+        // then do API work off-actor, then mutate back on the main actor.
+        let allArticles = (try? context.fetch(FetchDescriptor<KnowledgeArticle>())) ?? []
+        let nonIndexArticles = allArticles.filter { $0.articleType != .index }
+        guard !nonIndexArticles.isEmpty else { return }
+
+        // Find or create the singleton index article. Avoid returning the @Model across
+        // MainActor.run (Swift-6 Sendable warning) — create inline, persist on main actor.
+        let indexArticle: KnowledgeArticle
+        if let existing = allArticles.first(where: { $0.articleType == .index }) {
+            indexArticle = existing
+        } else {
+            let new = KnowledgeArticle(name: Self.indexArticleName, articleType: .index)
+            context.insert(new)
+            await MainActor.run { try? context.save() }
+            indexArticle = new
+        }
+
+        let now = Date()
+
+        if !force {
+            // Cooldown gate: don't recompile within 1h
+            if let last = indexArticle.lastCompiledAt,
+               now.timeIntervalSince(last) < Self.indexCompileCooldown {
+                return
+            }
+
+            // Change-count gate: need ≥3 article compiles since the last index compile
+            let baseline = indexArticle.lastCompiledAt
+            let changedCount = nonIndexArticles.filter { article in
+                guard let compiled = article.lastCompiledAt else { return false }
+                guard let baseline else { return true }
+                return compiled > baseline
+            }.count
+
+            if changedCount < Self.indexMinChanges { return }
+        }
+
+        // Build tuple input for SummaryService.compileIndex
+        let inputs = nonIndexArticles.map { article -> (name: String, type: String, summary: String, daysSinceMention: Int, mentionCount: Int) in
+            let days: Int
+            if let last = article.lastMentionedAt {
+                days = Calendar.current.dateComponents([.day], from: last, to: now).day ?? 0
+            } else {
+                days = 9_999
+            }
+            return (
+                name: article.name,
+                type: article.articleType.label,
+                summary: article.summary,
+                daysSinceMention: days,
+                mentionCount: article.mentionCount
+            )
+        }
+
+        do {
+            let response = try await SummaryService.compileIndex(articles: inputs, apiKey: apiKey)
+
+            await MainActor.run {
+                indexArticle.summary = response.summary
+                if let threads = response.openThreads { indexArticle.openThreads = threads }
+                if let connections = response.connections { indexArticle.connections = connections }
+                indexArticle.isDirty = false
+                indexArticle.lastCompiledAt = now
+                indexArticle.updatedAt = now
+
+                let event = KnowledgeEvent(
+                    eventType: .compile,
+                    title: "Compiled overview",
+                    detail: "Synthesized \(inputs.count) article\(inputs.count == 1 ? "" : "s") into index",
+                    relatedArticleName: indexArticle.name
+                )
+                context.insert(event)
+                try? context.save()
+
+                UserDefaults.standard.set(now, forKey: Keys.lastIndexCompileDate)
+            }
+        } catch {
+            print("[KnowledgeCompiler] Index compile failed: \(error)")
         }
     }
 
@@ -365,6 +472,21 @@ final class KnowledgeCompiler {
             }
             if !oldEvents.isEmpty {
                 await MainActor.run { try? context.save() }
+            }
+
+            // Tier 3: force-refresh the index if it's gone stale (>24h since last compile)
+            let indexDescriptor = FetchDescriptor<KnowledgeArticle>(
+                predicate: #Predicate { $0.articleTypeRaw == "index" }
+            )
+            let indexLastCompiled = (try? context.fetch(indexDescriptor))?.first?.lastCompiledAt
+            let indexStale: Bool
+            if let last = indexLastCompiled {
+                indexStale = Date().timeIntervalSince(last) > Self.indexStaleAfter
+            } else {
+                indexStale = true
+            }
+            if indexStale {
+                await recompileIndexIfNeeded(context: context, force: true)
             }
 
             return results

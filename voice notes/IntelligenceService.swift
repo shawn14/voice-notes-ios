@@ -186,6 +186,10 @@ final class IntelligenceService {
             print("Intent extraction failed: \(error)")
         }
 
+        // Persona extraction (Karpathy schema-driven). Always additive to baseline above —
+        // gated on the user having a compiled .purpose schema. Non-fatal on any failure.
+        await runPersonaExtraction(for: note, transcript: transcript, apiKey: apiKey, context: context)
+
         // Detect and process URLs (no API call)
         await processURLs(in: transcript, noteId: note.id, context: context)
 
@@ -203,6 +207,44 @@ final class IntelligenceService {
 
         // Compile immediately after marking (don't wait for foreground)
         await KnowledgeCompiler.shared.recompileDirtyArticles(context: context)
+    }
+
+    // MARK: - Persona Extraction (additive to baseline)
+
+    /// Run Karpathy persona extraction if the user's .purpose article has a compiled schema.
+    /// Always non-fatal — baseline extraction has already succeeded by the time this runs,
+    /// and persona output is purely supplemental.
+    private func runPersonaExtraction(
+        for note: Note,
+        transcript: String,
+        apiKey: String,
+        context: ModelContext
+    ) async {
+        // Read the compiled persona schema off the .purpose article
+        let schemaJSON: String? = await MainActor.run {
+            let descriptor = FetchDescriptor<KnowledgeArticle>(
+                predicate: #Predicate { $0.articleTypeRaw == "purpose" }
+            )
+            let purpose = (try? context.fetch(descriptor))?.first
+            let json = purpose?.noteExtractionSchemaJSON
+            return (json?.isEmpty ?? true) ? nil : json
+        }
+
+        guard let schemaJSON else { return }
+
+        let items = await SummaryService.extractPersonaItems(
+            text: transcript,
+            schemaJSON: schemaJSON,
+            apiKey: apiKey
+        )
+
+        guard !items.isEmpty else { return }
+
+        await MainActor.run {
+            note.personaExtractions = items
+            note.updatedAt = Date()
+            try? context.save()
+        }
     }
 
     // MARK: - Pending Ingest Processing (from Share Extension)

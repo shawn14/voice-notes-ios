@@ -28,6 +28,7 @@ struct KnowledgeArticleDetailView: View {
         case .self: return Color("EEONAccent")
         case .purpose: return .indigo
         case .reference: return .brown
+        case .index: return .cyan
         }
     }
 

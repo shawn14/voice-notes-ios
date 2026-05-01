@@ -45,6 +45,15 @@ enum AICallContext {
         case .intent, .title, .tags, .fillerWords: return false
         }
     }
+
+    /// Whether this call site benefits from the wiki index overview.
+    /// Narrow on purpose: only Q&A and daily-brief synthesis benefit from "what's in the wiki".
+    var includesIndex: Bool {
+        switch self {
+        case .rag, .dailyBrief: return true
+        case .extraction, .rewrite, .analysis, .intent, .title, .tags, .fillerWords: return false
+        }
+    }
 }
 
 struct AIContextPrefix {
@@ -66,6 +75,10 @@ final class ContextAssembler {
     private(set) var purposeDirective: String = ""
     /// The compiled "about the user" — injected into user messages.
     private(set) var profileContext: String = ""
+    /// Wiki overview prose — injected into RAG / daily brief calls.
+    private(set) var indexContext: String = ""
+
+    private static let indexContextMaxChars = 400
 
     private init() {}
 
@@ -74,7 +87,8 @@ final class ContextAssembler {
     func refresh(from context: ModelContext) {
         purposeDirective = Self.loadPurposeDirective(in: context) ?? ""
         profileContext = Self.loadProfileContext(in: context) ?? ""
-        print("[ContextAssembler] refreshed — purpose=\(String(purposeDirective.prefix(80))) profile=\(String(profileContext.prefix(60)))")
+        indexContext = Self.loadIndexContext(in: context) ?? ""
+        print("[ContextAssembler] refreshed — purpose=\(String(purposeDirective.prefix(80))) profile=\(String(profileContext.prefix(60))) index=\(String(indexContext.prefix(60)))")
     }
 
     // MARK: - Static call-site API
@@ -92,18 +106,21 @@ final class ContextAssembler {
             system = ""
         }
 
-        let userPrefix: String
+        var userPrefixParts: [String] = []
         if callContext.includesProfile {
             if !shared.profileContext.isEmpty {
-                userPrefix = shared.profileContext + "\n\n"
+                userPrefixParts.append(shared.profileContext)
             } else {
                 // Legacy fallback — pre-migration users
                 let legacy = AuthService.shared.eeonContextPrefix
-                userPrefix = legacy.isEmpty ? "" : legacy
+                if !legacy.isEmpty { userPrefixParts.append(legacy) }
             }
-        } else {
-            userPrefix = ""
         }
+        if callContext.includesIndex && !shared.indexContext.isEmpty {
+            userPrefixParts.append(shared.indexContext)
+        }
+
+        let userPrefix = userPrefixParts.isEmpty ? "" : userPrefixParts.joined(separator: "\n\n") + "\n\n"
 
         return AIContextPrefix(system: system, userPrefix: userPrefix)
     }
@@ -149,5 +166,16 @@ final class ContextAssembler {
             parts.append(rel)
         }
         return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    @MainActor
+    private static func loadIndexContext(in context: ModelContext) -> String? {
+        let descriptor = FetchDescriptor<KnowledgeArticle>(
+            predicate: #Predicate { $0.articleTypeRaw == "index" }
+        )
+        guard let article = (try? context.fetch(descriptor))?.first,
+              !article.summary.isEmpty else { return nil }
+        let trimmed = String(article.summary.prefix(indexContextMaxChars))
+        return "Wiki overview: \(trimmed)"
     }
 }

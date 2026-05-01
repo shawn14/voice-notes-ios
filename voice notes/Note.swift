@@ -186,6 +186,11 @@ final class Note {
     // AI-enhanced version of the note (cleaned up, expanded, well-structured)
     var enhancedNoteText: String?
 
+    // Persona extraction items (Karpathy persona schema). JSON array of {category, content, metadata?}.
+    // Populated only when the user's .purpose article has a noteExtractionSchemaJSON.
+    // Always additive to the baseline Extracted* models — never replaces them.
+    var personaExtractionsJSON: String?
+
     // Source type (voice, web article, derived from RAG answer)
     var sourceTypeRaw: String = "voice"
     var originalURL: String?               // For .webArticle — the shared URL
@@ -383,6 +388,26 @@ final class Note {
             }
             topicsJSON = json
             updatedAt = Date()
+        }
+    }
+
+    // MARK: - Persona Extractions
+
+    /// Karpathy persona-driven extraction items. Always additive to baseline ExtractedDecision/Action/etc.
+    var personaExtractions: [PersonaExtractionItem] {
+        get {
+            guard let json = personaExtractionsJSON,
+                  let data = json.data(using: .utf8) else { return [] }
+            return (try? JSONDecoder().decode([PersonaExtractionItem].self, from: data)) ?? []
+        }
+        set {
+            guard !newValue.isEmpty,
+                  let data = try? JSONEncoder().encode(newValue),
+                  let json = String(data: data, encoding: .utf8) else {
+                personaExtractionsJSON = nil
+                return
+            }
+            personaExtractionsJSON = json
         }
     }
 

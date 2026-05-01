@@ -52,6 +52,17 @@ struct TuneConversationView: View {
     @State private var isSaving = false
     @State private var savedConfirmation: String?
 
+    // Extraction-lens (persona schema) state
+    @State private var isRegeneratingSchema = false
+    @State private var showReextractConfirm = false
+    @State private var pendingReextractCount: Int = 0
+    @State private var isReextracting = false
+    @State private var reextractProgress: (current: Int, total: Int) = (0, 0)
+    @State private var lastReextractMessage: String?
+
+    private static let reextractWindowDays: Int = 30
+    private static let reextractEstimatedCentsPerNote: Double = 0.1
+
     // MARK: - Derived
 
     private var profileText: String { profileSeedNotes.first?.content ?? "" }
@@ -145,6 +156,8 @@ struct TuneConversationView: View {
                         compiledDirective: compiledPurposeDirective,
                         onEdit: { beginEditing(.purpose) }
                     )
+
+                    extractionLensCard
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -259,6 +272,235 @@ struct TuneConversationView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.eeonCard)
         .cornerRadius(14)
+    }
+
+    // MARK: - Extraction Lens Card (persona schema)
+
+    @ViewBuilder
+    private var extractionLensCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.eeonAccent)
+                    .frame(width: 36, height: 36)
+                    .background(Color.eeonAccent.opacity(0.12))
+                    .cornerRadius(10)
+                Text("How EEON Reads Your Notes")
+                    .font(.headline)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
+            }
+
+            if let schema = purposeArticles.first?.noteExtractionSchema, !schema.categories.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(schema.categories) { category in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: category.icon)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.eeonAccent)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(category.label)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.eeonTextPrimary)
+                                Text(category.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.eeonTextSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+
+                if let compiled = purposeArticles.first?.lastCompiledAt {
+                    Text("Compiled \(compiled, style: .relative) ago")
+                        .font(.caption2)
+                        .foregroundStyle(.eeonTextTertiary)
+                }
+            } else {
+                Text(purposeText.isEmpty
+                     ? "Save your purpose above. EEON will compile a personalized lens for your notes."
+                     : "Your purpose is saved. Tap Generate to compile your personalized lens.")
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    regenerateSchema()
+                } label: {
+                    HStack(spacing: 6) {
+                        if isRegeneratingSchema {
+                            ProgressView().scaleEffect(0.7)
+                            Text("Generating…")
+                        } else {
+                            Image(systemName: hasSchema ? "arrow.triangle.2.circlepath" : "sparkles")
+                            Text(hasSchema ? "Regenerate" : "Generate")
+                        }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color("EEONAccent"))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color("EEONAccent").opacity(0.12))
+                    .cornerRadius(10)
+                }
+                .disabled(isRegeneratingSchema || isReextracting || purposeText.isEmpty)
+
+                if hasSchema {
+                    Button {
+                        prepareReextract()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isReextracting {
+                                ProgressView().scaleEffect(0.7)
+                                Text("\(reextractProgress.current)/\(reextractProgress.total)")
+                            } else {
+                                Image(systemName: "arrow.counterclockwise.circle")
+                                Text("Re-extract \(Self.reextractWindowDays)d")
+                            }
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.eeonTextSecondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.eeonTextSecondary.opacity(0.10))
+                        .cornerRadius(10)
+                    }
+                    .disabled(isRegeneratingSchema || isReextracting)
+                }
+            }
+
+            if let message = lastReextractMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.eeonCard)
+        .cornerRadius(14)
+        .alert("Re-extract recent notes?", isPresented: $showReextractConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Re-extract") { runReextraction() }
+        } message: {
+            Text(reextractConfirmMessage)
+        }
+    }
+
+    private var hasSchema: Bool {
+        guard let schema = purposeArticles.first?.noteExtractionSchema else { return false }
+        return !schema.categories.isEmpty
+    }
+
+    private var reextractConfirmMessage: String {
+        if pendingReextractCount == 0 {
+            return "No notes from the last \(Self.reextractWindowDays) days to re-extract."
+        }
+        let cents = Double(pendingReextractCount) * Self.reextractEstimatedCentsPerNote
+        let costStr = cents < 1 ? "less than 1¢" : String(format: "≈%.0f¢", cents)
+        return "Re-extract \(pendingReextractCount) note\(pendingReextractCount == 1 ? "" : "s") from the last \(Self.reextractWindowDays) days through your current lens. Estimated cost: \(costStr). Existing chips on each note are kept if the new pass returns nothing."
+    }
+
+    private func regenerateSchema() {
+        guard !isRegeneratingSchema else { return }
+
+        // Mark the .purpose article dirty if it exists; otherwise, the article will be
+        // created on next purpose-seed save and compile naturally.
+        if let purpose = purposeArticles.first {
+            purpose.isDirty = true
+            purpose.updatedAt = Date()
+            try? modelContext.save()
+        }
+
+        isRegeneratingSchema = true
+        Task {
+            await KnowledgeCompiler.shared.recompileDirtyArticles(context: modelContext, force: true)
+            await MainActor.run { isRegeneratingSchema = false }
+        }
+    }
+
+    private func prepareReextract() {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -Self.reextractWindowDays, to: Date()) ?? Date()
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { note in
+                note.sourceTypeRaw != "profileSeed"
+                && note.sourceTypeRaw != "purposeSeed"
+                && note.createdAt >= cutoff
+            }
+        )
+        pendingReextractCount = (try? modelContext.fetch(descriptor))?.count ?? 0
+        showReextractConfirm = true
+    }
+
+    private func runReextraction() {
+        guard let purpose = purposeArticles.first,
+              let schemaJSON = purpose.noteExtractionSchemaJSON,
+              !schemaJSON.isEmpty,
+              let apiKey = APIKeys.openAI,
+              !apiKey.isEmpty else {
+            lastReextractMessage = "Tune your purpose first."
+            return
+        }
+
+        let cutoff = Calendar.current.date(byAdding: .day, value: -Self.reextractWindowDays, to: Date()) ?? Date()
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { note in
+                note.sourceTypeRaw != "profileSeed"
+                && note.sourceTypeRaw != "purposeSeed"
+                && note.createdAt >= cutoff
+            },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        let notes = (try? modelContext.fetch(descriptor)) ?? []
+        guard !notes.isEmpty else {
+            lastReextractMessage = "Nothing to re-extract in the window."
+            return
+        }
+
+        isReextracting = true
+        lastReextractMessage = nil
+        reextractProgress = (0, notes.count)
+
+        // Snapshot persistent IDs so the async loop doesn't race the live SwiftData query.
+        let payloads: [(noteId: PersistentIdentifier, transcript: String)] = notes.compactMap { note in
+            let text = note.enhancedNoteText ?? note.transcript ?? note.content
+            guard !text.isEmpty else { return nil }
+            return (note.persistentModelID, text)
+        }
+
+        Task {
+            var updated = 0
+            for (idx, payload) in payloads.enumerated() {
+                let items = await SummaryService.extractPersonaItems(
+                    text: payload.transcript,
+                    schemaJSON: schemaJSON,
+                    apiKey: apiKey
+                )
+
+                await MainActor.run {
+                    reextractProgress = (idx + 1, payloads.count)
+                    if !items.isEmpty,
+                       let note = modelContext.model(for: payload.noteId) as? Note {
+                        note.personaExtractions = items
+                        note.updatedAt = Date()
+                        updated += 1
+                    }
+                }
+            }
+
+            await MainActor.run {
+                try? modelContext.save()
+                isReextracting = false
+                lastReextractMessage = "Re-extracted \(updated) of \(payloads.count) note\(payloads.count == 1 ? "" : "s")."
+            }
+        }
     }
 
     // MARK: - Editor Mode

@@ -31,9 +31,15 @@ struct KnowledgeOverviewView: View {
         }
     }
 
+    private var indexArticle: KnowledgeArticle? {
+        allArticles.first { $0.articleType == .index && !$0.summary.isEmpty }
+    }
+
     private var filteredArticles: [KnowledgeArticle] {
-        guard let type = selectedType.articleType else { return allArticles }
-        return allArticles.filter { $0.articleType == type }
+        // Exclude the index article from the list — it's surfaced separately as the hero card.
+        let visible = allArticles.filter { $0.articleType != .index }
+        guard let type = selectedType.articleType else { return visible }
+        return visible.filter { $0.articleType == type }
     }
 
     private var updatedTodayCount: Int {
@@ -56,6 +62,12 @@ struct KnowledgeOverviewView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                // Hero: LLM-compiled overview of the wiki itself ("you are here")
+                if let indexArticle {
+                    indexHeroCard(article: indexArticle)
+                        .padding(.horizontal)
+                }
+
                 // Stats header
                 statsHeader
 
@@ -92,6 +104,52 @@ struct KnowledgeOverviewView: View {
         }
         .navigationTitle("Knowledge Base")
         .navigationBarTitleDisplayMode(.large)
+    }
+
+    // MARK: - Index Hero Card
+
+    @ViewBuilder
+    private func indexHeroCard(article: KnowledgeArticle) -> some View {
+        NavigationLink(destination: KnowledgeArticleDetailView(article: article)) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: KnowledgeArticleType.index.icon)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.cyan)
+                    Text("Overview")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.cyan)
+                        .textCase(.uppercase)
+                    Spacer()
+                    if let compiled = article.lastCompiledAt {
+                        Text(compiled, style: .relative)
+                            .font(.caption2)
+                            .foregroundStyle(.eeonTextTertiary)
+                    }
+                }
+
+                Text(article.summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [Color.cyan.opacity(0.10), Color.eeonCard],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.cyan.opacity(0.25), lineWidth: 1)
+            )
+            .cornerRadius(14)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Stats Header
