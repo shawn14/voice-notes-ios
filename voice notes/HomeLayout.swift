@@ -26,6 +26,7 @@ enum HomeSectionKind: String, Codable, CaseIterable {
     case ideaInbox           // Notes with intent=idea not yet tied to a project
     case todayThree          // User's "Today's 3" existing pattern
     case openThreads         // Cross-article open threads (from KnowledgeArticle.openThreads)
+    case momentumPicture     // Per-focus-item activity ranking — observation surface for builders/execs
 
     // People / relationship-oriented (coach, community builder, therapist)
     case clientRoster        // .person articles ranked by last meaningful note
@@ -56,6 +57,7 @@ enum HomeSectionKind: String, Codable, CaseIterable {
         case .ideaInbox: return "Idea Inbox"
         case .todayThree: return "Today's 3"
         case .openThreads: return "Open Threads"
+        case .momentumPicture: return "Where You Are"
         case .clientRoster: return "Your People"
         case .followUpsPerClient: return "Follow-ups"
         case .relationshipArcs: return "Relationship Arcs"
