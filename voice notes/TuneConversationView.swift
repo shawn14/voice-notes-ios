@@ -63,6 +63,9 @@ struct TuneConversationView: View {
     private static let reextractWindowDays: Int = 30
     private static let reextractEstimatedCentsPerNote: Double = 0.1
 
+    // Focus list editor presentation
+    @State private var showingFocusEditor = false
+
     // MARK: - Derived
 
     private var profileText: String { profileSeedNotes.first?.content ?? "" }
@@ -73,6 +76,10 @@ struct TuneConversationView: View {
         if let directive = article.thinkingEvolution, !directive.isEmpty { return directive }
         if !article.summary.isEmpty { return article.summary }
         return nil
+    }
+
+    private var focusItems: [FocusItem] {
+        purposeArticles.first?.focusItems ?? []
     }
 
     private var compiledVoiceAndTone: String? {
@@ -161,6 +168,8 @@ struct TuneConversationView: View {
                         content: profileText,
                         onEdit: { beginEditing(.profile) }
                     )
+
+                    focusReviewCard
 
                     reviewCard(
                         icon: "scope",
@@ -287,6 +296,122 @@ struct TuneConversationView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.eeonCard)
         .cornerRadius(14)
+    }
+
+    // MARK: - Focus Review Card
+
+    @ViewBuilder
+    private var focusReviewCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "target")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color("EEONAccent"))
+                    .frame(width: 36, height: 36)
+                    .background(Color("EEONAccent").opacity(0.12))
+                    .cornerRadius(10)
+                Text("Your Focus Right Now")
+                    .font(.headline)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
+                Button {
+                    showingFocusEditor = true
+                } label: {
+                    Text(focusItems.isEmpty ? "Add" : "Edit")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color("EEONAccent"))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color("EEONAccent").opacity(0.12))
+                        .cornerRadius(10)
+                        .fixedSize()
+                }
+            }
+
+            if focusItems.isEmpty {
+                Text("A short list of what you're focused on. EEON shows where you've got traction — and where you're drifting.")
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(focusItems) { item in
+                        focusRow(for: item)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.eeonCard)
+        .cornerRadius(14)
+        .sheet(isPresented: $showingFocusEditor) {
+            FocusListEditor(items: focusItems) { updated in
+                saveFocusItems(updated)
+            }
+        }
+    }
+
+    private func focusRow(for item: FocusItem) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.content)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.eeonTextPrimary)
+                if let note = item.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.eeonTextSecondary)
+                        .italic()
+                }
+            }
+            Spacer()
+            Text(item.weight.label)
+                .font(.caption2.weight(.bold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(focusBadgeColor(for: item.weight))
+                .foregroundStyle(focusBadgeText(for: item.weight))
+                .cornerRadius(6)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .background(Color.eeonBackground)
+        .cornerRadius(8)
+    }
+
+    private func focusBadgeColor(for weight: FocusWeight) -> Color {
+        switch weight {
+        case .primary: return Color("EEONAccent")
+        case .secondary: return Color("EEONAccent").opacity(0.18)
+        case .tertiary: return Color.eeonTextSecondary.opacity(0.15)
+        }
+    }
+
+    private func focusBadgeText(for weight: FocusWeight) -> Color {
+        switch weight {
+        case .primary: return .white
+        case .secondary: return Color("EEONAccent")
+        case .tertiary: return Color.eeonTextSecondary
+        }
+    }
+
+    private func saveFocusItems(_ items: [FocusItem]) {
+        let purposeArticle: KnowledgeArticle
+        if let existing = purposeArticles.first {
+            purposeArticle = existing
+        } else {
+            purposeArticle = KnowledgeArticle(name: "Your Purpose", articleType: .purpose)
+            modelContext.insert(purposeArticle)
+        }
+        purposeArticle.focusItems = items
+        purposeArticle.updatedAt = Date()
+        purposeArticle.isDirty = true
+        try? modelContext.save()
+        ContextAssembler.shared.refresh(from: modelContext)
     }
 
     // MARK: - Extraction Lens Card (persona schema)
