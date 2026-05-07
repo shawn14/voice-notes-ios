@@ -128,6 +128,20 @@ final class KnowledgeArticle {
     // describes WHAT the AI should focus on.
     var voiceAndTone: String?
 
+    // Ordered list of user-declared priorities (only populated on .purpose article).
+    // JSON-encoded array of FocusItem. Drives MomentumPictureSection and feeds
+    // ContextAssembler so AI calls know what the user is currently prioritizing.
+    // Independent of voiceAndTone / homeLayoutJSON — those are LLM-compiled,
+    // this is user-declared structured input.
+    var focusItemsJSON: String?
+
+    /// Typed accessor — decodes focusItemsJSON. Returns [] when unset or invalid.
+    @Transient
+    var focusItems: [FocusItem] {
+        get { [FocusItem].decode(from: focusItemsJSON) }
+        set { focusItemsJSON = newValue.encodedJSON }
+    }
+
     init(name: String, articleType: KnowledgeArticleType) {
         self.id = UUID()
         self.name = name
