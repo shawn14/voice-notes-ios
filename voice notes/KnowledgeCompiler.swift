@@ -266,6 +266,7 @@ final class KnowledgeCompiler {
                     existingDecisions: article.decisions,
                     existingRelationshipContext: article.relationshipContext,
                     existingThinkingEvolution: article.thinkingEvolution,
+                    existingFocusItems: article.focusItems,
                     articleName: article.name,
                     articleType: article.articleType,
                     newNoteTexts: noteTexts,
