@@ -90,6 +90,10 @@ final class ContextAssembler {
     /// Compiled voice & tone directive — injected into rewrite/title system prompts so
     /// stylistic output (formality, lyricism, vocabulary) matches the user's tuning.
     private(set) var voiceAndTone: String = ""
+    /// User-declared focus list — injected into AI calls that benefit from priority awareness
+    /// (extraction, RAG, daily brief, analysis, rewrite). Read by MomentumPictureSection
+    /// directly from the .purpose article (this cache is for prompt injection only).
+    private(set) var focusItems: [FocusItem] = []
 
     private static let indexContextMaxChars = 400
 
@@ -102,7 +106,8 @@ final class ContextAssembler {
         profileContext = Self.loadProfileContext(in: context) ?? ""
         indexContext = Self.loadIndexContext(in: context) ?? ""
         voiceAndTone = Self.loadVoiceAndTone(in: context) ?? ""
-        print("[ContextAssembler] refreshed — purpose=\(String(purposeDirective.prefix(80))) profile=\(String(profileContext.prefix(60))) index=\(String(indexContext.prefix(60))) voice=\(String(voiceAndTone.prefix(60)))")
+        focusItems = Self.loadFocusItems(in: context)
+        print("[ContextAssembler] refreshed — purpose=\(String(purposeDirective.prefix(80))) profile=\(String(profileContext.prefix(60))) index=\(String(indexContext.prefix(60))) voice=\(String(voiceAndTone.prefix(60))) focus=\(focusItems.count) items")
     }
 
     // MARK: - Static call-site API
@@ -175,6 +180,16 @@ final class ContextAssembler {
         guard let article = (try? context.fetch(descriptor))?.first,
               let voice = article.voiceAndTone, !voice.isEmpty else { return nil }
         return "Write in this voice & tone:\n\(voice)"
+    }
+
+    @MainActor
+    private static func loadFocusItems(in context: ModelContext) -> [FocusItem] {
+        let purposeRaw = KnowledgeArticleType.purpose.rawValue
+        let descriptor = FetchDescriptor<KnowledgeArticle>(
+            predicate: #Predicate { $0.articleTypeRaw == purposeRaw }
+        )
+        guard let article = (try? context.fetch(descriptor))?.first else { return [] }
+        return article.focusItems
     }
 
     @MainActor
