@@ -54,6 +54,16 @@ enum AICallContext {
         case .extraction, .rewrite, .analysis, .intent, .title, .tags, .fillerWords: return false
         }
     }
+
+    /// Whether this call site benefits from the user's voice & tone directive.
+    /// Narrow on purpose: only stylistic calls (rewrite + title). Analysis/extraction
+    /// already get the heavier purposeDirective which subsumes voice for non-stylistic work.
+    var includesVoiceAndTone: Bool {
+        switch self {
+        case .rewrite, .title: return true
+        case .extraction, .rag, .dailyBrief, .analysis, .intent, .tags, .fillerWords: return false
+        }
+    }
 }
 
 struct AIContextPrefix {
@@ -103,12 +113,14 @@ final class ContextAssembler {
     static func prefix(for callContext: AICallContext) -> AIContextPrefix {
         let shared = ContextAssembler.shared
 
-        let system: String
+        var systemParts: [String] = []
         if callContext.includesPurpose && !shared.purposeDirective.isEmpty {
-            system = shared.purposeDirective + "\n\n"
-        } else {
-            system = ""
+            systemParts.append(shared.purposeDirective)
         }
+        if callContext.includesVoiceAndTone && !shared.voiceAndTone.isEmpty {
+            systemParts.append(shared.voiceAndTone)
+        }
+        let system = systemParts.isEmpty ? "" : systemParts.joined(separator: "\n\n") + "\n\n"
 
         var userPrefixParts: [String] = []
         if callContext.includesProfile {
