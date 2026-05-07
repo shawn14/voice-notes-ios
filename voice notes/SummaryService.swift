@@ -305,7 +305,7 @@ enum SummaryService {
         let body: [String: Any] = [
             "model": "gpt-4o-mini",
             "messages": [
-                ["role": "system", "content": "Generate a concise 3-6 word title for this voice note. No quotes or punctuation."],
+                ["role": "system", "content": ContextAssembler.flatPrefix(for: .title) + "Generate a concise 3-6 word title for this voice note. No quotes or punctuation."],
                 ["role": "user", "content": String(text.prefix(500))]
             ],
             "max_tokens": 20
