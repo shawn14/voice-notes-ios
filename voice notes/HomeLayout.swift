@@ -117,7 +117,23 @@ struct HomeLayout: Equatable, Sendable {
         do {
             let decoded = try JSONDecoder().decode(HomeLayout.self, from: data)
             // Filter out unknown kinds (forward-compat — old layout referencing deleted section)
-            let valid = decoded.sections.filter { $0.kind != nil }
+            var valid = decoded.sections.filter { $0.kind != nil }
+            // todayThree is the universal daily-intentions ritual. The compile prompt
+            // instructs the LLM to always include it as the first section, but
+            // GPT-4o-mini occasionally drops "ALWAYS" instructions in long prompts.
+            // Prepend it here so it's guaranteed regardless of LLM compliance.
+            if !valid.contains(where: { $0.kind == .todayThree }) {
+                valid.insert(
+                    HomeSection(
+                        kindRaw: HomeSectionKind.todayThree.rawValue,
+                        title: nil,
+                        rationale: nil,
+                        limit: nil,
+                        staleDaysThreshold: nil
+                    ),
+                    at: 0
+                )
+            }
             return HomeLayout(sections: valid, version: decoded.version)
         } catch {
             print("[HomeLayout] decode failed, using default: \(error)")
