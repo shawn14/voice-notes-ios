@@ -290,6 +290,11 @@ final class KnowledgeCompiler {
                     if article.articleType == .purpose, let schema = response.noteExtractionSchemaJSON, !schema.isEmpty {
                         article.noteExtractionSchemaJSON = schema
                     }
+                    // Purpose-only: persist the compiled voice & tone directive. ContextAssembler injects
+                    // this into .rewrite and .title prompts so output sounds like THIS user.
+                    if article.articleType == .purpose, let voice = response.voiceAndTone, !voice.isEmpty {
+                        article.voiceAndTone = voice
+                    }
 
                     article.isDirty = false
                     article.lastCompiledAt = Date()
