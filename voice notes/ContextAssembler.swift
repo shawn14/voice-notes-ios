@@ -77,6 +77,9 @@ final class ContextAssembler {
     private(set) var profileContext: String = ""
     /// Wiki overview prose — injected into RAG / daily brief calls.
     private(set) var indexContext: String = ""
+    /// Compiled voice & tone directive — injected into rewrite/title system prompts so
+    /// stylistic output (formality, lyricism, vocabulary) matches the user's tuning.
+    private(set) var voiceAndTone: String = ""
 
     private static let indexContextMaxChars = 400
 
@@ -88,7 +91,8 @@ final class ContextAssembler {
         purposeDirective = Self.loadPurposeDirective(in: context) ?? ""
         profileContext = Self.loadProfileContext(in: context) ?? ""
         indexContext = Self.loadIndexContext(in: context) ?? ""
-        print("[ContextAssembler] refreshed — purpose=\(String(purposeDirective.prefix(80))) profile=\(String(profileContext.prefix(60))) index=\(String(indexContext.prefix(60)))")
+        voiceAndTone = Self.loadVoiceAndTone(in: context) ?? ""
+        print("[ContextAssembler] refreshed — purpose=\(String(purposeDirective.prefix(80))) profile=\(String(profileContext.prefix(60))) index=\(String(indexContext.prefix(60))) voice=\(String(voiceAndTone.prefix(60)))")
     }
 
     // MARK: - Static call-site API
@@ -148,6 +152,17 @@ final class ContextAssembler {
             return "User purpose: \(article.summary)"
         }
         return nil
+    }
+
+    @MainActor
+    private static func loadVoiceAndTone(in context: ModelContext) -> String? {
+        let purposeRaw = KnowledgeArticleType.purpose.rawValue
+        let descriptor = FetchDescriptor<KnowledgeArticle>(
+            predicate: #Predicate { $0.articleTypeRaw == purposeRaw }
+        )
+        guard let article = (try? context.fetch(descriptor))?.first,
+              let voice = article.voiceAndTone, !voice.isEmpty else { return nil }
+        return "Write in this voice & tone:\n\(voice)"
     }
 
     @MainActor
