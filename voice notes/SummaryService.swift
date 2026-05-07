@@ -907,8 +907,18 @@ enum SummaryService {
             compilationGuidance = "(unused — index articles are compiled via compileIndex)"
         }
 
+        let analysisPrefix: String
+        switch articleType {
+        case .topic, .person, .project, .reference:
+            analysisPrefix = ContextAssembler.flatPrefix(for: .analysis)
+        case .self, .purpose, .index:
+            // Skip — these are the source material ContextAssembler reads from.
+            // Injecting context here would create circular self-reference.
+            analysisPrefix = ""
+        }
+
         let systemPrompt = """
-        You maintain a living knowledge article about \(articleKind).
+        \(analysisPrefix)You maintain a living knowledge article about \(articleKind).
         \(compilationGuidance)
 
         Return ONLY valid JSON with this structure:
