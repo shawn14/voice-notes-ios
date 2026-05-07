@@ -121,6 +121,13 @@ final class KnowledgeArticle {
     // category list + extraction-prompt fragment used by SummaryService.extractPersonaItems).
     var noteExtractionSchemaJSON: String?
 
+    // Free-text "voice & tone" directive (only populated on .purpose article — LLM-compiled).
+    // 1-3 sentences describing how the user wants AI output to *sound* (formality, register,
+    // lyricism, vocabulary). Injected into .rewrite and .title system prompts via
+    // ContextAssembler. Independent of thinkingEvolution (the purpose directive), which
+    // describes WHAT the AI should focus on.
+    var voiceAndTone: String?
+
     init(name: String, articleType: KnowledgeArticleType) {
         self.id = UUID()
         self.name = name
