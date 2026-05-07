@@ -64,6 +64,16 @@ enum AICallContext {
         case .extraction, .rag, .dailyBrief, .analysis, .intent, .tags, .fillerWords: return false
         }
     }
+
+    /// Whether this call site benefits from the user's declared focus / priorities.
+    /// Broad on purpose: priority awareness improves most call sites that work
+    /// with the user's actual material. Skipped only for trivial classifiers.
+    var includesFocus: Bool {
+        switch self {
+        case .extraction, .rag, .dailyBrief, .analysis, .rewrite: return true
+        case .intent, .title, .tags, .fillerWords: return false
+        }
+    }
 }
 
 struct AIContextPrefix {
@@ -125,6 +135,9 @@ final class ContextAssembler {
         if callContext.includesVoiceAndTone && !shared.voiceAndTone.isEmpty {
             systemParts.append(shared.voiceAndTone)
         }
+        if callContext.includesFocus && !shared.focusItems.isEmpty {
+            systemParts.append(Self.formatFocus(shared.focusItems))
+        }
         let system = systemParts.isEmpty ? "" : systemParts.joined(separator: "\n\n") + "\n\n"
 
         var userPrefixParts: [String] = []
@@ -150,6 +163,15 @@ final class ContextAssembler {
     static func flatPrefix(for callContext: AICallContext) -> String {
         let p = prefix(for: callContext)
         return p.system + p.userPrefix
+    }
+
+    /// Format focus items as a compact directive for prompt injection.
+    private static func formatFocus(_ items: [FocusItem]) -> String {
+        let lines = items.map { item -> String in
+            let note = item.note.flatMap { $0.isEmpty ? nil : " — \($0)" } ?? ""
+            return "- \(item.content) [\(item.weight.rawValue)]\(note)"
+        }
+        return "User's current focus, in priority order:\n\(lines.joined(separator: "\n"))"
     }
 
     // MARK: - Article Loaders
