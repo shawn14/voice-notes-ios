@@ -187,7 +187,7 @@ enum RewriteService {
         let body: [String: Any] = [
             "model": "gpt-4o-mini",
             "messages": [
-                ["role": "system", "content": template.systemPrompt],
+                ["role": "system", "content": ContextAssembler.flatPrefix(for: .rewrite) + template.systemPrompt],
                 ["role": "user", "content": transcript]
             ],
             "max_tokens": 1500,
