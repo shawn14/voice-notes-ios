@@ -254,6 +254,7 @@ private extension HomeSectionKind {
         case .ideaInbox: return "lightbulb"
         case .todayThree: return "number.circle"
         case .openThreads: return "bubble.left.and.bubble.right"
+        case .momentumPicture: return "chart.bar.xaxis"
         case .clientRoster: return "person.2.fill"
         case .followUpsPerClient: return "hand.raised.fill"
         case .relationshipArcs: return "heart.fill"

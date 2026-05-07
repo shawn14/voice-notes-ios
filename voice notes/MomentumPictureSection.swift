@@ -131,7 +131,7 @@ struct MomentumPictureSection: View {
         let counts: [UUID: Int] = focusItems.reduce(into: [:]) { acc, item in
             let needle = item.content.lowercased()
             let count = recentNotes.filter { note in
-                let proj = note.inferredProject?.lowercased() ?? ""
+                let proj = note.inferredProjectName?.lowercased() ?? ""
                 let content = note.content.lowercased()
                 return proj.contains(needle) || content.contains(needle)
             }.count
