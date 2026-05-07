@@ -1014,7 +1014,7 @@ enum SummaryService {
         }.joined(separator: "\n")
 
         let systemPrompt = """
-        You are maintaining the index page of a personal knowledge base — the "you are here" overview.
+        \(ContextAssembler.flatPrefix(for: .analysis))You are maintaining the index page of a personal knowledge base — the "you are here" overview.
         Given the article summaries below, produce a 3-5 sentence prose overview that surfaces:
         - Total counts by type (people, projects, topics, etc.)
         - Most active areas right now (recently mentioned, high mention count)
