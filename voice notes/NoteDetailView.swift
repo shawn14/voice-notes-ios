@@ -199,11 +199,26 @@ struct NoteDetailView: View {
                         noteBodySection
                             .padding(.bottom, 20)
 
-                        // 4a. Persona chips — Karpathy schema-driven extraction (additive to baseline)
+                        // 4a. Image attachments
+                        if note.hasImages {
+                            ImageGalleryView(
+                                imageFileNames: note.imageFileNames,
+                                onImageTap: { fileName in
+                                    selectedImageForFullscreen = fileName
+                                    showingFullscreenImage = true
+                                },
+                                onImageDelete: { fileName in
+                                    deletePhoto(fileName)
+                                }
+                            )
+                            .padding(.bottom, 20)
+                        }
+
+                        // 4b. Persona chips — Karpathy schema-driven extraction (additive to baseline)
                         PersonaChipsView(note: note)
                             .padding(.bottom, 20)
 
-                        // 4b. Wiki connections — which articles this note touched (Karpathy index)
+                        // 4c. Wiki connections — which articles this note touched (Karpathy index)
                         NoteWikiConnectionsView(noteId: note.id)
                             .padding(.bottom, 20)
 
@@ -1053,7 +1068,15 @@ struct NoteDetailView: View {
         // Delete image files
         note.deleteImageFiles()
         modelContext.delete(note)
+        try? modelContext.save()
         dismiss()
+    }
+
+    private func deletePhoto(_ fileName: String) {
+        ImageService.deleteImage(fileName: fileName)
+        note.removeImageFileName(fileName)
+        note.updatedAt = Date()
+        try? modelContext.save()
     }
 
     private func formatDuration(_ seconds: TimeInterval?) -> String {
@@ -1125,6 +1148,8 @@ struct NoteDetailView: View {
 
                 await MainActor.run {
                     note.addImageFileName(fileName)
+                    note.updatedAt = Date()
+                    try? modelContext.save()
                     isProcessingImage = false
                     selectedPhotoItem = nil
                 }
@@ -1135,6 +1160,8 @@ struct NoteDetailView: View {
                     if !extractedText.isEmpty {
                         await MainActor.run {
                             note.content = extractedText
+                            note.updatedAt = Date()
+                            try? modelContext.save()
                         }
                     }
                 }
