@@ -1230,6 +1230,13 @@ struct AIHomeView: View {
             TodaysThreeSection(title: t, rationale: section.rationale)
         case .openThreads:
             OpenThreadsSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+        case .momentumPicture:
+            MomentumPictureSection(
+                title: t,
+                rationale: section.rationale,
+                focusItems: purposeArticles.first?.focusItems ?? [],
+                notes: notes
+            )
         case .emotionalToneArc:
             EmotionalToneArcSection(notes: notes, title: t, rationale: section.rationale, limit: section.limit ?? 14)
         case .activeInquiries:
