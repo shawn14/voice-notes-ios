@@ -75,6 +75,21 @@ struct TuneConversationView: View {
         return nil
     }
 
+    private var compiledVoiceAndTone: String? {
+        guard let article = purposeArticles.first,
+              let voice = article.voiceAndTone, !voice.isEmpty else { return nil }
+        return voice
+    }
+
+    /// Combines compiledPurposeDirective and compiledVoiceAndTone into a single preview
+    /// shown under the purpose review card. Voice & tone is appended below an indent
+    /// separator so the user can see both compiled outputs in one place.
+    private var compiledPurposePreview: String? {
+        let parts = [compiledPurposeDirective, compiledVoiceAndTone.map { "— Voice & tone —\n\($0)" }]
+            .compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -153,7 +168,7 @@ struct TuneConversationView: View {
                         title: "What EEON Is For You",
                         emptyHint: "Your role, your methodology — what EEON should be for you.",
                         content: purposeText,
-                        compiledDirective: compiledPurposeDirective,
+                        compiledDirective: compiledPurposePreview,
                         onEdit: { beginEditing(.purpose) }
                     )
 
@@ -518,7 +533,7 @@ struct TuneConversationView: View {
                     // capture screen, it shows what EEON heard and you can edit it.
                     transcriptField(placeholder: editorPlaceholder(for: field))
 
-                    if field == .purpose, let compiled = compiledPurposeDirective {
+                    if field == .purpose, let compiled = compiledPurposePreview {
                         compiledNote(compiled)
                     }
                 }
