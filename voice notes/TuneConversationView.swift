@@ -348,7 +348,18 @@ struct TuneConversationView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.eeonCard)
         .cornerRadius(14)
-        .sheet(isPresented: $showingFocusEditor) {
+        .sheet(isPresented: $showingFocusEditor, onDismiss: {
+            // Recompile .purpose so homeLayoutJSON reflects the new focus.
+            // saveFocusItems marks the article dirty but doesn't recompile
+            // (would fire on every drag/edit). Recompiling on dismiss is the
+            // right cadence — once per editing session.
+            Task {
+                await KnowledgeCompiler.shared.recompileDirtyArticles(context: modelContext, force: true)
+                await MainActor.run {
+                    ContextAssembler.shared.refresh(from: modelContext)
+                }
+            }
+        }) {
             FocusListEditor(items: focusItems) { updated in
                 saveFocusItems(updated)
             }
