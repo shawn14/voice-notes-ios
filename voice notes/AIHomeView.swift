@@ -279,20 +279,15 @@ struct AIHomeView: View {
                                 }
                             }
 
-                            // Layout-driven sections — order picked by the Karpathy LLM
-                            // from the compiled .purpose article (or default layout pre-compile).
-                            // Skip .knowledgeCarousel in the loop — we always render it at the
-                            // end so the knowledge articles are reachable regardless of layout.
+                            // Layout-driven sections — order determined by HomeLayout.decode,
+                            // which anchors knowledgeCarousel and recentNotes at indices 0 and 1
+                            // (platform-universal) and lets the LLM order persona-shaped sections
+                            // at index 2+. The case .knowledgeCarousel dispatch in
+                            // sectionView(for:section:) renders knowledgeCardsSection.
                             ForEach(activeLayout.sections) { section in
-                                if let kind = section.kind, kind != .knowledgeCarousel {
+                                if let kind = section.kind {
                                     sectionView(for: kind, section: section)
                                 }
-                            }
-
-                            // Knowledge articles are always visible — they're the entry point
-                            // to the full overview + article detail (arc, timeline, decisions).
-                            if !knowledgeArticles.isEmpty {
-                                knowledgeCardsSection
                             }
 
                             // Spacer so content doesn't show behind bottom bar
