@@ -119,23 +119,11 @@ struct HomeLayout: Equatable, Sendable {
         do {
             let decoded = try JSONDecoder().decode(HomeLayout.self, from: data)
             // Filter out unknown kinds (forward-compat — old layout referencing deleted section)
-            var valid = decoded.sections.filter { $0.kind != nil }
-            // todayThree is the universal daily-intentions ritual. The compile prompt
-            // instructs the LLM to always include it as the first section, but
-            // GPT-4o-mini occasionally drops "ALWAYS" instructions in long prompts.
-            // Prepend it here so it's guaranteed regardless of LLM compliance.
-            if !valid.contains(where: { $0.kind == .todayThree }) {
-                valid.insert(
-                    HomeSection(
-                        kindRaw: HomeSectionKind.todayThree.rawValue,
-                        title: nil,
-                        rationale: nil,
-                        limit: nil,
-                        staleDaysThreshold: nil
-                    ),
-                    at: 0
-                )
-            }
+            let valid = decoded.sections.filter { $0.kind != nil }
+            // No defensive prepend — the LLM picks the daily-ritual surface (or none)
+            // based on persona. Forcing todayThree onto every layout was a founder-bias
+            // shipped in A4 (2026-05-07) that broke dream users and others. The compile
+            // prompt now correctly tells the LLM to choose per persona.
             return HomeLayout(sections: valid, version: decoded.version)
         } catch {
             print("[HomeLayout] decode failed, using default: \(error)")
