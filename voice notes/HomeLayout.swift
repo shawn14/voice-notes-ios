@@ -119,16 +119,41 @@ struct HomeLayout: Equatable, Sendable {
         do {
             let decoded = try JSONDecoder().decode(HomeLayout.self, from: data)
             // Filter out unknown kinds (forward-compat — old layout referencing deleted section)
-            let valid = decoded.sections.filter { $0.kind != nil }
-            // No defensive prepend — the LLM picks the daily-ritual surface (or none)
-            // based on persona. Forcing todayThree onto every layout was a founder-bias
-            // shipped in A4 (2026-05-07) that broke dream users and others. The compile
-            // prompt now correctly tells the LLM to choose per persona.
+            var valid = decoded.sections.filter { $0.kind != nil }
+
+            // Universal anchors: knowledgeCarousel + recentNotes are platform-level,
+            // not persona-specific. Every user has compiled knowledge articles and
+            // captured notes; both should be visible regardless of what the LLM picks.
+            //
+            // Distinct from the removed todayThree prepend (which was founder-bias).
+            // These are structural to the platform — knowledge IS the AI value layer,
+            // notes ARE the raw input — and the LLM should not be able to bury them.
+            valid = anchorKnowledgeAndNotes(in: valid)
+
             return HomeLayout(sections: valid, version: decoded.version)
         } catch {
             print("[HomeLayout] decode failed, using default: \(error)")
             return .default
         }
+    }
+
+    /// Ensure `knowledgeCarousel` is at index 0 and `recentNotes` is at index 1,
+    /// preserving any LLM-supplied title/rationale on those sections. Persona-shaped
+    /// sections then follow at index 2+.
+    private static func anchorKnowledgeAndNotes(in sections: [HomeSection]) -> [HomeSection] {
+        var rest = sections
+
+        // Pull out knowledge if present, else synthesize a default
+        let knowledge = rest.first { $0.kind == .knowledgeCarousel }
+            ?? HomeSection(kindRaw: HomeSectionKind.knowledgeCarousel.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil)
+        rest.removeAll { $0.kind == .knowledgeCarousel }
+
+        // Pull out recent notes if present, else synthesize a default
+        let recent = rest.first { $0.kind == .recentNotes }
+            ?? HomeSection(kindRaw: HomeSectionKind.recentNotes.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil)
+        rest.removeAll { $0.kind == .recentNotes }
+
+        return [knowledge, recent] + rest
     }
 }
 
