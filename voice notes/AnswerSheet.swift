@@ -18,6 +18,8 @@ struct AnswerSheet: View {
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var allNotes: [Note]
     @Query private var knowledgeArticles: [KnowledgeArticle]
+    @Query private var projects: [Project]
+    @Query private var dailyBriefs: [DailyBrief]
 
     /// The question to run on appear. Required; non-optional by design.
     let initialQuery: String
@@ -146,10 +148,20 @@ struct AnswerSheet: View {
 
             // Answer
             VStack(alignment: .leading, spacing: 4) {
-                Text("ANSWER")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
+                HStack(spacing: 8) {
+                    Text("ANSWER")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                    Spacer()
+                    Text(response.route.badgeText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.eeonAccentAI.opacity(0.08))
+                        .cornerRadius(8)
+                }
                 Text(response.answer)
                     .font(.body)
                     .foregroundStyle(.eeonTextPrimary)
@@ -248,7 +260,9 @@ struct AnswerSheet: View {
                 let response = try await RAGService.shared.answerQuestion(
                     query: trimmed,
                     allNotes: allNotes,
-                    articles: Array(knowledgeArticles)
+                    articles: Array(knowledgeArticles),
+                    projects: projects,
+                    dailyBriefs: dailyBriefs
                 )
                 await MainActor.run {
                     state = .answer(question: trimmed, response: response)
