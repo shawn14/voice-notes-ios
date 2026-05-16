@@ -5,6 +5,9 @@
 
 import Foundation
 import AVFoundation
+#if canImport(UIKit) && !targetEnvironment(macCatalyst)
+import UIKit
+#endif
 
 @Observable
 final class AudioRecorder: NSObject {
@@ -61,6 +64,10 @@ final class AudioRecorder: NSObject {
         currentFileName = fileName
         recordingTime = 0
 
+        // Prevent auto-lock while recording so long captures don't get cut off
+        // by the screen dimming and the app being suspended.
+        setIdleTimerDisabled(true)
+
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.recordingTime += 1
         }
@@ -75,8 +82,32 @@ final class AudioRecorder: NSObject {
         audioRecorder?.stop()
         isRecording = false
 
+        setIdleTimerDisabled(false)
+
         guard let fileName = currentFileName else { return nil }
         return getDocumentsDirectory().appendingPathComponent(fileName)
+    }
+
+    private func setIdleTimerDisabled(_ disabled: Bool) {
+        #if canImport(UIKit) && !targetEnvironment(macCatalyst)
+        if Thread.isMainThread {
+            UIApplication.shared.isIdleTimerDisabled = disabled
+        } else {
+            DispatchQueue.main.async {
+                UIApplication.shared.isIdleTimerDisabled = disabled
+            }
+        }
+        #endif
+    }
+
+    deinit {
+        // Safety net: if this recorder is torn down mid-recording, don't leave
+        // the screen pinned awake forever.
+        #if canImport(UIKit) && !targetEnvironment(macCatalyst)
+        DispatchQueue.main.async {
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
+        #endif
     }
 
     func playAudio(url: URL) throws {
