@@ -79,6 +79,7 @@ struct AIHomeView: View {
 
     // Type note
     @State private var showingTypeNote = false
+    @State private var showingAskInput = false
 
     // Navigation state
     @State private var navigateToNote: Note?
@@ -329,6 +330,19 @@ struct AIHomeView: View {
             }
             .sheet(item: $pendingAnswerQuery) { item in
                 AnswerSheet(initialQuery: item.query)
+            }
+            .sheet(isPresented: $showingAskInput) {
+                AskInputSheet(
+                    onSubmit: { query in
+                        showingAskInput = false
+                        // Small delay so the input sheet has time to dismiss
+                        // before AnswerSheet is presented over the same root.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            pendingAnswerQuery = AnswerQuery(query: query)
+                        }
+                    },
+                    onCancel: { showingAskInput = false }
+                )
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView(onDismiss: { showPaywall = false })
@@ -762,6 +776,24 @@ struct AIHomeView: View {
             .offset(y: -6)
 
             Spacer()
+
+            // "Ask EEON" pill — discoverable entry point for chat-with-your-notes
+            Button {
+                showingAskInput = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "bubble.left.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Ask")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(Color("EEONAccentAI"))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(Color("EEONAccentAI").opacity(0.12))
+                .clipShape(Capsule())
+            }
+            .padding(.trailing, 8)
 
             // "New Note" pill button (right) — Coconote-style
             Button {
