@@ -18,7 +18,12 @@ struct PaywallView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    @Environment(\.openURL) private var openURL
+
     private let subscriptionManager = SubscriptionManager.shared
+
+    private let termsURL = URL(string: "https://eeon.com/terms")!
+    private let privacyURL = URL(string: "https://eeon.com/privacy")!
 
     var body: some View {
         ScrollView {
@@ -121,11 +126,31 @@ struct PaywallView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
 
-                    HStack(spacing: 16) {
-                        Link("Terms of Use", destination: URL(string: "https://eeon.com/terms")!)
-                            .font(.footnote.weight(.medium))
-                        Link("Privacy Policy", destination: URL(string: "https://eeon.com/privacy")!)
-                            .font(.footnote.weight(.medium))
+                    // Legal links — using Button + openURL instead of `Link` so taps
+                    // reliably fire on Mac Catalyst (Apple Review 3.1.2(c)). Underlined
+                    // and using .primary so they auto-adapt to dark and light mode.
+                    HStack(spacing: 20) {
+                        Button {
+                            openURL(termsURL)
+                        } label: {
+                            Text("Terms of Use")
+                                .font(.footnote.weight(.semibold))
+                                .underline()
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open Terms of Use")
+
+                        Button {
+                            openURL(privacyURL)
+                        } label: {
+                            Text("Privacy Policy")
+                                .font(.footnote.weight(.semibold))
+                                .underline()
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open Privacy Policy")
                     }
                 }
                 .padding(.horizontal, 32)

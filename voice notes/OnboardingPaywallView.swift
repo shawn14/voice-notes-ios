@@ -62,8 +62,13 @@ struct OnboardingPaywallView: View {
     @State private var selectedPlan: SubscriptionProduct = .annual
     @State private var isPurchasing = false
 
+    @Environment(\.openURL) private var openURL
+
     private let authService = AuthService.shared
     private let subscriptionManager = SubscriptionManager.shared
+
+    private let termsURL = URL(string: "https://eeon.com/terms")!
+    private let privacyURL = URL(string: "https://eeon.com/privacy")!
 
     /// "See how free works" with "free" in coral accent. AttributedString replaces
     /// the deprecated Text + Text + Text concatenation pattern (removed in iOS 26).
@@ -262,14 +267,38 @@ struct OnboardingPaywallView: View {
                     }
                     .padding(.top, 2)
 
-                    // Legal links
-                    HStack(spacing: 4) {
-                        Link("Terms of use", destination: URL(string: "https://eeon.com/terms")!)
+                    // Legal links — using Button + openURL instead of `Link` so taps
+                    // reliably fire on Mac Catalyst (Apple Review 3.1.2(c)). Using
+                    // .primary + underline so links are legible on both dark and
+                    // light backgrounds (the old 0.35 opacity was rejected as
+                    // hard-to-read by App Review).
+                    HStack(spacing: 8) {
+                        Button {
+                            openURL(termsURL)
+                        } label: {
+                            Text("Terms of Use")
+                                .font(.caption.weight(.semibold))
+                                .underline()
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open Terms of Use")
+
                         Text("|")
-                        Link("Privacy policy", destination: URL(string: "https://eeon.com/privacy")!)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            openURL(privacyURL)
+                        } label: {
+                            Text("Privacy Policy")
+                                .font(.caption.weight(.semibold))
+                                .underline()
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open Privacy Policy")
                     }
-                    .font(.caption)
-                    .foregroundStyle(Color("EEONTextPrimary").opacity(0.35))
                     .padding(.top, 2)
                 }
                 .padding(.horizontal, 28)
