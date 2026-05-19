@@ -105,9 +105,14 @@ struct OnboardingQuizView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    @Environment(\.openURL) private var openURL
+
     private let subscriptionManager = SubscriptionManager.shared
     private let authService = AuthService.shared
     private let totalSteps = 6
+
+    private let termsURL = URL(string: "https://eeon.com/terms")!
+    private let privacyURL = URL(string: "https://eeon.com/privacy")!
 
     var body: some View {
         ZStack {
@@ -429,12 +434,60 @@ struct OnboardingQuizView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    // Legal
-                    Text("Terms of Service • Privacy Policy • Restore Purchases")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                        .padding(.bottom, 16)
+                    // Legal — Button + openURL so taps reliably fire on Mac
+                    // Catalyst (Apple Review 3.1.2(c)). Underlined .primary so
+                    // links stay legible on light + dark backgrounds.
+                    // Restore Purchases is wired to SubscriptionManager so it
+                    // also satisfies Apple Review Guideline 3.1.1.
+                    HStack(spacing: 12) {
+                        Button {
+                            openURL(termsURL)
+                        } label: {
+                            Text("Terms of Service")
+                                .font(.caption2.weight(.semibold))
+                                .underline()
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open Terms of Service")
+
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            openURL(privacyURL)
+                        } label: {
+                            Text("Privacy Policy")
+                                .font(.caption2.weight(.semibold))
+                                .underline()
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open Privacy Policy")
+
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            Task {
+                                await subscriptionManager.restorePurchases()
+                                if subscriptionManager.isSubscribed {
+                                    OnboardingState.set(.completed)
+                                }
+                            }
+                        } label: {
+                            Text("Restore Purchases")
+                                .font(.caption2.weight(.semibold))
+                                .underline()
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Restore Purchases")
+                    }
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 16)
                 }
                 .padding(.horizontal, 24)
             }
