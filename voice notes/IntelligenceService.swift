@@ -223,7 +223,8 @@ final class IntelligenceService {
     /// Delete the stale, non-completed extracted items for a note so re-extraction
     /// can replace them. Completed `ExtractedAction`/`ExtractedCommitment` and
     /// non-default-status `ExtractedDecision` are preserved (kept in the store)
-    /// and their normalized text returned for dedup. Must be called on MainActor.
+    /// and their normalized text returned for dedup.
+    @MainActor
     private func clearReprocessableItems(for noteId: UUID, context: ModelContext) -> PreservedItems {
         var preserved = PreservedItems()
 
@@ -323,6 +324,9 @@ final class IntelligenceService {
             }
             if let enhanced = result.enhancedNote, !enhanced.isEmpty {
                 note.enhancedNoteText = enhanced
+                // Enhanced text is AI-generated again — the hand-edit is superseded.
+                note.enhancedNoteEdited = false
+                note.enhancedNoteEditedAt = nil
             }
 
             // 3. Re-create extracted items, skipping duplicates of preserved ones.
@@ -353,9 +357,7 @@ final class IntelligenceService {
                 ))
             }
 
-            // 4. The enhanced text is AI-generated again — clear the hand-edited flag.
-            note.enhancedNoteEdited = false
-            note.enhancedNoteEditedAt = nil
+            // 4. Bump the timestamp.
             note.updatedAt = Date()
             try? context.save()
         }
