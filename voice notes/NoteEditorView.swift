@@ -552,7 +552,12 @@ struct NoteEditorView: View {
                     if let tone = result.emotionalTone {
                         note.emotionalTone = tone
                     }
-                    if let enhanced = result.enhancedNote, !enhanced.isEmpty {
+                    // Don't clobber a hand-corrected enhanced note. If the user
+                    // edited it in NoteDetailView (enhancedNoteEdited == true),
+                    // keep their text — "Extract" still refreshes every other
+                    // extraction field above.
+                    if let enhanced = result.enhancedNote, !enhanced.isEmpty,
+                       !note.enhancedNoteEdited {
                         note.enhancedNoteText = enhanced
                     }
 
