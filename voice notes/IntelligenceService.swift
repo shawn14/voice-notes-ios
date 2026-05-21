@@ -209,6 +209,167 @@ final class IntelligenceService {
         await KnowledgeCompiler.shared.recompileDirtyArticles(context: context)
     }
 
+    // MARK: - Re-run (re-process from corrected text)
+
+    /// Result of clearing stale extracted items: the normalized text of the
+    /// completed/user-modified items that were PRESERVED, so re-extraction can
+    /// skip re-creating them as fresh open items.
+    private struct PreservedItems {
+        var actionTexts: Set<String> = []
+        var commitmentTexts: Set<String> = []
+        var decisionTexts: Set<String> = []
+    }
+
+    /// Delete the stale, non-completed extracted items for a note so re-extraction
+    /// can replace them. Completed `ExtractedAction`/`ExtractedCommitment` and
+    /// non-default-status `ExtractedDecision` are preserved (kept in the store)
+    /// and their normalized text returned for dedup. Must be called on MainActor.
+    private func clearReprocessableItems(for noteId: UUID, context: ModelContext) -> PreservedItems {
+        var preserved = PreservedItems()
+
+        let actionDescriptor = FetchDescriptor<ExtractedAction>(
+            predicate: #Predicate<ExtractedAction> { $0.sourceNoteId == noteId }
+        )
+        for action in (try? context.fetch(actionDescriptor)) ?? [] {
+            if action.isCompleted {
+                preserved.actionTexts.insert(Self.normalizeItemText(action.content))
+            } else {
+                context.delete(action)
+            }
+        }
+
+        let commitmentDescriptor = FetchDescriptor<ExtractedCommitment>(
+            predicate: #Predicate<ExtractedCommitment> { $0.sourceNoteId == noteId }
+        )
+        for commitment in (try? context.fetch(commitmentDescriptor)) ?? [] {
+            if commitment.isCompleted {
+                preserved.commitmentTexts.insert(Self.normalizeItemText(commitment.what))
+            } else {
+                context.delete(commitment)
+            }
+        }
+
+        let decisionDescriptor = FetchDescriptor<ExtractedDecision>(
+            predicate: #Predicate<ExtractedDecision> { $0.sourceNoteId == noteId }
+        )
+        for decision in (try? context.fetch(decisionDescriptor)) ?? [] {
+            // "Active" is the default status; any other value means the user
+            // changed it (Superseded/Reversed/Pending) — preserve those.
+            if decision.status == "Active" {
+                context.delete(decision)
+            } else {
+                preserved.decisionTexts.insert(Self.normalizeItemText(decision.content))
+            }
+        }
+
+        return preserved
+    }
+
+    /// Normalize extracted-item text for duplicate detection across a re-run.
+    private static func normalizeItemText(_ text: String) -> String {
+        text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Re-run the AI pipeline on an existing note using `sourceText` (the user's
+    /// corrected enhanced text) as input. Full redo: regenerates the enhanced
+    /// prose, refreshes intent/subject/topics/tone/people, replaces the
+    /// non-completed extracted decisions/actions/commitments, and re-embeds.
+    ///
+    /// Does NOT touch KanbanItems, UnresolvedItems, or the note's projectId, and
+    /// does not increment counters — this is a re-run, not a new note.
+    ///
+    /// Returns true on success, false if the API key is missing, the source
+    /// text is empty, or extraction failed.
+    @discardableResult
+    func reprocessNote(note: Note, sourceText: String, context: ModelContext) async -> Bool {
+        let trimmedSource = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSource.isEmpty,
+              let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
+            return false
+        }
+
+        let result: IntentAnalysis
+        do {
+            result = try await SummaryService.extractIntent(text: trimmedSource, apiKey: apiKey)
+        } catch {
+            print("[IntelligenceService] reprocessNote extraction failed: \(error)")
+            return false
+        }
+
+        await MainActor.run {
+            // 1. Clear stale extracted items, keeping completed/user-modified ones.
+            let preserved = clearReprocessableItems(for: note.id, context: context)
+
+            // 2. Apply scalar extraction fields.
+            note.intentType = result.intent
+            note.intentConfidence = result.intentConfidence
+            if let subject = result.subject {
+                note.extractedSubject = ExtractedSubject(topic: subject.topic, action: subject.action)
+            }
+            note.suggestedNextStep = result.nextStep
+            note.nextStepTypeRaw = result.nextStepType
+            note.missingInfo = result.missingInfo.map {
+                MissingInfoItem(field: $0.field, description: $0.description)
+            }
+            note.inferredProjectName = result.inferredProject
+            if !result.mentionedPeople.isEmpty {
+                note.mentionedPeople = result.mentionedPeople
+            }
+            if !result.topics.isEmpty {
+                note.topics = result.topics
+            }
+            if let tone = result.emotionalTone {
+                note.emotionalTone = tone
+            }
+            if let enhanced = result.enhancedNote, !enhanced.isEmpty {
+                note.enhancedNoteText = enhanced
+            }
+
+            // 3. Re-create extracted items, skipping duplicates of preserved ones.
+            for decision in result.decisions {
+                guard !preserved.decisionTexts.contains(Self.normalizeItemText(decision.content)) else { continue }
+                context.insert(ExtractedDecision(
+                    content: decision.content,
+                    affects: decision.affects,
+                    confidence: decision.confidence,
+                    sourceNoteId: note.id
+                ))
+            }
+            for action in result.actions {
+                guard !preserved.actionTexts.contains(Self.normalizeItemText(action.content)) else { continue }
+                context.insert(ExtractedAction(
+                    content: action.content,
+                    owner: action.owner,
+                    deadline: action.deadline,
+                    sourceNoteId: note.id
+                ))
+            }
+            for commitment in result.commitments {
+                guard !preserved.commitmentTexts.contains(Self.normalizeItemText(commitment.what)) else { continue }
+                context.insert(ExtractedCommitment(
+                    who: commitment.who,
+                    what: commitment.what,
+                    sourceNoteId: note.id
+                ))
+            }
+
+            // 4. The enhanced text is AI-generated again — clear the hand-edited flag.
+            note.enhancedNoteEdited = false
+            note.enhancedNoteEditedAt = nil
+            note.updatedAt = Date()
+            try? context.save()
+        }
+
+        // 5. Refresh MentionedPerson records from the new people list.
+        await processMentionedPeople(for: note, context: context)
+
+        // 6. Re-embed from the corrected source text so search reflects it.
+        await EmbeddingService.shared.generateAndStoreEmbedding(for: note, text: trimmedSource)
+        await MainActor.run { try? context.save() }
+
+        return true
+    }
+
     // MARK: - Persona Extraction (additive to baseline)
 
     /// Run Karpathy persona extraction if the user's .purpose article has a compiled schema.
