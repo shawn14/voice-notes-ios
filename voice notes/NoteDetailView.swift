@@ -1107,7 +1107,10 @@ struct NoteDetailView: View {
             return
         }
 
-        let sourceText = note.transcript ?? note.content
+        // Prefer the (possibly hand-corrected) enhanced text so templates use
+        // the correction. Falls back to transcript/content for notes without
+        // enhanced text.
+        let sourceText = note.enhancedNoteText ?? note.transcript ?? note.content
         guard !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             rewriteError = "No content to rewrite"
             return
