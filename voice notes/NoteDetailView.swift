@@ -118,6 +118,12 @@ struct NoteDetailView: View {
     @State private var isRewriting = false
     @State private var rewriteError: String?
 
+    // Enhanced-text inline edit + re-run state
+    @State private var isEditingEnhanced = false
+    @State private var enhancedDraft = ""
+    @State private var isReprocessing = false
+    @State private var reprocessError: String?
+
     // Tag assignment sheet state
     @State private var showingTagSheet = false
 
@@ -676,14 +682,96 @@ struct NoteDetailView: View {
             }
         }()
 
-        if !displayText.isEmpty {
-            Text(displayText)
-                .font(.body.leading(.loose))
-                .foregroundStyle(.eeonTextPrimary)
-                .lineSpacing(6)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 12) {
+            if isEditingEnhanced {
+                TextEditor(text: $enhancedDraft)
+                    .font(.body.leading(.loose))
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineSpacing(6)
+                    .frame(minHeight: 160)
+                    .padding(8)
+                    .background(Color.eeonCard)
+                    .cornerRadius(12)
+
+                HStack(spacing: 12) {
+                    Button("Cancel") {
+                        isEditingEnhanced = false
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.eeonTextSecondary)
+
+                    Spacer()
+
+                    Button("Save") {
+                        saveEnhancedEdit()
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.eeonAccentAI))
+                }
+            } else {
+                if !displayText.isEmpty {
+                    Text(displayText)
+                        .font(.body.leading(.loose))
+                        .foregroundStyle(.eeonTextPrimary)
+                        .lineSpacing(6)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                // Edit + re-run controls — only on the Enhanced view, not Original.
+                if !showingOriginal {
+                    enhancedEditControls
+                }
+            }
         }
+    }
+
+    /// Always-visible Edit + Re-run controls shown beneath the enhanced text.
+    @ViewBuilder
+    private var enhancedEditControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 16) {
+                Button {
+                    enhancedDraft = note.enhancedNoteText ?? note.transcript ?? note.content
+                    isEditingEnhanced = true
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.eeonAccentAI)
+                }
+                .disabled(isReprocessing)
+
+                Button {
+                    runEnhancementRerun()
+                } label: {
+                    Label("Re-run enhancement", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.eeonAccentAI)
+                }
+                .disabled(isReprocessing)
+
+                if isReprocessing {
+                    ProgressView().scaleEffect(0.7)
+                }
+
+                Spacer()
+            }
+
+            if note.enhancedNoteEdited {
+                Text("Edited")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+
+            if let reprocessError {
+                Text(reprocessError)
+                    .font(.caption2)
+                    .foregroundStyle(.red.opacity(0.8))
+            }
+        }
+        .padding(.top, 4)
     }
 
     // MARK: - Transform Output Section
@@ -1046,6 +1134,50 @@ struct NoteDetailView: View {
     }
 
     // MARK: - Actions
+
+    /// Persist an inline edit of the enhanced text. No API calls — the user's
+    /// text is kept verbatim and the note is marked as hand-edited.
+    private func saveEnhancedEdit() {
+        let trimmed = enhancedDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            isEditingEnhanced = false
+            return
+        }
+        note.enhancedNoteText = trimmed
+        note.enhancedNoteEdited = true
+        note.enhancedNoteEditedAt = Date()
+        note.updatedAt = Date()
+        try? modelContext.save()
+        isEditingEnhanced = false
+        reprocessError = nil
+    }
+
+    /// Re-run the full AI pipeline from the current enhanced text. Used by the
+    /// always-visible "Re-run enhancement" control. The enhanced text (which may
+    /// have been hand-corrected) is the source — never the stale transcript.
+    private func runEnhancementRerun() {
+        let source = note.enhancedNoteText ?? note.transcript ?? note.content
+        guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            reprocessError = "Nothing to re-run."
+            return
+        }
+        reprocessError = nil
+        isReprocessing = true
+
+        Task {
+            let ok = await IntelligenceService.shared.reprocessNote(
+                note: note,
+                sourceText: source,
+                context: modelContext
+            )
+            await MainActor.run {
+                isReprocessing = false
+                if !ok {
+                    reprocessError = "Couldn't re-run. Check your connection and try again."
+                }
+            }
+        }
+    }
 
     private func togglePlayback() {
         guard let url = note.audioURL else { return }
