@@ -1323,7 +1323,10 @@ struct NoteDetailView: View {
         let body: [String: Any] = [
             "model": "gpt-4o-mini",
             "messages": [
-                ["role": "system", "content": prompt],
+                // Route through ContextAssembler so the quick transforms honor the
+                // user's tuned voice/tone, purpose, and focus — same .rewrite context
+                // the rewrite templates use. Without this they ignored Tune EEON.
+                ["role": "system", "content": ContextAssembler.flatPrefix(for: .rewrite) + prompt],
                 ["role": "user", "content": content]
             ],
             "max_tokens": 1000

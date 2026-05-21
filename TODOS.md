@@ -64,3 +64,37 @@ helper.
 
 **Depends on / blocked by:** TODO #1 — do this only once the test target
 exists, so the refactor of untested load-bearing code has a safety net.
+
+---
+
+## 3. Audit all OpenAI call sites for ContextAssembler consistency
+
+**What:** Do a systematic pass over every place the app calls the OpenAI
+API and confirm each one routes the user's tuned context through
+`ContextAssembler.flatPrefix(for:)` with the correct `AICallContext`.
+
+**Why:** Investigating "Tune EEON doesn't tune things" (2026-05-21) turned
+up `NoteDetailView.generateWithOpenAI` — a hand-rolled `URLSession` call to
+`/v1/chat/completions` that used a static system prompt and bypassed
+`ContextAssembler` entirely, so the quick transforms (Summary, Tweet, PRD,
+CEO Report, etc.) ignored the user's tuning. That one is now fixed (routed
+through `.rewrite` context). But a hand-rolled call site that drifted from
+the assembler suggests others may exist — any AI call that bypasses
+`ContextAssembler` silently ignores Tune EEON.
+
+**Pros:** Guarantees tuning actually reaches every AI surface; removes a
+whole class of "tuning has no effect here" bugs.
+
+**Cons:** Requires judgment per call site — the right `AICallContext` varies
+(`.rewrite`, `.extraction`, `.rag`, `.title`, etc.), and some trivial
+classifier calls intentionally inject nothing.
+
+**Context:** `ContextAssembler.flatPrefix(for: AICallContext)` is the single
+entry point; `AICallContext` (in `ContextAssembler.swift`) defines per-context
+toggles for purpose/profile/voice/focus/index. Reference implementation:
+`RewriteService.rewrite` prepends `flatPrefix(for: .rewrite)` to its system
+prompt. Grep for `chat/completions`, `URLSession`, and direct model strings
+(`gpt-4o-mini`) to enumerate call sites; `SummaryService` centralizes most
+but `NoteDetailView` had its own — check the other views too.
+
+**Depends on / blocked by:** Nothing.
