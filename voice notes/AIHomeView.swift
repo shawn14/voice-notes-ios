@@ -104,6 +104,9 @@ struct AIHomeView: View {
     @State private var showingDecisionLog = false
     @State private var selectedIntents: Set<NoteIntent> = []
 
+    // Keyword search — global substring search across all notes
+    @State private var searchQuery = ""
+
     // Today's daily brief
     private var todaysBrief: DailyBrief? {
         let today = Calendar.current.startOfDay(for: Date())
@@ -158,6 +161,26 @@ struct AIHomeView: View {
         } else {
             return base.reversed()
         }
+    }
+
+    /// The query with surrounding whitespace removed. Empty when search is inactive.
+    private var activeSearchQuery: String {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// True while the user has a non-empty search query entered.
+    private var isSearching: Bool {
+        !activeSearchQuery.isEmpty
+    }
+
+    /// Global keyword search results across every note (including archived),
+    /// excluding only the Tune EEON seed notes — which are configuration, not
+    /// memory, and must never appear in the feed or search (see `filteredNotes`).
+    private var searchResults: [Note] {
+        let visible = notes.filter {
+            $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed
+        }
+        return NoteKeywordSearch.match(query: activeSearchQuery, in: visible)
     }
 
     /// Group notes by month for section headers
@@ -821,9 +844,113 @@ struct AIHomeView: View {
         )
     }
 
+    // MARK: - Feed (search router)
+
+    /// Feed entry point: the search field, then either search results or the
+    /// normal tabbed browse feed depending on whether a query is active.
+    private var noteFeed: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            searchField
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+
+            if isSearching {
+                searchResultsSection
+            } else {
+                browseFeed
+            }
+        }
+    }
+
+    /// Global keyword search input. Manual TextField (not `.searchable()`) so it
+    /// fits AIHomeView's custom in-feed layout.
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14))
+                .foregroundStyle(.eeonTextSecondary)
+
+            TextField("Search notes", text: $searchQuery)
+                .font(.subheadline)
+                .foregroundStyle(.eeonTextPrimary)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+
+            if !searchQuery.isEmpty {
+                Button {
+                    searchQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.eeonCard)
+        .cornerRadius(10)
+    }
+
+    /// Flat grid of keyword-search results, or an empty state. Replaces the
+    /// tabbed browse feed while a query is active.
+    @ViewBuilder
+    private var searchResultsSection: some View {
+        if searchResults.isEmpty {
+            VStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.eeonTextTertiary)
+                Text("No notes match \u{201C}\(activeSearchQuery)\u{201D}")
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(searchResults.count == 1 ? "1 result" : "\(searchResults.count) results")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.eeonTextSecondary)
+                    .textCase(.uppercase)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+
+                let columns = [
+                    GridItem(.flexible(), spacing: 10),
+                    GridItem(.flexible(), spacing: 10)
+                ]
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(searchResults) { note in
+                        NavigationLink(destination: NoteDetailView(note: note)) {
+                            NoteFeedCard(note: note)
+                                .overlay(alignment: .topTrailing) {
+                                    if note.isArchived {
+                                        Text("Archived")
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Capsule().fill(Color.eeonTextTertiary))
+                                            .padding(6)
+                                    }
+                                }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 16)
+            }
+        }
+    }
+
     // MARK: - 4. Note Feed (Tabbed, Grouped by Month)
 
-    private var noteFeed: some View {
+    private var browseFeed: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Tab bar + sort button
             HStack(spacing: 0) {
