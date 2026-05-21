@@ -117,11 +117,14 @@ NoteDetailView "Re-run enhancement"
        regenerates enhancedNoteText + people + topics + tone + intent
   → re-extraction: replace prior auto-extracted items (see below)
   → EmbeddingService re-embeds from corrected text
-  → note saved; on success enhancedNoteEdited is reset to false and
-    enhancedNoteEditedAt is cleared — the enhanced text is now
-    AI-generated again from the corrected input, so the background-tier
-    guard no longer needs to protect it. (If the re-run fails, the flag
-    stays true and the user's hand-edited text remains protected.)
+  → note saved. enhancedNoteEdited / enhancedNoteEditedAt are cleared
+    ONLY when the AI actually returned new enhanced prose (i.e.
+    enhancedNoteText was just replaced) — at that point the text is
+    AI-generated again and no longer needs the hand-edit guard. If the
+    re-run fails, or succeeds but returns no enhanced text, the flag
+    stays true because enhancedNoteText is still the user's hand-edit
+    and must remain protected. The flag tracks "is the current
+    enhancedNoteText a hand-edit?", not "did a re-run happen?".
 ```
 
 **Apply a template:**
