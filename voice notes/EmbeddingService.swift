@@ -94,4 +94,22 @@ class EmbeddingService {
             print("[EmbeddingService] Failed to generate embedding: \(error.localizedDescription)")
         }
     }
+
+    /// Generate an embedding from explicit text and store it on the note.
+    /// Used by re-run, where the embedding must reflect the corrected enhanced
+    /// text rather than the original transcript. Fails silently.
+    func generateAndStoreEmbedding(for note: Note, text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        do {
+            let embedding = try await generateEmbedding(for: trimmed)
+            let data = embedding.withUnsafeBufferPointer { Data(buffer: $0) }
+            await MainActor.run {
+                note.embeddingData = data
+            }
+        } catch {
+            print("[EmbeddingService] Failed to generate embedding (re-run): \(error.localizedDescription)")
+        }
+    }
 }
