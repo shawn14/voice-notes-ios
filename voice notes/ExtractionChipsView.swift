@@ -72,7 +72,11 @@ struct FlowLayout: Layout {
         var maxWidth: CGFloat = 0
 
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            // Measure with the row width as a cap. `.unspecified` let a long chip
+            // (e.g. a multi-word persona-extraction phrase) measure infinitely wide,
+            // which never wrapped — FlowLayout then reported a width wider than its
+            // container and blew out the whole enclosing column.
+            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
             sizes.append(size)
 
             if x + size.width > width && x > 0 {
