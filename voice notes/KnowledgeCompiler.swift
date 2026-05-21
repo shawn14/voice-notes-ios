@@ -216,15 +216,21 @@ final class KnowledgeCompiler {
 
         for article in dirtyArticles {
             do {
-                // Get new notes since last compile
+                // Get the notes to compile from. Seed-backed articles (.self, .purpose)
+                // are singletons whose linked seed note is updated IN PLACE on every
+                // re-tune — its createdAt never advances past lastCompiledNoteDate, so
+                // the incremental "new notes since last compile" filter below would
+                // skip every re-tune and leave the article showing stale first-tune
+                // output. Always recompile seed-backed articles from the full seed.
                 let linkedIds = article.linkedNoteIds
+                let isSeedBacked = article.articleType == .self || article.articleType == .purpose
                 let newNotes: [Note]
-                if let lastCompiled = article.lastCompiledNoteDate {
+                if let lastCompiled = article.lastCompiledNoteDate, !isSeedBacked {
                     newNotes = linkedIds.compactMap { noteLookup[$0] }
                         .filter { $0.createdAt > lastCompiled }
                         .sorted { $0.createdAt < $1.createdAt }
                 } else {
-                    // First compile — include all linked notes
+                    // First compile, or a seed-backed article — include all linked notes.
                     newNotes = linkedIds.compactMap { noteLookup[$0] }
                         .sorted { $0.createdAt < $1.createdAt }
                 }
