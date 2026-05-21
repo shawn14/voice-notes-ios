@@ -927,19 +927,31 @@ struct AIHomeView: View {
                     ForEach(searchResults) { note in
                         NavigationLink(destination: NoteDetailView(note: note)) {
                             NoteFeedCard(note: note)
-                                .overlay(alignment: .topTrailing) {
-                                    if note.isArchived {
-                                        Text("Archived")
-                                            .font(.system(size: 9, weight: .semibold))
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Capsule().fill(Color.eeonTextTertiary))
-                                            .padding(6)
-                                    }
-                                }
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                note.isFavorite.toggle()
+                                try? modelContext.save()
+                            } label: {
+                                Label(
+                                    note.isFavorite ? "Unfavorite" : "Favorite",
+                                    systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
+                                )
+                            }
+
+                            Button {
+                                withAnimation {
+                                    note.isArchived.toggle()
+                                    try? modelContext.save()
+                                }
+                            } label: {
+                                Label(
+                                    note.isArchived ? "Unarchive" : "Archive",
+                                    systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
+                                )
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -2122,6 +2134,12 @@ struct NoteFeedCard: View {
                 }
 
                 Spacer()
+
+                if note.isArchived {
+                    Image(systemName: "archivebox.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.eeonTextTertiary)
+                }
 
                 if note.isFavorite {
                     Image(systemName: "heart.fill")
