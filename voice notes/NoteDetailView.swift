@@ -649,6 +649,7 @@ struct NoteDetailView: View {
 
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
+                    isEditingEnhanced = false
                     showingOriginal = true
                 }
             } label: {
@@ -720,8 +721,9 @@ struct NoteDetailView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                // Edit + re-run controls — only on the Enhanced view, not Original.
-                if !showingOriginal {
+                // Edit + re-run controls — only on the Enhanced view of a note
+                // that actually has enhanced text to edit / re-run.
+                if !showingOriginal, let enhanced = note.enhancedNoteText, !enhanced.isEmpty {
                     enhancedEditControls
                 }
             }
@@ -735,6 +737,7 @@ struct NoteDetailView: View {
             HStack(spacing: 16) {
                 Button {
                     enhancedDraft = note.enhancedNoteText ?? note.transcript ?? note.content
+                    reprocessError = nil
                     isEditingEnhanced = true
                 } label: {
                     Label("Edit", systemImage: "pencil")
