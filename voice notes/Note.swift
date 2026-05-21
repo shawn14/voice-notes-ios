@@ -186,6 +186,15 @@ final class Note {
     // AI-enhanced version of the note (cleaned up, expanded, well-structured)
     var enhancedNoteText: String?
 
+    // True when the user has hand-edited enhancedNoteText. Guards the enhanced
+    // text from being treated as purely AI-generated, and drives the "edited"
+    // UI affordance. Reset to false after a successful AI re-run.
+    var enhancedNoteEdited: Bool = false
+
+    // Timestamp of the last hand-edit to enhancedNoteText. nil when never edited
+    // or after a successful re-run.
+    var enhancedNoteEditedAt: Date?
+
     // Persona extraction items (Karpathy persona schema). JSON array of {category, content, metadata?}.
     // Populated only when the user's .purpose article has a noteExtractionSchemaJSON.
     // Always additive to the baseline Extracted* models — never replaces them.
