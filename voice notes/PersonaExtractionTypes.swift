@@ -2,7 +2,7 @@
 //  PersonaExtractionTypes.swift
 //  voice notes
 //
-//  Karpathy-pattern persona-driven extraction. The .purpose KnowledgeArticle
+//  Persona-driven extraction (compiled-schema pattern). The .purpose KnowledgeArticle
 //  compiles a PersonaExtractionSchema (parallel to homeLayoutJSON); each note
 //  saved by a tuned user accrues PersonaExtractionItems alongside the permanent
 //  baseline extraction (decisions/actions/commitments/etc., never replaced).
@@ -26,7 +26,7 @@ struct PersonaExtractionItem: Codable, Identifiable, Equatable {
     let metadata: [String: String]?
 }
 
-/// The Karpathy-LLM-compiled extraction schema for a tuned user.
+/// The KnowledgeCompiler-compiled extraction schema for a tuned user.
 /// Persisted as JSON on `KnowledgeArticle.noteExtractionSchemaJSON` (only on `.purpose`).
 struct PersonaExtractionSchema: Codable, Equatable {
     struct Category: Codable, Identifiable, Equatable {

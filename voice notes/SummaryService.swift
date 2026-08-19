@@ -89,7 +89,7 @@ struct CompileArticleResponse: Codable {
     // Only emitted by .purpose article compiles — a structured HomeLayout JSON string
     // (stringified because nested heterogeneous structures are harder for the LLM to emit reliably)
     let homeLayoutJSON: String?
-    // Only emitted by .purpose article compiles — Karpathy persona extraction schema as a JSON string.
+    // Only emitted by .purpose article compiles — persona extraction schema as a JSON string.
     // Drives SummaryService.extractPersonaItems for tuned users; permanent baseline still always runs.
     let noteExtractionSchemaJSON: String?
     // Only emitted by .purpose article compiles — free-text 1-3 sentence voice & tone directive.
@@ -613,7 +613,7 @@ enum SummaryService {
         )
     }
 
-    // MARK: - Persona Extraction (Karpathy schema-driven, additive to baseline)
+    // MARK: - Persona Extraction (schema-driven, additive to baseline)
 
     /// Run a second extraction pass through the user's persona schema.
     /// Always additive — baseline extraction (decisions/actions/commitments/etc.) ran first
@@ -995,7 +995,7 @@ enum SummaryService {
         return try JSONDecoder().decode(CompileArticleResponse.self, from: jsonData)
     }
 
-    // MARK: - Index Article Compilation (Karpathy index.md equivalent)
+    // MARK: - Index Article Compilation (wiki index article)
 
     /// Compile the singleton .index article — a synthesized prose overview of the user's whole wiki.
     /// Input is article summaries (not raw notes) so the LLM produces a meta-view: counts, hot areas,

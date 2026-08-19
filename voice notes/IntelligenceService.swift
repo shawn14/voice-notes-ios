@@ -186,7 +186,7 @@ final class IntelligenceService {
             print("Intent extraction failed: \(error)")
         }
 
-        // Persona extraction (Karpathy schema-driven). Always additive to baseline above —
+        // Persona extraction (persona schema-driven). Always additive to baseline above —
         // gated on the user having a compiled .purpose schema. Non-fatal on any failure.
         await runPersonaExtraction(for: note, transcript: transcript, apiKey: apiKey, context: context)
 
@@ -374,7 +374,7 @@ final class IntelligenceService {
 
     // MARK: - Persona Extraction (additive to baseline)
 
-    /// Run Karpathy persona extraction if the user's .purpose article has a compiled schema.
+    /// Run persona extraction if the user's .purpose article has a compiled schema.
     /// Always non-fatal — baseline extraction has already succeeded by the time this runs,
     /// and persona output is purely supplemental.
     private func runPersonaExtraction(

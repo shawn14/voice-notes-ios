@@ -111,7 +111,7 @@ server, so any assistant can query "what did I say about X" against EEON.
 ships ChatGPT/Claude/MCP integration under "every conversation becomes AI
 context," and it's the one integration in their spread that matches how Shawn
 actually works (Claude Code all day). EEON's compiled knowledge is *better*
-context than Pocket's raw transcripts — the Karpathy LLM articles are
+context than Pocket's raw transcripts — the compiled knowledge articles are
 pre-synthesized. Flagged as the natural v2 integration; one of the four gaps
 not covered by the 2026-08-19 day plan.
 

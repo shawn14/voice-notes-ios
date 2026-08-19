@@ -195,7 +195,7 @@ final class Note {
     // or after a successful re-run.
     var enhancedNoteEditedAt: Date?
 
-    // Persona extraction items (Karpathy persona schema). JSON array of {category, content, metadata?}.
+    // Persona extraction items (persona extraction schema). JSON array of {category, content, metadata?}.
     // Populated only when the user's .purpose article has a noteExtractionSchemaJSON.
     // Always additive to the baseline Extracted* models — never replaces them.
     var personaExtractionsJSON: String?
@@ -402,7 +402,7 @@ final class Note {
 
     // MARK: - Persona Extractions
 
-    /// Karpathy persona-driven extraction items. Always additive to baseline ExtractedDecision/Action/etc.
+    /// Persona-driven extraction items. Always additive to baseline ExtractedDecision/Action/etc.
     var personaExtractions: [PersonaExtractionItem] {
         get {
             guard let json = personaExtractionsJSON,

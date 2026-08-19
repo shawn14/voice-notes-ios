@@ -2,7 +2,7 @@
 //  HomeLayout.swift
 //  voice notes
 //
-//  The home screen layout is compiled by the Karpathy LLM (KnowledgeCompiler)
+//  The home screen layout is compiled by KnowledgeCompiler
 //  as part of the `.purpose` KnowledgeArticle. It's a structured list of
 //  section IDs + optional params chosen from a fixed catalog — picked to
 //  match the user's declared role (founder / coach / dream interpreter / etc).

@@ -3,6 +3,7 @@
 //  voice notes
 //
 //  Compiles cross-note intelligence into KnowledgeArticles.
+//  Design inspired by Andrej Karpathy's compiled personal-wiki pattern.
 //  Tier 1: mark dirty (local). Tier 2.5: recompile (API). Tier 3: lint/heal (API).
 //
 
@@ -341,7 +342,7 @@ final class KnowledgeCompiler {
         }
     }
 
-    // MARK: - Index Article (Karpathy index.md equivalent)
+    // MARK: - Index Article (compiled wiki overview)
 
     /// Recompile the singleton .index article when enough downstream articles have changed.
     /// Force=true bypasses both the change threshold and the 1h cooldown — used by Tier 3.

@@ -2,7 +2,7 @@
 //  PersonaChipsView.swift
 //  voice notes
 //
-//  Karpathy persona-driven extraction chips. Renders Note.personaExtractions
+//  Persona-driven extraction chips. Renders Note.personaExtractions
 //  grouped by category, with category icon/label pulled from the .purpose article's
 //  compiled schema. Tolerates unknown category keys so schema regenerations
 //  don't orphan old data — stale-key items render with a generic tag icon.

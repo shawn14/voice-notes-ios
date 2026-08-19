@@ -220,11 +220,11 @@ struct NoteDetailView: View {
                             .padding(.bottom, 20)
                         }
 
-                        // 4b. Persona chips — Karpathy schema-driven extraction (additive to baseline)
+                        // 4b. Persona chips — persona schema-driven extraction (additive to baseline)
                         PersonaChipsView(note: note)
                             .padding(.bottom, 20)
 
-                        // 4c. Wiki connections — which articles this note touched (Karpathy index)
+                        // 4c. Wiki connections — which articles this note touched (wiki index)
                         NoteWikiConnectionsView(noteId: note.id)
                             .padding(.bottom, 20)
 

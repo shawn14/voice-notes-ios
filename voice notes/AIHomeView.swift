@@ -1391,7 +1391,7 @@ struct AIHomeView: View {
 
     // MARK: - Layout-Driven Sections
 
-    /// Active home layout — compiled by the Karpathy LLM on the .purpose article,
+    /// Active home layout — compiled by KnowledgeCompiler on the .purpose article,
     /// or the default layout if no purpose article has been compiled yet.
     private var activeLayout: HomeLayout {
         purposeArticles.first?.homeLayout ?? .default

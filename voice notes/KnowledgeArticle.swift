@@ -18,7 +18,7 @@ enum KnowledgeArticleType: String, CaseIterable, Codable {
     case `self` = "self"          // The user's own profile — compiled from .profileSeed + "I" notes
     case purpose = "purpose"      // What EEON is FOR this user — compiled from .purposeSeed + usage
     case reference = "reference"  // Uploaded canon (Bible, books, domain expertise)
-    case index = "index"          // Singleton — LLM-compiled overview of the wiki itself (Karpathy index.md)
+    case index = "index"          // Singleton — LLM-compiled overview of the wiki itself (wiki index article)
 
     var icon: String {
         switch self {

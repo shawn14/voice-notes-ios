@@ -2,7 +2,7 @@
 //  NoteWikiConnectionsView.swift
 //  voice notes
 //
-//  Karpathy-pattern note-level connections — render the wiki pages this note touched.
+//  Note-level wiki connections — render the wiki pages this note touched.
 //  Reverse-lookup on KnowledgeArticle.linkedNoteIds. Hides chrome when empty.
 //
 
