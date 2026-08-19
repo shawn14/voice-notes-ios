@@ -1111,6 +1111,15 @@ struct TypeNoteSheet: View {
                     .padding()
                     .scrollContentBackground(.hidden)
                     .background(Color(.systemBackground))
+                    .overlay(alignment: .topLeading) {
+                        if noteText.isEmpty {
+                            Text("What's on your mind?")
+                                .foregroundStyle(Color("EEONTextSecondary").opacity(0.6))
+                                .padding(.top, 24)
+                                .padding(.leading, 21)
+                                .allowsHitTesting(false)
+                        }
+                    }
             }
             .navigationTitle("New Note")
             .navigationBarTitleDisplayMode(.inline)
@@ -1135,6 +1144,11 @@ struct TypeNoteSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        // A half-typed note must never die to an accidental swipe-down.
+        // Cancel remains the deliberate discard.
+        .interactiveDismissDisabled(
+            !noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        )
     }
 }
 
