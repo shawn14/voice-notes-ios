@@ -1836,9 +1836,21 @@ struct AIHomeView: View {
         UsageService.shared.incrementNoteCount()
         try? modelContext.save()
 
+        // Same post-capture moment as voice notes: land on the note and
+        // refresh the widget. Typed notes are first-class captures.
+        navigateToNote = note
+        SharedDefaults.updateLastNote(
+            preview: String(content.prefix(100)),
+            date: note.createdAt,
+            intent: note.intentType
+        )
+        SharedDefaults.updateTotalNotes(notes.count + 1)
+        WidgetKit.WidgetCenter.shared.reloadAllTimelines()
+
         if let apiKey = APIKeys.openAI, !apiKey.isEmpty {
             let existingTags = tags
             let allProjects = projects
+            let context = modelContext
 
             Task {
                 do {
@@ -1864,6 +1876,21 @@ struct AIHomeView: View {
                         if let match = ProjectMatcher.findMatch(for: content, in: allProjects) {
                             note.projectId = match.project.id
                         }
+                    }
+
+                    // Full intelligence pipeline — extraction, enhanced text,
+                    // knowledge events — same as voice captures.
+                    await intelligenceService.processNoteSave(
+                        note: note,
+                        transcript: content,
+                        projects: allProjects,
+                        tags: existingTags,
+                        context: context
+                    )
+
+                    // Embed so Ask EEON / RAG can find typed notes.
+                    Task {
+                        await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
                     }
                 } catch {
                     print("Error processing typed note: \(error)")
