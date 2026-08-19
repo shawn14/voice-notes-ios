@@ -188,6 +188,8 @@ struct voice_notesApp: App {
             }
         }
         #endif
+
+        recoverOrphanedRecording(in: container.mainContext)
     }
 
     var body: some Scene {
@@ -255,6 +257,31 @@ struct voice_notesApp: App {
         .backgroundTask(.appRefresh(voice_notesApp.proactiveAlertsTaskId)) {
             await handleProactiveAlertsBackgroundTask()
         }
+    }
+
+    /// If the app died mid-recording (crash, jetsam), the audio written so
+    /// far is on disk and InFlightRecordingMarker survived. Recover it as a
+    /// pending note; the existing pending-transcription drain transcribes
+    /// and processes it on foreground. Never discards audio.
+    private func recoverOrphanedRecording(in context: ModelContext) {
+        guard let fileName = InFlightRecordingMarker.fileName else { return }
+        InFlightRecordingMarker.clear()
+
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(fileName)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+
+        // Skip if a note already references this file (clean stop raced the marker).
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { $0.audioFileName == fileName }
+        )
+        if let existing = try? context.fetch(descriptor), !existing.isEmpty { return }
+
+        let note = Note(title: "", content: "", transcript: nil, audioFileName: fileName)
+        note.transcriptionStatus = "pending"
+        context.insert(note)
+        try? context.save()
+        print("🎙️ Recovered orphaned recording as pending note: \(fileName)")
     }
 
     private func handleIncomingURL(_ url: URL) {
