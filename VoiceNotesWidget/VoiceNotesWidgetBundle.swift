@@ -14,5 +14,6 @@ struct VoiceNotesWidgetBundle: WidgetBundle {
         VoiceNotesSmallWidget()
         VoiceNotesLockScreenWidget()
         RecordingLiveActivity()
+        RecordControl()
     }
 }
