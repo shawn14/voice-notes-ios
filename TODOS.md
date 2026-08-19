@@ -98,3 +98,121 @@ prompt. Grep for `chat/completions`, `URLSession`, and direct model strings
 but `NoteDetailView` had its own — check the other views too.
 
 **Depends on / blocked by:** Nothing.
+
+---
+
+## 4. MCP server over EEON memory ("every conversation becomes AI context")
+
+**What:** Expose the user's EEON memory — notes, compiled `KnowledgeArticle`s,
+extractions — to external AI assistants (Claude, ChatGPT, Cursor) via an MCP
+server, so any assistant can query "what did I say about X" against EEON.
+
+**Why:** From the 2026-08-19 Pocket (heypocket.com) competitive review: Pocket
+ships ChatGPT/Claude/MCP integration under "every conversation becomes AI
+context," and it's the one integration in their spread that matches how Shawn
+actually works (Claude Code all day). EEON's compiled knowledge is *better*
+context than Pocket's raw transcripts — the Karpathy LLM articles are
+pre-synthesized. Flagged as the natural v2 integration; one of the four gaps
+not covered by the 2026-08-19 day plan.
+
+**Pros:** Kills the "my notes are trapped in an app" objection; uniquely
+strong fit for the vibe-coder audience in the pivot direction; compiled
+articles make retrieval quality a differentiator.
+
+**Cons:** Requires a server component or local bridge (EEON is an iOS app —
+notes live in SwiftData/CloudKit on device); auth + privacy design is the
+hard part, not the protocol. Needs its own spec.
+
+**Context:** Data lives on-device (SwiftData) + CloudKit (`iCloud.aivoiceeeon`).
+Options to explore in the spec: CloudKit web services read-only bridge, a
+small sync target (export to a user-owned store), or Mac-side local MCP
+reading an exported archive from `ExportService`.
+
+**Depends on / blocked by:** Nothing technically; needs a spec/plan cycle.
+
+---
+
+## 5. Obsidian / markdown auto-export ("conversations become searchable files")
+
+**What:** Auto-export notes (and optionally compiled `KnowledgeArticle`s) as
+markdown files to a user-chosen folder — an Obsidian vault, iCloud Drive, or
+any Files provider (Google Drive/OneDrive come free via the Files picker).
+
+**Why:** Pocket review 2026-08-19: their "Documents" integration spread
+(OneDrive, Drive, Obsidian) is one of the four gaps EEON doesn't cover.
+`ExportService` today is manual bulk export only. Markdown-to-folder is the
+cheapest of the document integrations — no OAuth, no per-service API; a
+security-scoped bookmark to a folder + write-on-save covers all three logos.
+
+**Pros:** One implementation covers Obsidian + Drive + OneDrive; markdown
+with frontmatter (topics, extractions) makes EEON data portable and
+grep-able; strong retention hook for PKM users.
+
+**Cons:** Sync semantics need care (re-export on edit? filename stability?
+deletions — never delete user files, mirror the never-delete-notes rule);
+background export timing on iOS is best-effort.
+
+**Context:** Start from `ExportService` (bulk export exists). Use
+`UIDocumentPickerViewController` folder selection + security-scoped bookmark
+persisted in UserDefaults; write `{note-date}-{slug}.md` on note save /
+enhancement completion.
+
+**Depends on / blocked by:** Nothing.
+
+---
+
+## 6. Third-party task app sync (Todoist / Linear / ClickUp / Asana / TickTick)
+
+**What:** Push `ExtractedAction`s (and optionally commitments) into
+third-party task managers beyond Apple Reminders, starting with whichever
+one real users actually request first.
+
+**Why:** Pocket review 2026-08-19: their task-management spread is seven
+apps; EEON's 2026-08-19 day plan covers Apple Reminders/Calendar via
+EventKit only. Each third-party app is its own OAuth + REST integration, so
+this was deliberately deferred rather than half-built.
+
+**Pros:** Completes the "one note updates all your apps" story for
+non-Apple-native task users; Todoist alone covers a large share of them.
+
+**Cons:** Per-service OAuth flows, token storage, API drift; ongoing
+maintenance per integration; unclear which service EEON's actual users want
+first — build on demand, not on spec.
+
+**Context:** Prereq design lands in sub-project 2 (EventKit sync,
+2026-08-19): the "extraction → external task" mapping layer built there
+(what syncs, dedup keys, completion write-back or not) should be
+service-agnostic so each new backend is an adapter, not a rethink.
+
+**Depends on / blocked by:** Sub-project 2 (EventKit sync) shipping first —
+its mapping layer is the foundation.
+
+---
+
+## 7. Mind-map / graph view over the Knowledge Base
+
+**What:** A visual graph view of the user's memory — `KnowledgeArticle`s as
+nodes (people/projects/topics), edges from shared `KnowledgeEvent`s /
+co-mentions, tappable through to articles and notes.
+
+**Why:** Pocket review 2026-08-19: "dynamic mind maps" is one of their three
+AI feature cards and one of the four gaps EEON doesn't cover. Ranked lowest
+of the four on purpose: the Knowledge Base already does the *connecting*
+(the substance); this is presentation. Worth having eventually because it
+demos brilliantly (screenshots, App Store, TikTok) even if daily utility is
+modest.
+
+**Pros:** High visual wow for marketing and onboarding ("look what EEON
+knows about my life"); zero new data model — renders existing
+articles/events.
+
+**Cons:** Graph layout in SwiftUI is real work (force-directed layout or a
+Canvas-based renderer); risk of building a pretty screen nobody revisits —
+validate against screenshot/demo value, not retention claims.
+
+**Context:** Data already exists: `KnowledgeArticle` (7 kinds),
+`KnowledgeEvent` (per-topic accumulation), `MentionedPerson`, `topicsJSON`
+on notes. Start as a read-only Canvas view fed by `KnowledgeCompiler`'s
+article set; no new persistence.
+
+**Depends on / blocked by:** Nothing.
