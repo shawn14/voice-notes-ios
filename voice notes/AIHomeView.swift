@@ -49,6 +49,7 @@ struct AIHomeView: View {
 
     private var authService = AuthService.shared
     private var intelligenceService = IntelligenceService.shared
+    private var backgroundCapture = BackgroundCaptureService.shared
 
     init(shouldStartRecording: Binding<Bool>) {
         self._shouldStartRecording = shouldStartRecording
@@ -453,6 +454,11 @@ struct AIHomeView: View {
                             }
                         }
                     }
+                }
+            }
+            .safeAreaInset(edge: .top) {
+                if backgroundCapture.isCapturing {
+                    backgroundCaptureBanner
                 }
             }
             .onAppear {
@@ -1357,6 +1363,32 @@ struct AIHomeView: View {
         }
     }
 
+    // MARK: - Background Capture Banner
+
+    private var backgroundCaptureBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: backgroundCapture.recorder.isPaused ? "pause.circle.fill" : "record.circle")
+                .foregroundStyle(.red)
+                .symbolEffect(.pulse, isActive: !backgroundCapture.recorder.isPaused)
+            Text(backgroundCapture.recorder.isPaused
+                 ? "Paused — auto-resumes"
+                 : "Recording · \(backgroundCapture.recorder.formattedTime)")
+                .font(.subheadline.weight(.medium))
+            Spacer()
+            Button {
+                Task { try? await backgroundCapture.stop() }
+            } label: {
+                Label("Stop", systemImage: "stop.circle.fill")
+                    .font(.subheadline.bold())
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+    }
+
     // MARK: - Layout-Driven Sections
 
     /// Active home layout — compiled by the Karpathy LLM on the .purpose article,
@@ -1554,6 +1586,13 @@ struct AIHomeView: View {
     // MARK: - Recording
 
     private func toggleRecording() {
+        // A background capture (Action Button / Control Center) owns the mic.
+        // The big button becomes its stop button instead of fighting for the
+        // session.
+        if BackgroundCaptureService.shared.isCapturing {
+            Task { try? await BackgroundCaptureService.shared.stop() }
+            return
+        }
         if isRecording {
             stopRecording()
         } else {
