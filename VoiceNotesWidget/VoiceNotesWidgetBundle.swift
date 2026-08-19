@@ -13,5 +13,6 @@ struct VoiceNotesWidgetBundle: WidgetBundle {
     var body: some Widget {
         VoiceNotesSmallWidget()
         VoiceNotesLockScreenWidget()
+        RecordingLiveActivity()
     }
 }
