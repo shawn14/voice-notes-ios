@@ -9,6 +9,23 @@ import AVFoundation
 import UIKit
 #endif
 
+/// Crash-safe marker for a recording in flight. Set when recording starts,
+/// cleared on clean stop. If it survives to next launch, the audio file is
+/// orphaned and gets recovered as a pending note (see voice_notesApp).
+enum InFlightRecordingMarker {
+    private static let fileNameKey = "inflight_recording_fileName"
+
+    static var fileName: String? {
+        UserDefaults.standard.string(forKey: fileNameKey)
+    }
+    static func set(fileName: String) {
+        UserDefaults.standard.set(fileName, forKey: fileNameKey)
+    }
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: fileNameKey)
+    }
+}
+
 @Observable
 final class AudioRecorder: NSObject {
     private var audioRecorder: AVAudioRecorder?
@@ -18,6 +35,15 @@ final class AudioRecorder: NSObject {
     var isPlaying = false
     var recordingTime: TimeInterval = 0
     var currentFileName: String?
+
+    var isPaused = false
+    /// Fired on pause/resume so an owner (BackgroundCaptureService) can
+    /// mirror the state into a Live Activity.
+    var onPauseStateChange: ((Bool) -> Void)?
+
+    private var interruptionObserver: NSObjectProtocol?
+    private var routeChangeObserver: NSObjectProtocol?
+    private var resumeRetryTask: Task<Void, Never>?
 
     // Playback control properties
     var currentTime: TimeInterval = 0
@@ -62,6 +88,8 @@ final class AudioRecorder: NSObject {
 
         isRecording = true
         currentFileName = fileName
+        InFlightRecordingMarker.set(fileName: fileName)
+        installInterruptionObservers()
         recordingTime = 0
 
         // Prevent auto-lock while recording so long captures don't get cut off
@@ -80,6 +108,11 @@ final class AudioRecorder: NSObject {
         timer = nil
 
         audioRecorder?.stop()
+        removeInterruptionObservers()
+        resumeRetryTask?.cancel()
+        resumeRetryTask = nil
+        isPaused = false
+        InFlightRecordingMarker.clear()
         isRecording = false
 
         setIdleTimerDisabled(false)
@@ -100,7 +133,105 @@ final class AudioRecorder: NSObject {
         #endif
     }
 
+    // MARK: - Interruption handling (calls, Siri, alarms, other apps' audio)
+    //
+    // Requirement: recording continues until the user stops it. Any
+    // interruption pauses; resume is attempted unconditionally (not gated
+    // on .shouldResume) and retried until the session frees or the user
+    // stops. AVAudioRecorder.pause() keeps the file open, so record()
+    // resumes appending to the same file.
+
+    private func installInterruptionObservers() {
+        removeInterruptionObservers()
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleInterruption(notification)
+        }
+        routeChangeObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] _ in
+            // A route change (BT mic dropped, etc.) can silently stop the
+            // recorder. If we think we're recording but the recorder isn't,
+            // treat it like an interruption and re-arm.
+            guard let self, self.isRecording, !self.isPaused else { return }
+            if self.audioRecorder?.isRecording == false {
+                self.markPaused()
+                self.attemptResume()
+            }
+        }
+    }
+
+    private func removeInterruptionObservers() {
+        if let interruptionObserver {
+            NotificationCenter.default.removeObserver(interruptionObserver)
+        }
+        if let routeChangeObserver {
+            NotificationCenter.default.removeObserver(routeChangeObserver)
+        }
+        interruptionObserver = nil
+        routeChangeObserver = nil
+    }
+
+    private func handleInterruption(_ notification: Notification) {
+        guard isRecording else { return }
+        guard let userInfo = notification.userInfo,
+              let rawType = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
+
+        switch type {
+        case .began:
+            markPaused()
+        case .ended:
+            attemptResume()
+        @unknown default:
+            break
+        }
+    }
+
+    private func markPaused() {
+        audioRecorder?.pause()
+        timer?.invalidate()
+        timer = nil
+        isPaused = true
+        onPauseStateChange?(true)
+    }
+
+    private func attemptResume() {
+        resumeRetryTask?.cancel()
+        resumeRetryTask = Task { @MainActor [weak self] in
+            while let self, self.isPaused, self.isRecording, !Task.isCancelled {
+                do {
+                    try AVAudioSession.sharedInstance().setActive(true)
+                    if self.audioRecorder?.record() == true {
+                        self.isPaused = false
+                        self.restartTimer()
+                        self.onPauseStateChange?(false)
+                        return
+                    }
+                } catch {
+                    // Session still owned by the interruptor (e.g. an active
+                    // call). Keep retrying until it frees or the user stops.
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
+    private func restartTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.recordingTime += 1
+        }
+    }
+
     deinit {
+        removeInterruptionObservers()
+        resumeRetryTask?.cancel()
         // Safety net: if this recorder is torn down mid-recording, don't leave
         // the screen pinned awake forever.
         #if canImport(UIKit) && !targetEnvironment(macCatalyst)
