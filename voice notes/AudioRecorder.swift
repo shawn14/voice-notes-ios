@@ -9,9 +9,12 @@ import AVFoundation
 import UIKit
 #endif
 
-/// Crash-safe marker for a recording in flight. Set when recording starts,
-/// cleared on clean stop. If it survives to next launch, the audio file is
-/// orphaned and gets recovered as a pending note (see voice_notesApp).
+/// Crash-safe marker for a recording in flight. Set when recording starts and
+/// deliberately NOT cleared on stop — the note referencing the file is saved
+/// well after stopRecording() returns, so clearing there leaves a crash window
+/// with audio on disk and no marker. Launch recovery in voice_notesApp is the
+/// only clearer: it clears once a note exists (or the file is gone) and
+/// otherwise recovers the audio as a pending note.
 enum InFlightRecordingMarker {
     private static let fileNameKey = "inflight_recording_fileName"
 
@@ -30,6 +33,11 @@ enum InFlightRecordingMarker {
 final class AudioRecorder: NSObject {
     private var audioRecorder: AVAudioRecorder?
     private var audioPlayer: AVAudioPlayer?
+
+    /// True while ANY AudioRecorder instance is recording (all use is main-thread).
+    /// BackgroundCaptureService checks this so an intent press can never start a
+    /// second concurrent recorder over an in-app recording.
+    static private(set) var isAnyRecording = false
 
     var isRecording = false
     var isPlaying = false
@@ -87,6 +95,7 @@ final class AudioRecorder: NSObject {
         audioRecorder?.record()
 
         isRecording = true
+        AudioRecorder.isAnyRecording = true
         currentFileName = fileName
         InFlightRecordingMarker.set(fileName: fileName)
         installInterruptionObservers()
@@ -112,8 +121,8 @@ final class AudioRecorder: NSObject {
         resumeRetryTask?.cancel()
         resumeRetryTask = nil
         isPaused = false
-        InFlightRecordingMarker.clear()
         isRecording = false
+        AudioRecorder.isAnyRecording = false
 
         setIdleTimerDisabled(false)
 

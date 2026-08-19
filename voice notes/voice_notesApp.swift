@@ -190,6 +190,7 @@ struct voice_notesApp: App {
         #endif
 
         recoverOrphanedRecording(in: container.mainContext)
+        resetStaleProcessingNotes(in: container.mainContext)
 
         // Pocket-style background capture: intents perform in this process,
         // reaching the service through CaptureBridge (see CaptureIntents.swift).
@@ -200,6 +201,7 @@ struct voice_notesApp: App {
         CaptureBridge.stopHandler = {
             try await BackgroundCaptureService.shared.stop()
         }
+        Task { await BackgroundCaptureService.shared.endStaleActivities() }
     }
 
     var body: some Scene {
@@ -304,6 +306,19 @@ struct voice_notesApp: App {
             // guard above prevents double notes if this save partially landed.
             print("⚠️ Failed to save recovered orphaned recording, will retry next launch: \(error)")
         }
+    }
+
+    /// A fresh launch proves no inline background pipeline is in flight, so any
+    /// note still claimed as "processing" belongs to a dead process — release it
+    /// back to "pending" for the foreground drain.
+    private func resetStaleProcessingNotes(in context: ModelContext) {
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { $0.transcriptionStatus == "processing" }
+        )
+        guard let stale = try? context.fetch(descriptor), !stale.isEmpty else { return }
+        for note in stale { note.transcriptionStatus = "pending" }
+        try? context.save()
+        print("🎙️ Released \(stale.count) stale processing claim(s) back to pending")
     }
 
     private func handleIncomingURL(_ url: URL) {

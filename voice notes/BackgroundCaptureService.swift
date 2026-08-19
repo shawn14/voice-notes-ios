@@ -44,12 +44,19 @@ final class BackgroundCaptureService {
     @MainActor
     func start() async throws {
         guard !isCapturing else { return }
+        guard !AudioRecorder.isAnyRecording else {
+            throw CaptureIntentError.recordingAlreadyActive
+        }
         guard AVAudioApplication.shared.recordPermission == .granted else {
             throw CaptureIntentError.micPermissionNeeded
         }
         guard UsageService.shared.canCreateNote else {
             throw CaptureIntentError.freeLimitReached
         }
+
+        // Clear any Live Activity left behind by a reaped process before adding
+        // ours, so sessions can't stack up on the Lock Screen.
+        await endStaleActivities()
 
         // Per the AudioRecordingIntent contract iOS will kill a recording
         // with no Live Activity. Request the activity FIRST — if it fails
@@ -62,7 +69,7 @@ final class BackgroundCaptureService {
             attributes: RecordingActivityAttributes(),
             content: ActivityContent(state: state, staleDate: nil)
         ) else {
-            throw CaptureIntentError.appNotReady
+            throw CaptureIntentError.liveActivitiesUnavailable
         }
 
         do {
@@ -80,6 +87,15 @@ final class BackgroundCaptureService {
             Task { @MainActor [weak self] in
                 await self?.updateActivityPauseState(paused: paused)
             }
+        }
+    }
+
+    /// Ends Live Activities that outlived their process (app reaped mid-capture).
+    /// Skips the current session's activity so a launch-time sweep can never kill
+    /// a capture that just started.
+    func endStaleActivities() async {
+        for stale in Activity<RecordingActivityAttributes>.activities where stale.id != activity?.id {
+            await stale.end(nil, dismissalPolicy: .immediate)
         }
     }
 
@@ -137,6 +153,11 @@ final class BackgroundCaptureService {
         UsageService.shared.incrementNoteCount()
         try? context.save()
 
+        // Claim the note so the foreground pending-drain can't process it
+        // concurrently while this inline pipeline runs (it selects "pending" only).
+        note.transcriptionStatus = "processing"
+        try? context.save()
+
         SharedDefaults.updateLastNote(
             preview: "Processing voice note…",
             date: note.createdAt,
@@ -144,7 +165,12 @@ final class BackgroundCaptureService {
         )
         WidgetCenter.shared.reloadAllTimelines()
 
-        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else { return }
+        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
+            // No pipeline will run, so don't leave a claim nothing owns.
+            note.transcriptionStatus = "pending"
+            try? context.save()
+            return
+        }
 
         do {
             let service = TranscriptionService(
@@ -187,8 +213,10 @@ final class BackgroundCaptureService {
             )
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
-            // Note stays "pending" with its audio — the foreground drain
-            // retries it. Nothing is lost.
+            // Release the claim so the note goes back with its audio to the
+            // foreground drain, which retries it. Nothing is lost.
+            note.transcriptionStatus = "pending"
+            try? context.save()
             print("🎙️ Background capture processing deferred: \(error)")
         }
     }

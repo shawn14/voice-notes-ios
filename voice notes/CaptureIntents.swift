@@ -57,6 +57,8 @@ enum CaptureIntentError: Error, CustomLocalizedStringResourceConvertible {
     case appNotReady
     case micPermissionNeeded
     case freeLimitReached
+    case recordingAlreadyActive
+    case liveActivitiesUnavailable
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
@@ -66,6 +68,10 @@ enum CaptureIntentError: Error, CustomLocalizedStringResourceConvertible {
             return "Open EEON and allow microphone access first."
         case .freeLimitReached:
             return "Free note limit reached — open EEON to upgrade."
+        case .recordingAlreadyActive:
+            return "EEON is already recording — stop the current recording first."
+        case .liveActivitiesUnavailable:
+            return "Enable Live Activities for EEON in Settings to record from the Lock Screen."
         }
     }
 }

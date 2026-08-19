@@ -172,7 +172,7 @@ final class Note {
     var activeRewriteType: String?     // "Summary", "Tweet", "PRD", etc.
 
     // Transcription queue status
-    var transcriptionStatus: String = "completed"  // "completed", "pending"
+    var transcriptionStatus: String = "completed"  // "completed", "pending", "processing"
 
     // Semantic search embedding (1536-dim Float array as Data)
     var embeddingData: Data?
