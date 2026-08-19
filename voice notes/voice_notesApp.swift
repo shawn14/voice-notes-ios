@@ -190,6 +190,16 @@ struct voice_notesApp: App {
         #endif
 
         recoverOrphanedRecording(in: container.mainContext)
+
+        // Pocket-style background capture: intents perform in this process,
+        // reaching the service through CaptureBridge (see CaptureIntents.swift).
+        BackgroundCaptureService.shared.configure(container: container)
+        CaptureBridge.toggleHandler = {
+            try await BackgroundCaptureService.shared.toggle()
+        }
+        CaptureBridge.stopHandler = {
+            try await BackgroundCaptureService.shared.stop()
+        }
     }
 
     var body: some Scene {
