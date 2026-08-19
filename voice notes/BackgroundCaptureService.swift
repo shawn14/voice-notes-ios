@@ -51,7 +51,28 @@ final class BackgroundCaptureService {
             throw CaptureIntentError.freeLimitReached
         }
 
-        _ = try recorder.startRecording()
+        // Per the AudioRecordingIntent contract iOS will kill a recording
+        // with no Live Activity. Request the activity FIRST — if it fails
+        // (e.g. Live Activities disabled system-wide), no audio file gets
+        // created at all, so there's nothing to leak.
+        let state = RecordingActivityAttributes.ContentState(
+            startedAt: Date(), isPaused: false, pausedReason: nil
+        )
+        guard let newActivity = try? Activity.request(
+            attributes: RecordingActivityAttributes(),
+            content: ActivityContent(state: state, staleDate: nil)
+        ) else {
+            throw CaptureIntentError.appNotReady
+        }
+
+        do {
+            _ = try recorder.startRecording()
+        } catch {
+            await newActivity.end(nil, dismissalPolicy: .immediate)
+            throw error
+        }
+
+        activity = newActivity
         isCapturing = true
 
         // Mirror recorder pause/resume into the Live Activity.
@@ -59,22 +80,6 @@ final class BackgroundCaptureService {
             Task { @MainActor [weak self] in
                 await self?.updateActivityPauseState(paused: paused)
             }
-        }
-
-        let state = RecordingActivityAttributes.ContentState(
-            startedAt: Date(), isPaused: false, pausedReason: nil
-        )
-        activity = try? Activity.request(
-            attributes: RecordingActivityAttributes(),
-            content: ActivityContent(state: state, staleDate: nil)
-        )
-        if activity == nil {
-            // Per the AudioRecordingIntent contract iOS will kill a
-            // recording with no Live Activity. Don't record silently-doomed
-            // audio: save nothing yet, stop cleanly, and surface the error.
-            _ = recorder.stopRecording()
-            isCapturing = false
-            throw CaptureIntentError.appNotReady
         }
     }
 
@@ -98,15 +103,19 @@ final class BackgroundCaptureService {
         let url = recorder.stopRecording()
         isCapturing = false
 
-        if let activity {
+        // Clear the stored reference synchronously, before the first await,
+        // so a re-entrant toggle() that starts a NEW session during the
+        // suspension below can't have its activity clobbered by this call
+        // finishing afterward.
+        if let endingActivity = activity {
+            activity = nil
             let finalState = RecordingActivityAttributes.ContentState(
                 startedAt: Date(), isPaused: false, pausedReason: nil
             )
-            await activity.end(
+            await endingActivity.end(
                 ActivityContent(state: finalState, staleDate: nil),
                 dismissalPolicy: .immediate
             )
-            self.activity = nil
         }
 
         guard let url else { return }
