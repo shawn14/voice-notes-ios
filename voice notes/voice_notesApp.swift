@@ -265,23 +265,35 @@ struct voice_notesApp: App {
     /// and processes it on foreground. Never discards audio.
     private func recoverOrphanedRecording(in context: ModelContext) {
         guard let fileName = InFlightRecordingMarker.fileName else { return }
-        InFlightRecordingMarker.clear()
 
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(fileName)
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            InFlightRecordingMarker.clear()
+            return
+        }
 
         // Skip if a note already references this file (clean stop raced the marker).
         let descriptor = FetchDescriptor<Note>(
             predicate: #Predicate { $0.audioFileName == fileName }
         )
-        if let existing = try? context.fetch(descriptor), !existing.isEmpty { return }
+        if let existing = try? context.fetch(descriptor), !existing.isEmpty {
+            InFlightRecordingMarker.clear()
+            return
+        }
 
         let note = Note(title: "", content: "", transcript: nil, audioFileName: fileName)
         note.transcriptionStatus = "pending"
         context.insert(note)
-        try? context.save()
-        print("🎙️ Recovered orphaned recording as pending note: \(fileName)")
+        do {
+            try context.save()
+            InFlightRecordingMarker.clear()
+            print("🎙️ Recovered orphaned recording as pending note: \(fileName)")
+        } catch {
+            // Leave marker set — recovery retries next launch; the duplicate
+            // guard above prevents double notes if this save partially landed.
+            print("⚠️ Failed to save recovered orphaned recording, will retry next launch: \(error)")
+        }
     }
 
     private func handleIncomingURL(_ url: URL) {
