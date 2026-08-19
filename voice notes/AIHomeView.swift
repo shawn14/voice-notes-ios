@@ -824,9 +824,12 @@ struct AIHomeView: View {
             }
             .padding(.trailing, 8)
 
-            // "New Note" pill button (right) — Coconote-style
+            // "New Note" pill button (right) — Coconote-style.
+            // Tap = type a note immediately (the pill's pencil icon promise);
+            // long-press = the full import picker. The mic button already owns
+            // voice, so typed capture gets the one-tap path.
             Button {
-                showingSourcePicker = true
+                showingTypeNote = true
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "square.and.pencil")
@@ -839,6 +842,13 @@ struct AIHomeView: View {
                 .padding(.vertical, 12)
                 .background(Color.eeonAccent)
                 .clipShape(Capsule())
+            }
+            .contextMenu {
+                Button {
+                    showingSourcePicker = true
+                } label: {
+                    Label("Import audio, file, or link…", systemImage: "square.and.arrow.down")
+                }
             }
         }
         .padding(.horizontal, 16)
