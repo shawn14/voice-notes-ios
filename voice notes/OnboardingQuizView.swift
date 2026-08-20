@@ -98,6 +98,7 @@ private enum UserIntent: String, CaseIterable {
 
 struct OnboardingQuizView: View {
     @State private var currentStep = 0
+    @State private var selectedPresetId: String?
     @State private var selectedRole: UserRole?
     @State private var selectedIntent: UserIntent?
     @State private var selectedPlan: SubscriptionProduct = .annual
@@ -169,82 +170,135 @@ struct OnboardingQuizView: View {
     // MARK: - Screen 1: Hero
 
     private var heroScreen: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             Spacer()
 
-            // App icon placeholder — use the app's accent color circle with mic
             ZStack {
-                RoundedRectangle(cornerRadius: 22)
-                    .fill(Color("EEONAccent"))
-                    .frame(width: 100, height: 100)
-                    .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 40))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.eeonAccent)
+                    .frame(width: 72, height: 72)
+                Image(systemName: "waveform")
+                    .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(.white)
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, EEONLayout.loose)
 
-            Text("Your AI memory for\neverything you say")
-                .font(.system(size: 28, weight: .bold))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Color("EEONTextPrimary"))
-                .padding(.bottom, 12)
+            Text("Welcome to EEON")
+                .font(EEONType.meta)
+                .foregroundStyle(.eeonTextSecondary)
+                .padding(.bottom, EEONLayout.tight)
 
-            Text("try for $0")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Color("EEONAccent"))
-                .padding(.bottom, 8)
+            Text("Talk. It remembers,\norganizes, and follows up.")
+                .font(.largeTitle.weight(.bold))
+                .foregroundStyle(.eeonTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, EEONLayout.snug)
+
+            Text("No device to buy. No pairing. Press record and keep talking for as long as you like.")
+                .font(EEONType.body)
+                .foregroundStyle(.eeonTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
 
-            VStack(spacing: 12) {
+            VStack(spacing: EEONLayout.snug) {
                 Button {
                     withAnimation { currentStep = 1 }
                 } label: {
-                    Text("Continue")
-                        .font(.body.weight(.bold))
+                    Text("Get started")
+                        .font(EEONType.control)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
-                        .background(Color("EEONTextPrimary"))
-                        .foregroundStyle(Color("EEONBackground"))
-                        .cornerRadius(14)
+                        .frame(minHeight: 54)
+                        .background(Color.eeonTextPrimary)
+                        .foregroundStyle(Color.eeonBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
 
                 Button {
                     signInAsReturningUser()
                 } label: {
-                    Text("Already have an account?")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text("I already have an account")
+                        .font(EEONType.control)
+                        .foregroundStyle(.eeonTextSecondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: EEONLayout.minTarget)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
         }
+        .padding(.horizontal, EEONLayout.loose)
+        .padding(.bottom, EEONLayout.loose)
     }
 
     // MARK: - Screen 2: Role
 
     private var roleScreen: some View {
-        quizScreen(
-            header: "Personalizing your EEON...",
-            question: "Which best describes you?"
-        ) {
-            ForEach(UserRole.allCases, id: \.self) { role in
-                quizOption(
-                    emoji: role.emoji,
-                    title: role.rawValue,
-                    subtitle: role.subtitle,
-                    isSelected: selectedRole == role,
-                    action: {
-                        selectedRole = role
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            withAnimation { currentStep = 2 }
-                        }
+        VStack(alignment: .leading, spacing: 0) {
+            Text("So EEON knows your world")
+                .font(EEONType.meta)
+                .foregroundStyle(.eeonTextSecondary)
+                .padding(.bottom, EEONLayout.tight)
+
+            Text("What do you do?")
+                .font(.largeTitle.weight(.bold))
+                .foregroundStyle(.eeonTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, EEONLayout.snug)
+
+            Text("This shapes what EEON pulls from your notes and how it writes them. You can change it any time.")
+                .font(EEONType.preview)
+                .foregroundStyle(.eeonTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, EEONLayout.standard)
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: EEONLayout.tight) {
+                    // The same presets Tune EEON uses — one system, not a
+                    // parallel role list that drifts from it.
+                    ForEach(PersonaPresetCatalog.all) { preset in
+                        presetOnboardingRow(preset)
                     }
-                )
+                }
             }
         }
+        .padding(.horizontal, EEONLayout.loose)
+        .padding(.top, EEONLayout.standard)
+        .padding(.bottom, EEONLayout.snug)
+    }
+
+    private func presetOnboardingRow(_ preset: PersonaPreset) -> some View {
+        Button {
+            PersonaPresetStore.apply(preset)
+            selectedPresetId = preset.id
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                withAnimation { currentStep = 2 }
+            }
+        } label: {
+            HStack(spacing: EEONLayout.snug) {
+                Image(systemName: preset.icon)
+                    .font(.title3)
+                    .foregroundStyle(selectedPresetId == preset.id ? Color.white : Color.eeonAccent)
+                    .frame(width: 32)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(preset.name)
+                        .font(EEONType.body)
+                        .foregroundStyle(selectedPresetId == preset.id ? Color.white : Color.eeonTextPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(preset.blurb)
+                        .font(EEONType.meta)
+                        .foregroundStyle(selectedPresetId == preset.id ? Color.white.opacity(0.85) : Color.eeonTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: EEONLayout.tight)
+            }
+            .padding(.horizontal, EEONLayout.standard)
+            .frame(minHeight: 62)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(selectedPresetId == preset.id ? Color.eeonAccent : Color.eeonCard)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Screen 3: Intent

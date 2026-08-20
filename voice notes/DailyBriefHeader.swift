@@ -42,7 +42,7 @@ struct DailyBriefHeader: View {
                     } else if error != nil {
                         Text("Couldn't load brief")
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.eeonAccent)
                         Text("Tap to retry")
                             .font(.caption)
                             .foregroundStyle(Color("EEONTextSecondary"))
@@ -62,7 +62,7 @@ struct DailyBriefHeader: View {
                                     .foregroundStyle(Color("EEONTextSecondary"))
                                 Text("\(brief.stalledItemCount) needs attention")
                                     .font(.caption)
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Color.eeonAccent)
                             }
                         }
 
@@ -174,7 +174,7 @@ struct FreshnessIndicator: View {
 
     private var backgroundColor: Color {
         if isGenerating { return .blue }
-        if brief != nil { return .green }
+        if brief != nil { return Color.eeonAccent }
         if sessionBrief?.isSoftExpired == true { return .yellow }
         return .gray
     }
@@ -189,7 +189,7 @@ struct FreshnessIndicator: View {
         if brief != nil {
             // Fresh today = green, older = yellow
             if brief!.isFromToday {
-                return .green
+                return Color.eeonAccent
             } else {
                 return .yellow
             }

@@ -940,7 +940,7 @@ struct TuneConversationView: View {
         VStack {
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color.eeonAccent)
                 Text(text)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.eeonTextPrimary)
