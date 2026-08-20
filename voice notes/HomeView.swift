@@ -1569,6 +1569,7 @@ struct SettingsView: View {
 
     @AppStorage(EventKitSyncService.enabledKey) private var remindersSyncEnabled = false
     @AppStorage(DocumentExportService.enabledKey) private var documentExportEnabled = false
+    @AppStorage(PersonaPresetStore.autoSummarizeKey) private var autoSummarizeEnabled = false
     @State private var showingExportFolderPicker = false
     @State private var exportAllResult: String?
     @State private var showingAddProject = false
@@ -1693,6 +1694,36 @@ struct SettingsView: View {
         }
     }
 
+    /// Auto-format every new note in the style the user's profession preset
+    /// implies (School Notes, Case Note, Clinical Note...). Pro-only — it
+    /// costs one extra AI call per note.
+    private var autoSummarizeRow: some View {
+        Toggle(isOn: $autoSummarizeEnabled) {
+            HStack(spacing: 16) {
+                Image(systemName: "text.badge.checkmark")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.indigo)
+                    .frame(width: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Auto-format new notes")
+                        .font(.body)
+                    Text(autoSummarizeSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .disabled(!SubscriptionManager.shared.isSubscribed)
+    }
+
+    private var autoSummarizeSubtitle: String {
+        guard SubscriptionManager.shared.isSubscribed else { return "Pro feature" }
+        if let raw = PersonaPresetStore.defaultTransformRaw {
+            return "Written as \(raw) — set by your profession in Tune EEON"
+        }
+        return "Pick what you do in Tune EEON first"
+    }
+
     private var personalizationSection: some View {
         Section {
             NavigationLink {
@@ -1738,6 +1769,7 @@ struct SettingsView: View {
                 }
             }
             .padding(.vertical, 4)
+            autoSummarizeRow
         } header: {
             Text("Personalization")
         } footer: {

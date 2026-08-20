@@ -196,6 +196,31 @@ final class IntelligenceService {
                     }
                 }
             }
+
+        // Auto-summary: rewrite the enhanced text in the style the user's
+        // profession preset implies (School Notes, Case Note, Clinical
+        // Note...). Opt-in, Pro-only, never clobbers a hand-edited note.
+        // Runs outside the MainActor block because it makes an API call.
+        if PersonaPresetStore.autoSummarizeEnabled,
+           SubscriptionManager.shared.isSubscribed,
+           await !note.enhancedNoteEdited,
+           let raw = PersonaPresetStore.defaultTransformRaw,
+           let transform = AITransformType(rawValue: raw) {
+            let source = await (note.enhancedNoteText ?? transcript)
+            let template = RewriteTemplate(
+                id: "auto-" + transform.rawValue,
+                name: transform.rawValue,
+                emoji: "",
+                section: .summary,
+                isPro: true,
+                systemPrompt: transform.prompt
+            )
+            if let styled = try? await RewriteService.rewrite(
+                transcript: source, template: template
+            ), !styled.isEmpty {
+                await MainActor.run { note.enhancedNoteText = styled }
+            }
+        }
         } catch {
             print("Intent extraction failed: \(error)")
         }

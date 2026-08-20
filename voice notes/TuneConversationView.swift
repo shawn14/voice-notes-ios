@@ -37,6 +37,7 @@ struct TuneConversationView: View {
     // MARK: - State
 
     @State private var editingField: Field?
+    @State private var appliedPresetId: String? = PersonaPresetStore.selectedPresetId
     @State private var draftText: String = ""
     @State private var originalDraftText: String = ""
 
@@ -160,6 +161,8 @@ struct TuneConversationView: View {
 
             ScrollView {
                 VStack(spacing: 16) {
+                    presetCard
+
                     reviewCard(
                         icon: "person.crop.circle.fill",
                         iconColor: Color("EEONAccent"),
@@ -190,6 +193,89 @@ struct TuneConversationView: View {
             .frame(maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    /// One-tap profession presets — the fast path into tuning. Tapping one
+    /// writes curated profile + purpose text and compiles it exactly as a
+    /// dictated answer would, then sets the default summary style.
+    private var presetCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "wand.and.stars")
+                    .foregroundStyle(.indigo)
+                Text("What do you do?")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.eeonTextPrimary)
+                Spacer()
+                if let applied = appliedPresetId,
+                   let preset = PersonaPresetCatalog.preset(id: applied) {
+                    Text(preset.name)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+            }
+
+            Text("Pick one and EEON tunes itself — what it pulls from your notes, how it writes them, how they're filed.")
+                .font(.caption)
+                .foregroundStyle(.eeonTextSecondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(PersonaPresetCatalog.all) { preset in
+                        presetChip(preset)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.eeonCard.opacity(0.5))
+        .cornerRadius(16)
+    }
+
+    private func presetChip(_ preset: PersonaPreset) -> some View {
+        let isApplied = appliedPresetId == preset.id
+        return Button {
+            Task { await applyPreset(preset) }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: preset.icon)
+                    .font(.caption)
+                Text(preset.name)
+                    .font(.caption.weight(.semibold))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(isApplied ? Color.indigo : Color.eeonCard)
+            .foregroundStyle(isApplied ? Color.white : Color.eeonTextPrimary)
+            .clipShape(Capsule())
+        }
+        .disabled(isSaving)
+    }
+
+    /// Applies a preset through the same seed + compile path as dictation.
+    private func applyPreset(_ preset: PersonaPreset) async {
+        await MainActor.run { isSaving = true }
+
+        upsertSeed(sourceType: .profileSeed, title: "Your Profile", content: preset.profileText)
+        upsertSeed(sourceType: .purposeSeed, title: "Your Purpose", content: preset.purposeText)
+        PersonaPresetStore.apply(preset)
+
+        await KnowledgeCompiler.shared.recompileDirtyArticles(context: modelContext, force: true)
+
+        await MainActor.run {
+            ContextAssembler.shared.refresh(from: modelContext)
+            appliedPresetId = preset.id
+            isSaving = false
+            withAnimation(.easeInOut(duration: 0.3)) {
+                savedConfirmation = "EEON is tuned for " + preset.name.lowercased() + " work"
+            }
+        }
+
+        try? await Task.sleep(for: .milliseconds(1600))
+        await MainActor.run {
+            withAnimation(.easeInOut(duration: 0.3)) { savedConfirmation = nil }
+        }
     }
 
     private var reviewHeader: some View {
