@@ -201,6 +201,11 @@ struct NoteDetailView: View {
                                 .padding(.bottom, 12)
                         }
 
+                        // 3b. One-tap summary styles (2026-08-19 overhaul):
+                        // "record, then make it into whatever you need."
+                        summaryStyleRow
+                            .padding(.bottom, 12)
+
                         // 4. Body text (hero content)
                         noteBodySection
                             .padding(.bottom, 20)
@@ -729,6 +734,56 @@ struct NoteDetailView: View {
                 if !showingOriginal, let enhanced = note.enhancedNoteText, !enhanced.isEmpty {
                     enhancedEditControls
                 }
+            }
+        }
+    }
+
+    /// One-tap summary styles — the most-used transforms as a horizontal chip
+    /// row above the body. Each tap rewrites the note text via the existing
+    /// rewrite path (voice/tone-aware); "More…" opens the full template picker
+    /// including custom templates.
+    private static let quickSummaryStyles: [RewriteTemplate] = [
+        RewriteTemplateCatalog.briefSummary,
+        RewriteTemplateCatalog.detailedSummary,
+        RewriteTemplateCatalog.list,
+        RewriteTemplateCatalog.structured,
+        RewriteTemplateCatalog.email
+    ]
+
+    private var summaryStyleRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Text("Make it:")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.eeonTextTertiary)
+
+                ForEach(Self.quickSummaryStyles) { template in
+                    Button {
+                        handleRewriteTemplate(template)
+                    } label: {
+                        Text(template.name)
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(Color.eeonCard)
+                            .foregroundStyle(.eeonTextPrimary)
+                            .clipShape(Capsule())
+                    }
+                    .disabled(isRewriting)
+                }
+
+                Button {
+                    showingRewriteSheet = true
+                } label: {
+                    Text("More…")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Color.eeonCard)
+                        .foregroundStyle(.eeonAccentAI)
+                        .clipShape(Capsule())
+                }
+                .disabled(isRewriting)
             }
         }
     }
