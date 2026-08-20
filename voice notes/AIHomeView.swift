@@ -463,6 +463,13 @@ struct AIHomeView: View {
             .sheet(isPresented: $showingFilterSheet) {
                 filterSheet
             }
+            // Stop pressed on the lock-screen indicator while the in-app
+            // recorder owns the session.
+            .onChange(of: backgroundCapture.inAppStopRequested) { _, requested in
+                guard requested else { return }
+                backgroundCapture.clearInAppStopRequest()
+                if isRecording { stopRecording() }
+            }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -1742,6 +1749,9 @@ struct AIHomeView: View {
         do {
             currentAudioFileName = try audioRecorder.startRecording()
             isRecording = true
+            // Lock-screen indicator, so locking the phone mid-recording still
+            // shows it's running (and offers a stop button).
+            Task { await BackgroundCaptureService.shared.showActivity(for: audioRecorder) }
         } catch {
             errorMessage = "Could not start recording: \(error.localizedDescription)"
             showingError = true
@@ -1749,6 +1759,7 @@ struct AIHomeView: View {
     }
 
     private func stopRecording() {
+        Task { await BackgroundCaptureService.shared.hideActivity() }
         guard let url = audioRecorder.stopRecording() else {
             errorMessage = "Could not save recording"
             showingError = true
@@ -1762,6 +1773,7 @@ struct AIHomeView: View {
     }
 
     private func cancelRecording() {
+        Task { await BackgroundCaptureService.shared.hideActivity() }
         _ = audioRecorder.stopRecording()
         if let fileName = currentAudioFileName {
             audioRecorder.deleteRecording(fileName: fileName)

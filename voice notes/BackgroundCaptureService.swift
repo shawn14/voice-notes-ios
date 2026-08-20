@@ -23,6 +23,14 @@ final class BackgroundCaptureService {
     let recorder = AudioRecorder()
 
     private var activity: Activity<RecordingActivityAttributes>?
+
+    /// The recorder the on-screen activity belongs to. For intent-launched
+    /// captures that's `recorder`; for in-app recordings it's the view's own.
+    private weak var activityRecorder: AudioRecorder?
+
+    /// Set when the Live Activity's stop button is tapped while the IN-APP
+    /// recorder owns the session. AIHomeView watches this and stops.
+    private(set) var inAppStopRequested = false
     private var container: ModelContainer?
 
     private init() {}
@@ -105,16 +113,68 @@ final class BackgroundCaptureService {
         // Re-baseline the timer on resume so it shows recorded time,
         // not wall-clock time across the pause.
         let state = RecordingActivityAttributes.ContentState(
-            startedAt: Date().addingTimeInterval(-recorder.recordingTime),
+            startedAt: Date().addingTimeInterval(-(activityRecorder ?? recorder).recordingTime),
             isPaused: paused,
             pausedReason: paused ? "Paused — audio in use (call?) · auto-resumes" : nil
         )
         await activity.update(ActivityContent(state: state, staleDate: nil))
     }
 
+    /// Show the lock-screen indicator for a recording the app itself owns
+    /// (the in-app mic button). Without this, locking the phone mid-recording
+    /// showed nothing at all — you couldn't tell it was still running.
+    @MainActor
+    func showActivity(for inAppRecorder: AudioRecorder) async {
+        guard activity == nil else { return }
+        await endStaleActivities()
+
+        activityRecorder = inAppRecorder
+        let state = RecordingActivityAttributes.ContentState(
+            startedAt: Date(), isPaused: false, pausedReason: nil
+        )
+        activity = try? Activity.request(
+            attributes: RecordingActivityAttributes(),
+            content: ActivityContent(state: state, staleDate: nil)
+        )
+
+        inAppRecorder.onPauseStateChange = { [weak self] paused in
+            Task { @MainActor [weak self] in
+                await self?.updateActivityPauseState(paused: paused)
+            }
+        }
+    }
+
+    /// Tear the indicator down when an in-app recording ends.
+    @MainActor
+    func hideActivity() async {
+        activityRecorder?.onPauseStateChange = nil
+        activityRecorder = nil
+        inAppStopRequested = false
+        guard let ending = activity else { return }
+        activity = nil
+        let finalState = RecordingActivityAttributes.ContentState(
+            startedAt: Date(), isPaused: false, pausedReason: nil
+        )
+        await ending.end(
+            ActivityContent(state: finalState, staleDate: nil),
+            dismissalPolicy: .immediate
+        )
+    }
+
+    @MainActor
+    func clearInAppStopRequest() {
+        inAppStopRequested = false
+    }
+
     @MainActor
     func stop() async throws {
-        guard isCapturing else { return }
+        // The stop button on the Live Activity routes here. If the in-app
+        // recorder owns the session, hand the request to the view rather
+        // than no-op'ing — otherwise the lock-screen button does nothing.
+        guard isCapturing else {
+            if activity != nil { inAppStopRequested = true }
+            return
+        }
         recorder.onPauseStateChange = nil
         let url = recorder.stopRecording()
         isCapturing = false
