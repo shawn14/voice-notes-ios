@@ -104,6 +104,8 @@ struct AIHomeView: View {
     @State private var showingTagManagement = false
     @State private var showingTagFilter = false
     @State private var showingTasks = false
+    @State private var selectedCategory: String?
+    @State private var selectedDay: Date?
     @State private var selectedIntents: Set<NoteIntent> = []
 
     // Keyword search — global substring search across all notes
@@ -157,6 +159,18 @@ struct AIHomeView: View {
         // Apply tag filter if selected
         if let tag = selectedTagFilter {
             base = base.filter { $0.tags.contains(where: { $0.id == tag.id }) }
+        }
+
+        // Category card selection (Pocket-style top row)
+        if let category = selectedCategory {
+            base = base.filter { note in
+                (note.topics.first?.capitalized ?? "Unfiled") == category
+            }
+        }
+
+        // Week-strip day selection
+        if let day = selectedDay {
+            base = base.filter { Calendar.current.isDate($0.createdAt, inSameDayAs: day) }
         }
         // Apply intent filter if any selected
         base = NotesReorgHelpers.filterByIntents(notes: base, selected: selectedIntents)
@@ -323,6 +337,15 @@ struct AIHomeView: View {
                             // 1. Greeting bar
                             greetingBar
                                 .padding(.horizontal)
+
+                            // 2. Category cards — one tap filters the stream
+                            if !topCategories.isEmpty {
+                                categoryCardsRow
+                            }
+
+                            // 3. Week strip + section header
+                            conversationsHeader
+                            weekStrip
 
                             // Tune EEON hero card — prominent until user has compiled a .purpose article
                             if showTuneHeroCard {
@@ -532,6 +555,135 @@ struct AIHomeView: View {
     private var hasCompiledPurpose: Bool {
         guard let article = purposeArticles.first else { return false }
         return (article.thinkingEvolution?.isEmpty == false) || !article.summary.isEmpty
+    }
+
+    // MARK: - Capture-stream header (category cards + week strip)
+
+    /// Top categories by note count, as tappable cards. Built from the same
+    /// auto-filing rule as notebooks: matched project name, else first topic.
+    private var topCategories: [(String, Int)] {
+        var counts: [String: Int] = [:]
+        for note in notes where !note.isArchived
+            && note.sourceType != .profileSeed && note.sourceType != .purposeSeed {
+            let name = note.topics.first?.capitalized ?? "Unfiled"
+            counts[name, default: 0] += 1
+        }
+        return counts.sorted { $0.value > $1.value }.prefix(8).map { ($0.key, $0.value) }
+    }
+
+    private var categoryCardsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(topCategories, id: \.0) { name, count in
+                    categoryCard(name: name, count: count)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private func categoryCard(name: String, count: Int) -> some View {
+        let isSelected = selectedCategory == name
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedCategory = isSelected ? nil : name
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.eeonAccent.opacity(0.85), Color("EEONAccentAI").opacity(0.7)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 34, height: 34)
+                    .overlay(
+                        Text(String(name.prefix(1)))
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                    )
+                Text(name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(1)
+                Text("\(count)")
+                    .font(.caption2)
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+            .padding(12)
+            .frame(width: 128, alignment: .leading)
+            .background(isSelected ? Color.eeonAccent.opacity(0.18) : Color.eeonCard)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The last 14 days as a scrollable strip — tap a day to filter the feed
+    /// to it, tap again to clear.
+    private var weekStrip: some View {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let days: [Date] = (0..<14).compactMap {
+            calendar.date(byAdding: .day, value: -$0, to: today)
+        }.reversed()
+        return ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(days, id: \.self) { day in
+                        dayChip(day)
+                            .id(day)
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .onAppear { proxy.scrollTo(today, anchor: .trailing) }
+        }
+    }
+
+    private func dayChip(_ day: Date) -> some View {
+        let calendar = Calendar.current
+        let isSelected = selectedDay.map { calendar.isDate($0, inSameDayAs: day) } ?? false
+        let isToday = calendar.isDateInToday(day)
+        let weekday = day.formatted(.dateTime.weekday(.narrow))
+        let number = calendar.component(.day, from: day)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedDay = isSelected ? nil : day
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Text(weekday)
+                    .font(.caption2)
+                    .foregroundStyle(.eeonTextSecondary)
+                Text("\(number)")
+                    .font(.subheadline.weight(isToday ? .bold : .regular))
+                    .foregroundStyle(isSelected ? .white : (isToday ? Color.eeonAccent : Color.eeonTextPrimary))
+            }
+            .frame(width: 40, height: 52)
+            .background(isSelected ? Color.eeonAccent : Color.eeonCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var conversationsHeader: some View {
+        HStack {
+            Text("Your notes")
+                .font(.headline)
+                .foregroundStyle(.eeonTextPrimary)
+            Spacer()
+            if selectedCategory != nil || selectedDay != nil {
+                Button {
+                    withAnimation { selectedCategory = nil; selectedDay = nil }
+                } label: {
+                    Text("Clear")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.eeonAccent)
+                }
+            }
+        }
+        .padding(.horizontal)
     }
 
     private var greetingBar: some View {
