@@ -85,11 +85,11 @@ private enum UserIntent: String, CaseIterable {
 
     var emoji: String {
         switch self {
-        case .captureIdeas: return "🎙"
-        case .meetings: return "📋"
-        case .secondBrain: return "🧠"
-        case .thinkOutLoud: return "✍️"
-        case .other: return "🔍"
+        case .captureIdeas: return "waveform"
+        case .meetings: return "person.3"
+        case .secondBrain: return "brain"
+        case .thinkOutLoud: return "bubble.left.and.bubble.right"
+        case .other: return "magnifyingglass"
         }
     }
 }
@@ -109,7 +109,7 @@ struct OnboardingQuizView: View {
 
     private let subscriptionManager = SubscriptionManager.shared
     private let authService = AuthService.shared
-    private let totalSteps = 6
+    private let totalSteps = 5
 
     private let termsURL = URL(string: "https://eeon.com/terms")!
     private let privacyURL = URL(string: "https://eeon.com/privacy")!
@@ -134,8 +134,8 @@ struct OnboardingQuizView: View {
                     // socialProofScreen removed 2026-08-20 — it showed
                     // testimonials from invented people. Fabricated social
                     // proof doesn't ship.
-                    featureScreen.tag(4)
-                    paywallScreen.tag(5)
+                    featureScreen.tag(3)
+                    paywallScreen.tag(4)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut(duration: 0.3), value: currentStep)
@@ -273,68 +273,6 @@ struct OnboardingQuizView: View {
 
     // MARK: - Screen 4: Social Proof
 
-    private var socialProofScreen: some View {
-        let role = selectedRole ?? .other
-
-        return VStack(spacing: 0) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
-                    Spacer().frame(height: 24)
-
-                    Text("You're in good company!")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(Color("EEONTextPrimary"))
-
-                    // Testimonial card
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(role.testimonial)
-                            .font(.body)
-                            .foregroundStyle(Color("EEONTextPrimary"))
-                            .italic()
-
-                        HStack(spacing: 2) {
-                            ForEach(0..<5) { _ in
-                                Image(systemName: "star.fill")
-                                    .foregroundStyle(.yellow)
-                                    .font(.caption)
-                            }
-                        }
-
-                        Text("— \(role.personaName)")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(20)
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                    // Use cases
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(role.useCases, id: \.self) { useCase in
-                            HStack(spacing: 12) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                    .font(.title3)
-                                Text(useCase)
-                                    .font(.body)
-                                    .foregroundStyle(Color("EEONTextPrimary"))
-                            }
-                        }
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-            }
-
-            continueButton { withAnimation { currentStep = 4 } }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
-        }
-    }
-
-    // MARK: - Screen 5: Features
-
     private var featureScreen: some View {
         VStack(spacing: 0) {
             ScrollView(showsIndicators: false) {
@@ -346,12 +284,12 @@ struct OnboardingQuizView: View {
                         .foregroundStyle(Color("EEONTextPrimary"))
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        featureCard(emoji: "🎙", title: "Voice capture", subtitle: "Talk, we handle the rest")
-                        featureCard(emoji: "🧠", title: "AI memory", subtitle: "Search everything you've said")
-                        featureCard(emoji: "⚡", title: "Instant extraction", subtitle: "Decisions, actions, commitments")
-                        featureCard(emoji: "✨", title: "Enhanced notes", subtitle: "Your words, polished")
-                        featureCard(emoji: "🔗", title: "Multi-source", subtitle: "Add links, PDFs, files")
-                        featureCard(emoji: "💬", title: "Ask anything", subtitle: "Query your entire memory")
+                        featureCard(emoji: "waveform", title: "Voice capture", subtitle: "Talk, we handle the rest")
+                        featureCard(emoji: "brain", title: "AI memory", subtitle: "Search everything you've said")
+                        featureCard(emoji: "bolt", title: "Instant extraction", subtitle: "Decisions, actions, commitments")
+                        featureCard(emoji: "sparkles", title: "Enhanced notes", subtitle: "Your words, polished")
+                        featureCard(emoji: "link", title: "Multi-source", subtitle: "Add links, PDFs, files")
+                        featureCard(emoji: "bubble.left", title: "Ask anything", subtitle: "Query your entire memory")
                     }
 
                     Spacer()
@@ -359,7 +297,7 @@ struct OnboardingQuizView: View {
                 .padding(.horizontal, 24)
             }
 
-            continueButton { withAnimation { currentStep = 5 } }
+            continueButton { withAnimation { currentStep = 4 } }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 32)
         }
@@ -682,17 +620,19 @@ struct OnboardingQuizView: View {
         }
     }
 
-    private func quizOption(emoji: String, title: String, subtitle: String?, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func quizOption(emoji symbol: String, title: String, subtitle: String?, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                Text(emoji)
-                    .font(.title2)
+                Image(systemName: symbol)
+                    .font(.title3)
+                    .foregroundStyle(Color.eeonAccent)
                     .frame(width: 40)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.body.weight(.medium))
                         .foregroundStyle(Color("EEONTextPrimary"))
+                        .fixedSize(horizontal: false, vertical: true)
                     if let subtitle = subtitle, !subtitle.isEmpty {
                         Text(subtitle)
                             .font(.caption)
@@ -721,10 +661,11 @@ struct OnboardingQuizView: View {
         .buttonStyle(.plain)
     }
 
-    private func featureCard(emoji: String, title: String, subtitle: String) -> some View {
+    private func featureCard(emoji symbol: String, title: String, subtitle: String) -> some View {
         VStack(spacing: 8) {
-            Text(emoji)
-                .font(.system(size: 32))
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(Color.eeonAccent)
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color("EEONTextPrimary"))
@@ -732,6 +673,7 @@ struct OnboardingQuizView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
