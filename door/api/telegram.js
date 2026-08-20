@@ -8,7 +8,7 @@
  */
 
 import { isAllowedChat, validateEnv } from '../lib/auth.js';
-import { TEMPLATES, DEFAULT_TEMPLATE, routeCommand, extractContent, isPublishRequest } from '../lib/templates.js';
+import { TEMPLATES, DEFAULT_TEMPLATE, routeCommand, extractContent, isPublishRequest, isGreeting, isTooThin, HELP_MESSAGE } from '../lib/templates.js';
 import { rewriteWithGPT, transcribeAudio } from '../lib/openai.js';
 import { sendMessage, downloadFile } from '../lib/telegram.js';
 
@@ -98,6 +98,13 @@ export async function handleUpdate(update) {
       '🚧 *Publish not wired yet*\n\nV1 drafts only — copy & paste to post. Publishing will be added in a future update.',
       messageId
     );
+    return;
+  }
+
+  // Check for greetings / too-thin content (don't waste GPT on "hello")
+  if (isGreeting(content) || isTooThin(content)) {
+    console.log(`[webhook] Greeting or too-thin content, sending help: "${content.slice(0, 50)}"`);
+    await sendMessage(chatId, HELP_MESSAGE, messageId);
     return;
   }
 

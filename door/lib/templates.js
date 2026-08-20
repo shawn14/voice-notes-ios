@@ -103,3 +103,56 @@ export function isPublishRequest(text) {
          lower === 'post' ||
          lower === 'publish';
 }
+
+/**
+ * Common greetings and bot commands that should not be processed as content.
+ */
+const GREETINGS = new Set([
+  '/start', '/help', '/stop',
+  'hi', 'hello', 'hey', 'hola', 'yo',
+  'thanks', 'thank you', 'thx', 'ty',
+  'ok', 'okay', 'k', 'cool', 'nice', 'great', 'awesome',
+  'yes', 'no', 'yep', 'nope', 'sure', 'yea', 'yeah', 'nah',
+  'good', 'good morning', 'good evening', 'gm', 'gn',
+  'bye', 'goodbye', 'later', 'cya',
+  'what', 'huh', 'hmm', 'um', 'uh',
+  'test', 'testing', '123', 'hello world'
+]);
+
+/**
+ * Check if message is a greeting or bot command (not real content).
+ */
+export function isGreeting(text) {
+  const lower = text.toLowerCase().trim();
+  return GREETINGS.has(lower) || lower.startsWith('/');
+}
+
+/**
+ * Check if message is too thin to generate meaningful content.
+ * Short messages without explicit commands are likely not real thoughts.
+ */
+export function isTooThin(text) {
+  const lower = text.toLowerCase().trim();
+  
+  // If it has an explicit command prefix, it's intentional
+  const commands = ['email', 'bullets', 'bullet', 'quick', 'tweet', 'x post', 'short', 'linkedin', 'professional', 'enhance', 'improve', 'polish'];
+  for (const cmd of commands) {
+    if (lower.startsWith(cmd)) return false;
+  }
+  
+  // Count words (split on whitespace)
+  const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+  
+  // Under 6 words with no command = too thin
+  return words.length < 6;
+}
+
+/**
+ * Help message for greetings/thin content.
+ */
+export const HELP_MESSAGE = `👋 Send me a real thought — a voice note or a few sentences.
+
+I'll turn it into a polished draft you can post.
+
+Try: "Building in public taught me that users don't care about features, they care about outcomes"`;
+
