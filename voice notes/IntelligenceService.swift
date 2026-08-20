@@ -179,6 +179,11 @@ final class IntelligenceService {
                     note.enhancedNoteText = enhanced
                 }
 
+                // Auto-export the finished note as markdown to the user's
+                // chosen folder (Drive/OneDrive/Obsidian via Files). No-op
+                // unless enabled in Settings.
+                DocumentExportService.shared.export(note: note)
+
                 // Persist unresolved items only for voice notes
                 if note.sourceType == .voice {
                     for unresolved in result.unresolved {

@@ -1568,6 +1568,9 @@ struct SettingsView: View {
     private var authService = AuthService.shared
 
     @AppStorage(EventKitSyncService.enabledKey) private var remindersSyncEnabled = false
+    @AppStorage(DocumentExportService.enabledKey) private var documentExportEnabled = false
+    @State private var showingExportFolderPicker = false
+    @State private var exportAllResult: String?
     @State private var showingAddProject = false
     @State private var newProjectName = ""
     @State private var showingShareSheet = false
@@ -1603,6 +1606,92 @@ struct SettingsView: View {
     @AppStorage("appearanceMode") private var appearanceMode: Int = 0
 
     private let usage = UsageService.shared
+
+
+    // MARK: - Connections (extracted — keeps the body type-checkable)
+
+    private var connectionsSection: some View {
+        Section {
+            remindersSyncRow
+            documentExportRow
+            if documentExportEnabled && DocumentExportService.shared.hasFolder {
+                Button {
+                    showingExportFolderPicker = true
+                } label: {
+                    Text("Change folder…")
+                        .font(.subheadline)
+                }
+                Button {
+                    let count = DocumentExportService.shared.exportAll(notes: notes)
+                    exportAllResult = "Exported \(count) notes"
+                } label: {
+                    Text(exportAllResult ?? "Export all notes now")
+                        .font(.subheadline)
+                }
+            }
+        } header: {
+            Text("Connections")
+        } footer: {
+            Text("Action items appear in an \"EEON\" list in Apple Reminders. Exported notes are markdown files in the folder you choose — pick a Google Drive, OneDrive, or Obsidian folder in Files and they sync everywhere those apps do.")
+        }
+        .fileImporter(
+            isPresented: $showingExportFolderPicker,
+            allowedContentTypes: [.folder]
+        ) { result in
+            if case .success(let url) = result {
+                DocumentExportService.shared.setFolder(url)
+            } else if !DocumentExportService.shared.hasFolder {
+                documentExportEnabled = false
+            }
+        }
+    }
+
+    private var remindersSyncRow: some View {
+        Toggle(isOn: $remindersSyncEnabled) {
+            HStack(spacing: 16) {
+                Image(systemName: "checklist")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.eeonAccentAI)
+                    .frame(width: 28)
+                Text("Sync actions to Reminders")
+                    .font(.body)
+            }
+        }
+        .onChange(of: remindersSyncEnabled) { _, isOn in
+            guard isOn else { return }
+            Task {
+                let granted = await EventKitSyncService.shared.requestAccess()
+                if !granted {
+                    await MainActor.run { remindersSyncEnabled = false }
+                }
+            }
+        }
+    }
+
+    private var documentExportRow: some View {
+        Toggle(isOn: $documentExportEnabled) {
+            HStack(spacing: 16) {
+                Image(systemName: "folder")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.eeonAccentAI)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Auto-export notes to a folder")
+                        .font(.body)
+                    if let name = DocumentExportService.shared.folderName {
+                        Text("→ \(name)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .onChange(of: documentExportEnabled) { _, isOn in
+            if isOn && !DocumentExportService.shared.hasFolder {
+                showingExportFolderPicker = true
+            }
+        }
+    }
 
     private var personalizationSection: some View {
         Section {
@@ -2192,31 +2281,7 @@ struct SettingsView: View {
                 NotificationSettingsSection()
 
                 // MARK: - Connections Section
-                Section {
-                    Toggle(isOn: $remindersSyncEnabled) {
-                        HStack(spacing: 16) {
-                            Image(systemName: "checklist")
-                                .font(.system(size: 18))
-                                .foregroundStyle(.eeonAccentAI)
-                                .frame(width: 28)
-                            Text("Sync actions to Reminders")
-                                .font(.body)
-                        }
-                    }
-                    .onChange(of: remindersSyncEnabled) { _, isOn in
-                        guard isOn else { return }
-                        Task {
-                            let granted = await EventKitSyncService.shared.requestAccess()
-                            if !granted {
-                                await MainActor.run { remindersSyncEnabled = false }
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Connections")
-                } footer: {
-                    Text("New action items from your notes appear in an \"EEON\" list in Apple Reminders — and sync anywhere your reminders do (iCloud, Google, Outlook).")
-                }
+                connectionsSection
 
                 // MARK: - Support Section
                 Section {
