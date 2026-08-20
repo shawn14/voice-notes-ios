@@ -1649,14 +1649,11 @@ struct SettingsView: View {
 
     private var remindersSyncRow: some View {
         Toggle(isOn: $remindersSyncEnabled) {
-            HStack(spacing: 16) {
-                Image(systemName: "checklist")
-                    .font(.title3)
-                    .foregroundStyle(.eeonAccentAI)
-                    .frame(width: EEONLayout.minTarget)
-                Text("Sync actions to Reminders")
-                    .font(.body)
-            }
+            EEONSettingsRow(
+                icon: "checklist",
+                title: "Sync actions to Reminders",
+                subtitle: "New action items appear in an EEON list"
+            )
         }
         .onChange(of: remindersSyncEnabled) { _, isOn in
             guard isOn else { return }
@@ -2187,22 +2184,15 @@ struct SettingsView: View {
                     NavigationLink {
                         LanguagePickerView()
                     } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "globe")
-                                .foregroundStyle(.green)
-                                .frame(width: 44)
-
-                            Text("Transcription Language")
-                                .font(.body)
-
-                            Spacer()
-
+                        EEONSettingsRow(
+                            icon: "globe",
+                            title: "Transcription Language"
+                        ) {
                             Text(LanguageSettings.shared.selectedLanguage.displayName)
-                                .font(.body)
-                                .foregroundStyle(.secondary)
+                                .font(EEONType.meta)
+                                .foregroundStyle(.eeonTextSecondary)
                         }
                     }
-                    .padding(.vertical, 4)
                 } header: {
                     Text("Capture")
                 }
@@ -2235,72 +2225,33 @@ struct SettingsView: View {
                             UIApplication.shared.open(url)
                         }
                     } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "envelope")
-                                .foregroundStyle(Color("EEONAccentAI"))
-                                .frame(width: 44)
-
-                            Text("Contact Support")
-                                .font(.body)
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
+                        EEONSettingsRow(icon: "envelope", title: "Contact Support") {
+                            EEONChevron()
                         }
                     }
                     .buttonStyle(.plain)
-                    .padding(.vertical, 4)
 
                     Button {
                         if let url = URL(string: "https://eeon.com/privacy") {
                             UIApplication.shared.open(url)
                         }
                     } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "hand.raised")
-                                .foregroundStyle(.orange)
-                                .frame(width: 44)
-
-                            Text("Privacy Policy")
-                                .font(.body)
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
+                        EEONSettingsRow(icon: "hand.raised", title: "Privacy Policy") {
+                            EEONChevron()
                         }
                     }
                     .buttonStyle(.plain)
-                    .padding(.vertical, 4)
 
                     Button {
                         if let url = URL(string: "https://eeon.com/terms") {
                             UIApplication.shared.open(url)
                         }
                     } label: {
-                        HStack(spacing: 16) {
-                            Image(systemName: "doc.text")
-                                .foregroundStyle(Color("EEONAccentAI"))
-                                .frame(width: 44)
-
-                            Text("Terms of Use")
-                                .font(.body)
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
+                        EEONSettingsRow(icon: "doc.text", title: "Terms of Use") {
+                            EEONChevron()
                         }
                     }
                     .buttonStyle(.plain)
-                    .padding(.vertical, 4)
                 } header: {
                     Text("Support")
                 }

@@ -78,3 +78,77 @@ extension View {
         padding(.horizontal, EEONLayout.screenMargin)
     }
 }
+
+// MARK: - Settings row
+
+/// The one settings row. Before this existed, every row hand-rolled its own
+/// HStack — which is how two icon treatments (circle badge vs bare glyph) and
+/// eight arbitrary icon colors ended up alternating inside a single section.
+///
+/// One icon treatment, one column width, one type pairing, 44pt minimum.
+/// Colour is limited to two roles: `.normal` (brand) and `.destructive`.
+struct EEONSettingsRow<Trailing: View>: View {
+    enum Role {
+        case normal, destructive
+
+        var tint: Color {
+            switch self {
+            case .normal: return Color("EEONAccentAI")
+            case .destructive: return .red
+            }
+        }
+    }
+
+    let icon: String
+    var role: Role = .normal
+    let title: String
+    var subtitle: String?
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: EEONLayout.standard) {
+            ZStack {
+                Circle()
+                    .fill(role.tint.opacity(0.15))
+                    .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
+                Image(systemName: icon)
+                    .font(.body)
+                    .foregroundStyle(role.tint)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(EEONType.body)
+                    .foregroundStyle(role == .destructive ? Color.red : Color.eeonTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: EEONLayout.tight)
+
+            trailing()
+        }
+        .frame(minHeight: EEONLayout.minTarget)
+        .padding(.vertical, 4)
+    }
+}
+
+extension EEONSettingsRow where Trailing == EmptyView {
+    init(icon: String, role: Role = .normal, title: String, subtitle: String? = nil) {
+        self.init(icon: icon, role: role, title: title, subtitle: subtitle) { EmptyView() }
+    }
+}
+
+/// The standard disclosure chevron, so no row invents its own.
+struct EEONChevron: View {
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(EEONType.meta)
+            .foregroundStyle(.eeonTextTertiary)
+    }
+}
