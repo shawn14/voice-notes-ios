@@ -714,7 +714,10 @@ struct NoteDetailView: View {
                 }
             } else {
                 if !displayText.isEmpty {
-                    Text(displayText)
+                    // Enhanced notes carry light inline markdown (**bold**
+                    // section labels on longer notes). Render it; fall back to
+                    // the raw string if parsing ever fails.
+                    Text(inlineMarkdown(displayText))
                         .font(.body.leading(.loose))
                         .foregroundStyle(.eeonTextPrimary)
                         .lineSpacing(6)
@@ -728,6 +731,15 @@ struct NoteDetailView: View {
                 }
             }
         }
+    }
+
+    /// Renders the light inline markdown enhanced notes carry (**bold** labels),
+    /// preserving line breaks. Plain text passes through unchanged.
+    private func inlineMarkdown(_ text: String) -> AttributedString {
+        (try? AttributedString(
+            markdown: text,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )) ?? AttributedString(text)
     }
 
     /// Always-visible Edit + Re-run controls shown beneath the enhanced text.
