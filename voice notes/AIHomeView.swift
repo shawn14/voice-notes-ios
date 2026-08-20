@@ -948,10 +948,8 @@ struct AIHomeView: View {
                     .padding(.horizontal)
                     .padding(.vertical, 8)
 
-                let columns = [
-                    GridItem(.flexible(), spacing: 10),
-                    GridItem(.flexible(), spacing: 10)
-                ]
+                // Single-column, notepad-style list (2026-08-19 simplification)
+                let columns = [GridItem(.flexible())]
                 LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(searchResults) { note in
                         NavigationLink(destination: NoteDetailView(note: note)) {
@@ -1014,15 +1012,8 @@ struct AIHomeView: View {
                     .frame(maxWidth: .infinity)
                 }
 
-                // View mode toggle
-                Picker("View", selection: $viewMode) {
-                    ForEach(NotesViewMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 160)
-                .padding(.trailing, 8)
+                // View-mode picker (List/Mood) removed 2026-08-19 — notepad
+                // simplification; list is the only mode rendered.
 
                 // Sort toggle
                 Button {
@@ -1039,85 +1030,12 @@ struct AIHomeView: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
 
-            // Tag chip strip (hidden on AI tab and when no tags)
-            if selectedTab != .ai && !tags.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        // Show tags sorted by note count, top 12
-                        ForEach(sortedTags.prefix(12)) { tag in
-                            Button {
-                                if selectedTagFilter?.id == tag.id {
-                                    selectedTagFilter = nil
-                                } else {
-                                    selectedTagFilter = tag
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Text(tag.name)
-                                    Text("(\(tagNoteCount(tag)))")
-                                        .font(.caption2)
-                                }
-                                .font(.caption.weight(.medium))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    selectedTagFilter?.id == tag.id
-                                        ? Color.eeonAccent
-                                        : Color.eeonCard
-                                )
-                                .foregroundStyle(
-                                    selectedTagFilter?.id == tag.id
-                                        ? .white
-                                        : .eeonTextSecondary
-                                )
-                                .cornerRadius(16)
-                            }
-                        }
+            // Tag chip strip removed 2026-08-19 — notepad simplification.
+            // Tag filtering still available via the toolbar tag sheet.
 
-                        // "+N more" pill if there are more than 12 tags
-                        if sortedTags.count > 12 {
-                            Button {
-                                showingTagFilter = true
-                            } label: {
-                                Text("+\(sortedTags.count - 12) more")
-                                    .font(.caption.weight(.medium))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.eeonCard)
-                                    .foregroundStyle(.eeonTextTertiary)
-                                    .cornerRadius(16)
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-                .padding(.bottom, 4)
-            }
+            // Intent filter chips removed 2026-08-19 — notepad simplification.
 
-            // Intent filter chips (hidden on AI tab)
-            if selectedTab != .ai {
-                IntentFilterChips(
-                    counts: NotesReorgHelpers.intentCounts(notes: filteredNotes),
-                    selected: $selectedIntents
-                )
-                .padding(.bottom, 4)
-            }
-
-            if viewMode == .mood && selectedTab != .ai {
-                HStack(spacing: 6) {
-                    Text("Last 7 days")
-                        .font(.caption2)
-                        .foregroundStyle(.eeonTextTertiary)
-                    ForEach(Array(MoodTimelineHelpers.moodSparkline(notes: filteredNotes).enumerated()), id: \.offset) { _, color in
-                        Circle()
-                            .fill(color == .clear ? Color.eeonCard : color)
-                            .frame(width: 10, height: 10)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            }
+            // Mood sparkline removed with the view-mode picker (2026-08-19).
 
             // Active tag filter chip
             if let tag = selectedTagFilter {
@@ -1172,11 +1090,8 @@ struct AIHomeView: View {
                 LazyVStack(spacing: 0, pinnedViews: []) {
                     ForEach(notesByDay, id: \.0) { day, dayNotes in
                         Section {
-                            // 2-column grid
-                            let columns = [
-                                GridItem(.flexible(), spacing: 10),
-                                GridItem(.flexible(), spacing: 10)
-                            ]
+                            // Single-column, notepad-style list (2026-08-19 simplification)
+                            let columns = [GridItem(.flexible())]
                             LazyVGrid(columns: columns, spacing: 10) {
                                 ForEach(dayNotes) { note in
                                     NavigationLink(destination: NoteDetailView(note: note)) {
