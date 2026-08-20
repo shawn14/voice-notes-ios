@@ -301,11 +301,10 @@ struct AIHomeView: View {
                                     .padding(.horizontal)
                             }
 
-                            // Drift / staleness banner — only after a purpose has been compiled
-                            if driftStatus != .fresh {
-                                driftBanner
-                                    .padding(.horizontal)
-                            }
+                            // Drift / staleness "Re-tune" banner removed from home
+                            // (2026-08-19 simplification — home is the capture
+                            // stream, not a nag surface). driftBanner view kept
+                            // in codebase; re-tune lives in Settings / Tune EEON.
 
                             // Daily brief removed — AI tab handles organization
 
@@ -1142,20 +1141,11 @@ struct AIHomeView: View {
                 .padding(.bottom, 8)
             }
 
-            // Loose Ends — surfaces unresolved questions extracted from voice notes.
-            // Hidden on AI/Favorites/Archive tabs to keep them focused.
-            if selectedTab == .all {
-                LooseEndsLane(
-                    openItems: unresolvedItems.filter { $0.isOpen }
-                        .sorted { $0.createdAt > $1.createdAt }
-                ) { item in
-                    // Tap: open source note if available
-                    if let id = item.sourceNoteId,
-                       let note = notes.first(where: { $0.id == id }) {
-                        navigateToNote = note
-                    }
-                }
-            }
+            // Loose Ends lane removed from the All tab (2026-08-19
+            // simplification): with 60+ open items it buried the
+            // chronological feed entirely. LooseEndsLane stays in the
+            // codebase; unresolved items still surface via the AI tab
+            // and proactive alerts.
 
             if selectedTab == .ai {
                 // AI-organized view
