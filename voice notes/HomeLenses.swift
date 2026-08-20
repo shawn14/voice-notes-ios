@@ -135,23 +135,31 @@ struct CalendarLensView: View {
             }
         } label: {
             VStack(spacing: 3) {
+                // Today is a filled circle with a white number, the way the
+                // system calendar marks it.
                 Text("\(calendar.component(.day, from: day))")
                     .font(EEONType.body)
                     .foregroundStyle(
-                        isSelected ? Color.white
-                        : isToday ? Color.eeonAccent
+                        (isSelected || isToday) ? Color.white
                         : count > 0 ? Color.eeonTextPrimary
                         : Color.eeonTextTertiary
                     )
+                    .frame(width: 32, height: 32)
+                    .background(
+                        Circle().fill(
+                            isSelected ? Color.eeonAccent
+                            : isToday ? Color.eeonTextPrimary
+                            : Color.clear
+                        )
+                    )
+
                 Circle()
                     .fill(count > 0
-                          ? (isSelected ? Color.white : Color.eeonAccent)
+                          ? ((isSelected || isToday) ? Color.eeonAccent : Color.eeonAccent)
                           : Color.clear)
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity, minHeight: EEONLayout.minTarget)
-            .background(isSelected ? Color.eeonAccent : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.chipRadius))
         }
         .buttonStyle(.plain)
         .disabled(count == 0 && !isSelected)

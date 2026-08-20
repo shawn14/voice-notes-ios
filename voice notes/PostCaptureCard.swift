@@ -34,7 +34,7 @@ struct PostCaptureCard: View {
                     HStack {
                         Spacer()
                         RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.gray.opacity(0.5))
+                            .fill(Color.eeonTextTertiary)
                             .frame(width: 40, height: 5)
                         Spacer()
                     }
@@ -44,7 +44,7 @@ struct PostCaptureCard: View {
                     HStack(spacing: 10) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.title2)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(Color.eeonAccent)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(note.displayTitle.isEmpty ? "New Note" : note.displayTitle)
@@ -55,7 +55,7 @@ struct PostCaptureCard: View {
                             if let transcript = note.transcript, !transcript.isEmpty {
                                 Text(transcript)
                                     .font(.caption)
-                                    .foregroundStyle(.gray)
+                                    .foregroundStyle(.eeonTextSecondary)
                                     .lineLimit(2)
                             }
                         }
@@ -68,7 +68,7 @@ struct PostCaptureCard: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Transform into...")
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.eeonTextSecondary)
                             .padding(.horizontal, 20)
 
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -86,8 +86,8 @@ struct PostCaptureCard: View {
                                         }
                                         .padding(.horizontal, 14)
                                         .padding(.vertical, 10)
-                                        .background(Color.blue.opacity(0.2))
-                                        .foregroundStyle(.blue)
+                                        .background(Color.eeonAccent.opacity(0.18))
+                                        .foregroundStyle(Color.eeonAccent)
                                         .cornerRadius(20)
                                     }
                                 }

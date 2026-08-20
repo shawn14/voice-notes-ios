@@ -22,11 +22,11 @@ private enum UserRole: String, CaseIterable {
 
     var emoji: String {
         switch self {
-        case .professional: return "💼"
-        case .student: return "📚"
-        case .creator: return "🎨"
-        case .founder: return "🚀"
-        case .other: return "🔧"
+        case .professional: return "briefcase"
+        case .student: return "graduationcap"
+        case .creator: return "paintbrush"
+        case .founder: return "hammer"
+        case .other: return "person"
         }
     }
 
@@ -131,7 +131,9 @@ struct OnboardingQuizView: View {
                     heroScreen.tag(0)
                     roleScreen.tag(1)
                     intentScreen.tag(2)
-                    socialProofScreen.tag(3)
+                    // socialProofScreen removed 2026-08-20 — it showed
+                    // testimonials from invented people. Fabricated social
+                    // proof doesn't ship.
                     featureScreen.tag(4)
                     paywallScreen.tag(5)
                 }
