@@ -973,44 +973,11 @@ struct AIHomeView: View {
 
     private var browseFeed: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Tab bar + sort button
-            HStack(spacing: 0) {
-                ForEach(FeedTab.allCases, id: \.self) { tab in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedTab = tab
-                        }
-                    } label: {
-                        VStack(spacing: 6) {
-                            Text(tab.rawValue)
-                                .font(.subheadline.weight(selectedTab == tab ? .semibold : .regular))
-                                .foregroundStyle(selectedTab == tab ? .eeonTextPrimary : .eeonTextSecondary)
-
-                            Rectangle()
-                                .fill(selectedTab == tab ? Color.eeonAccent : Color.clear)
-                                .frame(height: 2)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-
-                // View-mode picker (List/Mood) removed 2026-08-19 — notepad
-                // simplification; list is the only mode rendered.
-
-                // Sort toggle
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        sortNewestFirst.toggle()
-                    }
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.eeonTextSecondary)
-                        .padding(.horizontal, 12)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
+            // Tab row (All/Notebooks/AI/Favorites/Archive) + sort removed
+            // 2026-08-19 (Shawn): home is search + the chronological notes,
+            // nothing else. selectedTab stays .all; the other tab views are
+            // unreachable but intact. NOTE: archived notes currently have no
+            // UI surface — see session notes.
 
             // Tag chip strip removed 2026-08-19 — notepad simplification.
             // Tag filtering still available via the toolbar tag sheet.
