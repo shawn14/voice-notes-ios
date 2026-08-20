@@ -103,7 +103,6 @@ struct AIHomeView: View {
     @State private var selectedTagFilter: Tag?
     @State private var showingTagManagement = false
     @State private var showingTagFilter = false
-    @State private var showingDecisionLog = false
     @State private var showingTasks = false
     @State private var selectedIntents: Set<NoteIntent> = []
 
@@ -432,9 +431,6 @@ struct AIHomeView: View {
             .sheet(isPresented: $showingTagFilter) {
                 TagFilterSheet(selectedTagFilter: $selectedTagFilter)
                     .presentationDetents([.medium])
-            }
-            .sheet(isPresented: $showingDecisionLog) {
-                DecisionLogView()
             }
             .sheet(isPresented: $showingTasks) {
                 TasksView()
@@ -995,9 +991,8 @@ struct AIHomeView: View {
 
             // Loose Ends lane removed from the All tab (2026-08-19
             // simplification): with 60+ open items it buried the
-            // chronological feed entirely. LooseEndsLane stays in the
-            // codebase; unresolved items still surface via the AI tab
-            // and proactive alerts.
+            // chronological feed entirely. Unresolved items still surface
+            // via the AI tab and proactive alerts.
 
             if selectedTab == .ai {
                 // AI-organized view
@@ -1295,7 +1290,7 @@ struct AIHomeView: View {
         case .recentNotes:
             noteFeed
         case .todayThree:
-            TodaysThreeSection(title: t, rationale: section.rationale)
+            EmptyView() // Today's 3 removed from home 2026-08-19
         case .openThreads:
             OpenThreadsSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .momentumPicture:
