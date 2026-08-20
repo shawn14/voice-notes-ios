@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 EEON is a voice-first AI memory app (SwiftUI + SwiftData) for iOS. Users talk into a single button — the AI classifies whether it's a note or a question, transcribes via OpenAI Whisper, extracts structured intelligence (decisions, actions, commitments, people, topics, emotional tone), generates an enhanced version of what the user said, embeds the note for vector search, and lets users query their entire memory via natural language. Features CloudKit sync, Sign in with Apple, StoreKit 2 subscriptions, a Home Screen / Lock Screen widget, and a Share Extension for ingesting URLs and text from other apps.
 
+**Telegram Door** (`door/`): A thin messaging interface — text a thought, get a draft back. Uses the same RewriteService templates as the iOS app. See `door/README.md`.
+
 ## Build Targets
 
 The Xcode project has three targets, all with spaces or capitals in the scheme name (always quote them):

@@ -50,6 +50,7 @@ enum NoteSourceType: String, CaseIterable {
     case audioImport = "audioImport"
     case profileSeed = "profileSeed"   // User-authored "about me" text → seeds .self KnowledgeArticle
     case purposeSeed = "purposeSeed"   // User-authored role statement → seeds .purpose KnowledgeArticle
+    case telegram = "telegram"         // Thought captured via Telegram door
 
     var badgeIcon: String? {
         switch self {
@@ -60,6 +61,7 @@ enum NoteSourceType: String, CaseIterable {
         case .audioImport: return "square.and.arrow.down"
         case .profileSeed: return "person.crop.circle"
         case .purposeSeed: return "scope"
+        case .telegram: return "paperplane"
         }
     }
 
@@ -72,6 +74,7 @@ enum NoteSourceType: String, CaseIterable {
         case .audioImport: return "Audio Import"
         case .profileSeed: return "Profile"
         case .purposeSeed: return "Purpose"
+        case .telegram: return "Telegram"
         }
     }
 }

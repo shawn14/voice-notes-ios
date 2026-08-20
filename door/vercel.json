@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/telegram",
+      "dest": "/api/telegram.js"
+    },
+    {
+      "src": "/api/pair",
+      "dest": "/api/pair.js"
+    },
+    {
+      "src": "/api/inbox",
+      "dest": "/api/inbox.js"
+    },
+    {
+      "src": "^/$",
+      "dest": "/api/index.js"
+    }
+  ]
+}

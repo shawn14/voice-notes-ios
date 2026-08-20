@@ -2153,6 +2153,44 @@ struct SettingsView: View {
                 // MARK: - Personalization
                 personalizationSection
 
+                // MARK: - Connections Section
+                Section {
+                    Button {
+                        Task {
+                            await TelegramService.shared.startPairing()
+                        }
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+                                Image(systemName: "paperplane.fill")
+                                    .foregroundStyle(.blue)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Message EEON")
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(.primary)
+                                Text("Capture thoughts via Telegram")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Connections")
+                } footer: {
+                    Text("Send thoughts or voice notes from Telegram — they sync back to EEON.")
+                        .font(.caption)
+                }
+
                 // MARK: - Usage Section
                 Section {
                     UsageSectionContent(usage: usage, noteCount: notes.count)
