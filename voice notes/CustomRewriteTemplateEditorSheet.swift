@@ -2,7 +2,11 @@
 //  CustomRewriteTemplateEditorSheet.swift
 //  voice notes
 //
-//  Sheet for creating or editing a user-authored rewrite template.
+//  Structured template builder (2026-08-20): a template is a name, overall
+//  instructions (goal, tone, style), and an ordered list of sections — each
+//  with a heading and its own extraction instructions. Structure beats a raw
+//  prompt box: users describe the shape they want instead of writing prompt
+//  engineering, and the compiled prompt is generated for them.
 //
 
 import SwiftUI
@@ -17,32 +21,32 @@ struct CustomRewriteTemplateEditorSheet: View {
 
     @State private var name: String = ""
     @State private var emoji: String = "✨"
-    @State private var systemPrompt: String = ""
-    @FocusState private var promptFocused: Bool
-
-    private static let promptCharLimit = 2000
+    @State private var globalInstructions: String = ""
+    @State private var sections: [TemplateSection] = []
 
     private var trimmedName: String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    private var trimmedPrompt: String {
-        systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    private var usableSections: [TemplateSection] {
+        sections.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
+
+    /// A template needs a name and something to say — either overall
+    /// instructions or at least one real section.
     private var canSave: Bool {
-        !trimmedName.isEmpty && !trimmedPrompt.isEmpty
+        !trimmedName.isEmpty
+            && (!globalInstructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !usableSections.isEmpty)
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    nameAndEmojiSection
-                    promptSection
-                    examplesHint
-                }
-                .padding(20)
+            List {
+                identitySection
+                instructionsSection
+                sectionsSection
             }
-            .background(Color(.systemBackground))
             .navigationTitle(editing == nil ? "New Template" : "Edit Template")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -51,150 +55,127 @@ struct CustomRewriteTemplateEditorSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
-                        .disabled(!canSave)
                         .fontWeight(.semibold)
+                        .disabled(!canSave)
                 }
             }
-        }
-        .presentationDetents([.large])
-        .onAppear {
-            if let editing {
-                name = editing.name
-                emoji = editing.emoji.isEmpty ? "✨" : editing.emoji
-                systemPrompt = editing.systemPrompt
-            }
+            .onAppear(perform: loadExisting)
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Sections of the form
 
-    private var nameAndEmojiSection: some View {
-        HStack(spacing: 12) {
-            TextField("✨", text: $emoji)
-                .font(.title2)
-                .multilineTextAlignment(.center)
-                .frame(width: 56, height: 56)
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                .onChange(of: emoji) { _, newValue in
-                    // Keep only the last grapheme cluster
-                    if let last = newValue.last, newValue.count > 1 {
-                        emoji = String(last)
+    private var identitySection: some View {
+        Section {
+            HStack(spacing: 12) {
+                TextField("✨", text: $emoji)
+                    .frame(width: 44)
+                    .multilineTextAlignment(.center)
+                    .font(.title2)
+                    .onChange(of: emoji) { _, newValue in
+                        if newValue.count > 2 { emoji = String(newValue.prefix(2)) }
                     }
-                }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Name")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                TextField("Tweet thread, exec summary, …", text: $name)
+                TextField("Client call notes, lecture notes, …", text: $name)
                     .font(.body)
-                    .textFieldStyle(.plain)
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 14)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
             }
+        } header: {
+            Text("Name")
         }
     }
 
-    private var promptSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private var instructionsSection: some View {
+        Section {
+            TextEditor(text: $globalInstructions)
+                .frame(minHeight: 90)
+                .font(.body)
+        } header: {
+            Text("Overall instructions")
+        } footer: {
+            Text("The goal, voice, and style for this format — for example: keep it factual and terse, write for someone who missed the meeting, never drop names or numbers.")
+        }
+    }
+
+    private var sectionsSection: some View {
+        Section {
+            ForEach($sections) { $section in
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Section heading", text: $section.title)
+                        .font(.body.weight(.semibold))
+                    TextField("What goes under this heading", text: $section.instructions, axis: .vertical)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1...4)
+                }
+                .padding(.vertical, 4)
+            }
+            .onDelete { sections.remove(atOffsets: $0) }
+            .onMove { sections.move(fromOffsets: $0, toOffset: $1) }
+
+            Button {
+                withAnimation { sections.append(TemplateSection()) }
+            } label: {
+                Label("Add section", systemImage: "plus.circle")
+                    .font(.subheadline.weight(.medium))
+            }
+        } header: {
             HStack {
-                Text("Prompt")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                Text("Sections")
                 Spacer()
-                Text("\(trimmedPrompt.count) / \(Self.promptCharLimit)")
-                    .font(.caption2)
-                    .foregroundStyle(trimmedPrompt.count > Self.promptCharLimit ? .red : .secondary)
-                    .monospacedDigit()
-            }
-
-            ZStack(alignment: .topLeading) {
-                if systemPrompt.isEmpty {
-                    Text("Rewrite this voice note as …")
-                        .font(.body)
-                        .foregroundStyle(.tertiary)
-                        .padding(.vertical, 14)
-                        .padding(.horizontal, 14)
+                if !sections.isEmpty {
+                    EditButton()
+                        .font(.caption)
                 }
-                TextEditor(text: $systemPrompt)
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .frame(minHeight: 220)
-                    .focused($promptFocused)
-                    .onChange(of: systemPrompt) { _, newValue in
-                        if newValue.count > Self.promptCharLimit {
-                            systemPrompt = String(newValue.prefix(Self.promptCharLimit))
-                        }
-                    }
             }
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.systemGray6))
-            )
+        } footer: {
+            Text("Three to six focused sections works best. Each becomes a labelled block in every note using this format.")
         }
     }
 
-    private var examplesHint: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "lightbulb")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                Text("Tips")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            Text("Write the prompt as an instruction to the AI. Example: \"Rewrite this voice note as a tweet thread of 5 tweets, each under 280 characters, with a hook in tweet 1.\"")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.06))
-        .cornerRadius(10)
-    }
+    // MARK: - Load / save
 
-    // MARK: - Actions
+    private func loadExisting() {
+        guard let editing, name.isEmpty else { return }
+        name = editing.name
+        emoji = editing.emoji
+        globalInstructions = editing.globalInstructions
+        sections = editing.sections
+
+        // A template authored before the structured builder has only a raw
+        // prompt — carry it into the instructions box so nothing is lost.
+        if globalInstructions.isEmpty && sections.isEmpty {
+            globalInstructions = editing.systemPrompt
+        }
+    }
 
     private func save() {
-        guard canSave else { return }
-        let safeEmoji = emoji.isEmpty ? "✨" : emoji
-        if let existing = editing {
-            existing.name = trimmedName
-            existing.emoji = safeEmoji
-            existing.systemPrompt = trimmedPrompt
-            existing.updatedAt = Date()
+        let compiled = CustomRewriteTemplate.compilePrompt(
+            globalInstructions: globalInstructions,
+            sections: usableSections
+        )
+
+        if let editing {
+            editing.name = trimmedName
+            editing.emoji = emoji.isEmpty ? "✨" : emoji
+            editing.globalInstructions = globalInstructions
+            editing.sections = usableSections
+            editing.systemPrompt = compiled
+            editing.updatedAt = Date()
         } else {
-            let nextOrder = nextSortOrder()
             let template = CustomRewriteTemplate(
                 name: trimmedName,
-                emoji: safeEmoji,
-                systemPrompt: trimmedPrompt,
-                sortOrder: nextOrder
+                emoji: emoji.isEmpty ? "✨" : emoji,
+                systemPrompt: compiled
             )
+            template.globalInstructions = globalInstructions
+            template.sections = usableSections
             modelContext.insert(template)
         }
+
         try? modelContext.save()
         dismiss()
     }
-
-    /// Append new templates to the end of the list.
-    private func nextSortOrder() -> Int {
-        let descriptor = FetchDescriptor<CustomRewriteTemplate>(
-            sortBy: [SortDescriptor(\.sortOrder, order: .reverse)]
-        )
-        let highest = (try? modelContext.fetch(descriptor))?.first?.sortOrder ?? -1
-        return highest + 1
-    }
 }
 
-#Preview("Create") {
+#Preview {
     CustomRewriteTemplateEditorSheet(editing: nil)
-        .modelContainer(for: CustomRewriteTemplate.self, inMemory: true)
 }
