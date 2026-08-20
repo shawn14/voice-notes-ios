@@ -794,8 +794,14 @@ struct AIHomeView: View {
     // MARK: - 3. Bottom Bar (Mic / New Note / Search)
 
     private var bottomBar: some View {
-        HStack(spacing: 0) {
-            // Mic button (left, elevated)
+        // Notepad simplification (2026-08-19, Shawn): the single mic button IS
+        // the app — spoken questions still reach Ask/RAG via IntentClassifier.
+        // The Ask and New Note pills were removed; TypeNoteSheet and
+        // SourcePickerSheet remain wired (sheets + state) but currently have
+        // no entry point on the bottom bar.
+        HStack {
+            Spacer()
+
             Button(action: {
                 toggleRecording()
             }) {
@@ -818,51 +824,6 @@ struct AIHomeView: View {
             .offset(y: -6)
 
             Spacer()
-
-            // "Ask EEON" pill — discoverable entry point for chat-with-your-notes
-            Button {
-                showingAskInput = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "bubble.left.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Ask")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .foregroundStyle(Color("EEONAccentAI"))
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-                .background(Color("EEONAccentAI").opacity(0.12))
-                .clipShape(Capsule())
-            }
-            .padding(.trailing, 8)
-
-            // "New Note" pill button (right) — Coconote-style.
-            // Tap = type a note immediately (the pill's pencil icon promise);
-            // long-press = the full import picker. The mic button already owns
-            // voice, so typed capture gets the one-tap path.
-            Button {
-                showingTypeNote = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("New Note")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Color.eeonAccent)
-                .clipShape(Capsule())
-            }
-            .contextMenu {
-                Button {
-                    showingSourcePicker = true
-                } label: {
-                    Label("Import audio, file, or link…", systemImage: "square.and.arrow.down")
-                }
-            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
