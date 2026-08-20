@@ -122,6 +122,7 @@ final class IntelligenceService {
                         context.insert(item)
                     }
 
+                    var newActions: [ExtractedAction] = []
                     for action in result.actions {
                         let extractedAction = ExtractedAction(
                             content: action.content,
@@ -130,6 +131,7 @@ final class IntelligenceService {
                             sourceNoteId: note.id
                         )
                         context.insert(extractedAction)
+                        newActions.append(extractedAction)
 
                         // Auto-create Kanban item for each action
                         let kanbanItem = KanbanItem(
@@ -142,6 +144,13 @@ final class IntelligenceService {
                         kanbanItem.owner = action.owner
                         kanbanItem.deadline = action.deadline
                         context.insert(kanbanItem)
+                    }
+
+                    // Push new actions to Apple Reminders (no-op unless the
+                    // user enabled it in Settings). Deduped inside the service.
+                    if !newActions.isEmpty {
+                        let actionsToSync = newActions
+                        Task { await EventKitSyncService.shared.sync(actions: actionsToSync) }
                     }
 
                     for commitment in result.commitments {

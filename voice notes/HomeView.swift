@@ -1567,6 +1567,7 @@ struct SettingsView: View {
     // Observe AuthService for reactive updates
     private var authService = AuthService.shared
 
+    @AppStorage(EventKitSyncService.enabledKey) private var remindersSyncEnabled = false
     @State private var showingAddProject = false
     @State private var newProjectName = ""
     @State private var showingShareSheet = false
@@ -2189,6 +2190,33 @@ struct SettingsView: View {
 
                 // MARK: - Notifications Section
                 NotificationSettingsSection()
+
+                // MARK: - Connections Section
+                Section {
+                    Toggle(isOn: $remindersSyncEnabled) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "checklist")
+                                .font(.system(size: 18))
+                                .foregroundStyle(.eeonAccentAI)
+                                .frame(width: 28)
+                            Text("Sync actions to Reminders")
+                                .font(.body)
+                        }
+                    }
+                    .onChange(of: remindersSyncEnabled) { _, isOn in
+                        guard isOn else { return }
+                        Task {
+                            let granted = await EventKitSyncService.shared.requestAccess()
+                            if !granted {
+                                await MainActor.run { remindersSyncEnabled = false }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Connections")
+                } footer: {
+                    Text("New action items from your notes appear in an \"EEON\" list in Apple Reminders — and sync anywhere your reminders do (iCloud, Google, Outlook).")
+                }
 
                 // MARK: - Support Section
                 Section {
