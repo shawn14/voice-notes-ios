@@ -19,13 +19,17 @@ enum NoteTab: String, CaseIterable {
 
 // MARK: - AI Transform Types
 
+// Professional transform set (2026-08-19, Shawn): summaries and
+// profession-shaped notes — school, clinical, legal, meetings — instead of
+// social-media output. Old saved outputs with retired type names ("Tweet",
+// "PRD", "CEO Report") still render; they just lose their header label.
 enum AITransformType: String, CaseIterable, Identifiable {
     case summary = "Summary"
     case executiveSummary = "Executive Summary"
-    case tweet = "Tweet"
-    case prd = "PRD"
-    case meetingSummary = "Meeting Summary"
-    case ceoReport = "CEO Report"
+    case schoolNotes = "School Notes"
+    case clinicalNote = "Clinical Note"
+    case caseNote = "Case Note"
+    case meetingSummary = "Meeting Minutes"
     case custom = "Custom..."
 
     var id: String { rawValue }
@@ -34,10 +38,10 @@ enum AITransformType: String, CaseIterable, Identifiable {
         switch self {
         case .summary: return "doc.text"
         case .executiveSummary: return "briefcase"
-        case .tweet: return "at"
-        case .prd: return "list.bullet.clipboard"
+        case .schoolNotes: return "graduationcap"
+        case .clinicalNote: return "stethoscope"
+        case .caseNote: return "building.columns"
         case .meetingSummary: return "person.3"
-        case .ceoReport: return "chart.bar.doc.horizontal"
         case .custom: return "wand.and.stars"
         }
     }
@@ -48,14 +52,14 @@ enum AITransformType: String, CaseIterable, Identifiable {
             return "Summarize this voice note in 2-3 concise sentences, capturing the key points."
         case .executiveSummary:
             return "Create a brief executive summary of this voice note. Include: key points, decisions made, and action items. Format with bullet points."
-        case .tweet:
-            return "Convert this voice note into a compelling tweet (max 280 characters). Make it engaging and shareable."
-        case .prd:
-            return "Transform this voice note into a Product Requirements Document (PRD) format. Include: Overview, Goals, Requirements, Success Metrics, and Timeline if mentioned."
+        case .schoolNotes:
+            return "Transform this into clear study notes. Include: topic headings, key concepts with short definitions, important facts and examples, and 2-3 review questions at the end. Keep every fact from the original — organize, don't drop."
+        case .clinicalNote:
+            return "Structure this dictation as a clinical note. Include: Subjective (what was reported), Objective (findings or observations mentioned), Assessment, and Plan. Preserve all clinical details, names, dosages, and figures exactly as stated. Never invent findings that were not dictated."
+        case .caseNote:
+            return "Structure this as a legal case note. Include: Matter/Parties, Key Facts, Issues, Analysis or Positions discussed, and Action Items with any deadlines. Preserve names, dates, citations, and figures exactly as stated."
         case .meetingSummary:
-            return "Format this as a meeting summary. Include: Attendees (if mentioned), Discussion Points, Decisions Made, Action Items with owners, and Next Steps."
-        case .ceoReport:
-            return "Transform this into a concise CEO/executive report. Include: Key Highlights, Strategic Implications, Risks/Concerns, and Recommended Actions. Keep it brief and high-level."
+            return "Format this as meeting minutes. Include: Attendees (if mentioned), Discussion Points, Decisions Made, Action Items with owners, and Next Steps."
         case .custom:
             return "" // User provides custom prompt
         }

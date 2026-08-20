@@ -17,7 +17,7 @@ struct PostCaptureCard: View {
     @State private var appeared = false
 
     private let quickTransforms: [AITransformType] = [
-        .summary, .tweet, .meetingSummary, .executiveSummary, .prd, .ceoReport
+        .summary, .schoolNotes, .clinicalNote, .caseNote, .meetingSummary, .executiveSummary
     ]
 
     var body: some View {
