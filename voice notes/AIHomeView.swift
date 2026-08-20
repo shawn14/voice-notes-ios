@@ -561,15 +561,7 @@ struct AIHomeView: View {
 
             Spacer(minLength: 8)
 
-            // Tag filter
-            Button {
-                showingTagFilter = true
-            } label: {
-                Image(systemName: "tag")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.eeonTextSecondary)
-            }
-            .padding(.trailing, 8)
+            // Tag filter button removed 2026-08-19 — just the notes.
 
             // Decisions log
             Button {
@@ -1027,27 +1019,7 @@ struct AIHomeView: View {
 
             // Mood sparkline removed with the view-mode picker (2026-08-19).
 
-            // Active tag filter chip
-            if let tag = selectedTagFilter {
-                HStack(spacing: 6) {
-                    Text(tag.name)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.blue)
-                    Button {
-                        withAnimation { selectedTagFilter = nil }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.eeonTextSecondary)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.blue.opacity(0.12))
-                .cornerRadius(8)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-            }
+            // Active tag-filter chip removed 2026-08-19 with its entry point.
 
             // Loose Ends lane removed from the All tab (2026-08-19
             // simplification): with 60+ open items it buried the
@@ -2107,25 +2079,9 @@ struct NoteFeedCard: View {
                     .lineLimit(2)
             }
 
-            // Intent icon or first topic chip
+            // Intent/topic chips removed 2026-08-19 — a card is title,
+            // time, preview. Status glyphs (archive/favorite) remain.
             HStack(spacing: 4) {
-                if note.intent != .unknown {
-                    Image(systemName: note.intent.icon)
-                        .font(.caption2)
-                        .foregroundStyle(note.intent.color)
-                }
-
-                if let firstTopic = note.topics.first {
-                    Text(firstTopic)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.blue)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.blue.opacity(0.12))
-                        .cornerRadius(4)
-                        .lineLimit(1)
-                }
-
                 Spacer()
 
                 if note.isArchived {
