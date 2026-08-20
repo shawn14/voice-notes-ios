@@ -1986,76 +1986,8 @@ struct SettingsView: View {
             .padding(.vertical, 4)
             .disabled(isSyncing || iCloudStatus != .available)
 
-            #if DEBUG
-            DisclosureGroup {
-                VStack(alignment: .leading, spacing: 8) {
-                    diagRow(label: "Container init", value: diagInitOutcome, detail: diagInitError)
-                    diagRow(label: "Account status", value: iCloudStatusText, detail: nil)
-                    diagRow(label: "iCloud user ID", value: diagUserRecordID, detail: nil)
-                    diagRow(label: "Local notes", value: "\(notes.count)", detail: nil)
-                    diagRow(
-                        label: "Private zones",
-                        value: diagZones.isEmpty ? "(none found)" : "\(diagZones.count)",
-                        detail: diagZones.isEmpty ? diagZonesError : diagZones.joined(separator: "\n")
-                    )
-                    diagRow(
-                        label: "CloudKit CD_Note",
-                        value: diagCKNoteCount,
-                        detail: diagCKNoteError
-                    )
-
-                    if !diagEvents.isEmpty {
-                        Divider().padding(.vertical, 4)
-                        Text("Recent CloudKit events")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        ForEach(diagEvents.reversed()) { event in
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack {
-                                    Text("\(event.type) \(event.succeeded ? "✓" : "✗")")
-                                        .foregroundStyle(event.succeeded ? Color.primary : Color.red)
-                                    Spacer()
-                                    Text(event.date.formatted(date: .omitted, time: .standard))
-                                        .foregroundStyle(.tertiary)
-                                }
-                                if let err = event.errorDescription, !err.isEmpty {
-                                    Text(err)
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.red)
-                                        .textSelection(.enabled)
-                                        .lineLimit(nil)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    }
-
-                    Button {
-                        Task { await loadDiagnostics() }
-                    } label: {
-                        HStack {
-                            if diagIsLoading { ProgressView().scaleEffect(0.7) }
-                            Text(diagIsLoading ? "Refreshing…" : "Refresh diagnostics")
-                                .font(.caption.weight(.medium))
-                        }
-                    }
-                    .disabled(diagIsLoading)
-                    .padding(.top, 4)
-                }
-                .font(.caption)
-                .padding(.vertical, 6)
-            } label: {
-                HStack(spacing: 16) {
-                    Image(systemName: "stethoscope")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 44)
-                    Text("CloudKit diagnostics")
-                        .font(.body)
-                }
-            }
-            .padding(.vertical, 4)
-            #endif
+            // CloudKit diagnostics panel removed 2026-08-20 (settings cleanup) —
+            // CloudKitEventLog still records; the panel lives in git history.
         } header: {
             Text("iCloud & Sync")
         } footer: {
@@ -2881,58 +2813,10 @@ struct NotificationSettingsSection: View {
                 }
             }
 
-            Toggle(isOn: $dailyBriefEnabled) {
-                HStack(spacing: 16) {
-                    Image(systemName: "sun.horizon")
-                        .foregroundStyle(.yellow)
-                        .frame(width: 44)
+            // Daily-brief notification toggle removed 2026-08-20 — the brief
+            // no longer has a home surface; the toggle was orphaned confusion.
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Daily brief notification")
-                            .font(.body)
-                        Text("Morning reminder to review your brief")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
-            .onChange(of: dailyBriefEnabled) { _, enabled in
-                Task {
-                    if enabled {
-                        let components = Calendar.current.dateComponents([.hour, .minute], from: briefTime)
-                        await NotificationScheduler.shared.scheduleDailyBriefReminder(
-                            at: components.hour ?? 8,
-                            minute: components.minute ?? 0
-                        )
-                    } else {
-                        await NotificationScheduler.shared.scheduleDailyBriefReminder(at: 8, minute: 0)
-                    }
-                }
-            }
-
-            if dailyBriefEnabled {
-                DatePicker(selection: $briefTime, displayedComponents: .hourAndMinute) {
-                    HStack(spacing: 16) {
-                        Image(systemName: "clock")
-                            .foregroundStyle(Color("EEONAccentAI"))
-                            .frame(width: 44)
-
-                        Text("Brief time")
-                            .font(.body)
-                    }
-                }
-                .padding(.vertical, 4)
-                .onChange(of: briefTime) { _, newTime in
-                    let components = Calendar.current.dateComponents([.hour, .minute], from: newTime)
-                    Task {
-                        await NotificationScheduler.shared.scheduleDailyBriefReminder(
-                            at: components.hour ?? 8,
-                            minute: components.minute ?? 0
-                        )
-                    }
-                }
-            }
+            // Brief-time picker removed with the daily-brief toggle (2026-08-20).
         } header: {
             Text("Notifications")
         }
