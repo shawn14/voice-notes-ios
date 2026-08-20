@@ -680,15 +680,16 @@ struct AIHomeView: View {
                             .foregroundStyle(.white)
                     )
                 Text(name)
-                    .font(.subheadline.weight(.semibold))
+                    .font(EEONType.control)
                     .foregroundStyle(.eeonTextPrimary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("\(count)")
-                    .font(.caption2)
+                    .font(EEONType.meta)
                     .foregroundStyle(.eeonTextSecondary)
             }
-            .padding(12)
-            .frame(width: 128, alignment: .leading)
+            .padding(EEONLayout.snug)
+            .frame(minWidth: 112, maxWidth: 168, alignment: .leading)
             .background(isSelected ? Color.eeonAccent.opacity(0.18) : Color.eeonCard)
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
@@ -1124,8 +1125,9 @@ struct AIHomeView: View {
                     searchQuery = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 14))
+                        .font(.body)
                         .foregroundStyle(.eeonTextSecondary)
+                        .eeonTapTarget()
                 }
                 .accessibilityLabel("Clear search")
             }

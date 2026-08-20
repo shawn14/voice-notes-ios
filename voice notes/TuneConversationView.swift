@@ -244,9 +244,10 @@ struct TuneConversationView: View {
                 Text(preset.name)
                     .font(.caption.weight(.semibold))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(isApplied ? Color.indigo : Color.eeonCard)
+            .padding(.horizontal, EEONLayout.standard)
+            .padding(.vertical, 12)
+            .frame(minHeight: EEONLayout.minTarget)
+            .background(isApplied ? Color.eeonAccent : Color.eeonCard)
             .foregroundStyle(isApplied ? Color.white : Color.eeonTextPrimary)
             .clipShape(Capsule())
         }

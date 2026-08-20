@@ -1651,9 +1651,9 @@ struct SettingsView: View {
         Toggle(isOn: $remindersSyncEnabled) {
             HStack(spacing: 16) {
                 Image(systemName: "checklist")
-                    .font(.system(size: 18))
+                    .font(.title3)
                     .foregroundStyle(.eeonAccentAI)
-                    .frame(width: 28)
+                    .frame(width: EEONLayout.minTarget)
                 Text("Sync actions to Reminders")
                     .font(.body)
             }
@@ -1673,9 +1673,9 @@ struct SettingsView: View {
         Toggle(isOn: $documentExportEnabled) {
             HStack(spacing: 16) {
                 Image(systemName: "folder")
-                    .font(.system(size: 18))
+                    .font(.title3)
                     .foregroundStyle(.eeonAccentAI)
-                    .frame(width: 28)
+                    .frame(width: EEONLayout.minTarget)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Auto-export notes to a folder")
                         .font(.body)
@@ -1701,9 +1701,9 @@ struct SettingsView: View {
         Toggle(isOn: $autoSummarizeEnabled) {
             HStack(spacing: 16) {
                 Image(systemName: "text.badge.checkmark")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.indigo)
-                    .frame(width: 44)
+                    .font(.title3)
+                    .foregroundStyle(.eeonAccentAI)
+                    .frame(width: EEONLayout.minTarget)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Auto-format new notes")
                         .font(.body)
