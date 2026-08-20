@@ -1,0 +1,21 @@
+{
+  "name": "eeon-door",
+  "version": "1.0.0",
+  "description": "EEON Telegram text door - chat in, draft out",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch api/telegram.js",
+    "test": "node --test",
+    "tunnel": "npx localtunnel --port 3000"
+  },
+  "dependencies": {
+    "form-data": "^4.0.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
