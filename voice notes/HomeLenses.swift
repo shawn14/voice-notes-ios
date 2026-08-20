@@ -139,7 +139,9 @@ struct CalendarLensView: View {
                     .font(EEONType.body)
                     .foregroundStyle(
                         isSelected ? Color.white
-                        : (isToday ? Color.eeonAccent : Color.eeonTextPrimary)
+                        : isToday ? Color.eeonAccent
+                        : count > 0 ? Color.eeonTextPrimary
+                        : Color.eeonTextTertiary
                     )
                 Circle()
                     .fill(count > 0
@@ -153,7 +155,6 @@ struct CalendarLensView: View {
         }
         .buttonStyle(.plain)
         .disabled(count == 0 && !isSelected)
-        .opacity(count == 0 ? 0.4 : 1)
     }
 
     private func shiftMonth(by months: Int) {
