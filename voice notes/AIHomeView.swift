@@ -104,6 +104,7 @@ struct AIHomeView: View {
     @State private var showingTagManagement = false
     @State private var showingTagFilter = false
     @State private var showingDecisionLog = false
+    @State private var showingTasks = false
     @State private var selectedIntents: Set<NoteIntent> = []
 
     // Keyword search — global substring search across all notes
@@ -435,6 +436,9 @@ struct AIHomeView: View {
             .sheet(isPresented: $showingDecisionLog) {
                 DecisionLogView()
             }
+            .sheet(isPresented: $showingTasks) {
+                TasksView()
+            }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -563,11 +567,12 @@ struct AIHomeView: View {
 
             // Tag filter button removed 2026-08-19 — just the notes.
 
-            // Decisions log
+            // Tasks — every next step, captured (replaces the decision log,
+            // which is on the simplification erase list).
             Button {
-                showingDecisionLog = true
+                showingTasks = true
             } label: {
-                Image(systemName: "checkmark.seal")
+                Image(systemName: "checklist")
                     .font(.system(size: 16))
                     .foregroundStyle(.eeonTextSecondary)
             }
@@ -2009,6 +2014,15 @@ struct WelcomeFeatureRow: View {
 // MARK: - Note Feed Card (compact for 2-column grid)
 
 struct NoteFeedCard: View {
+    /// "1h 24m" / "8m" / "42s" — matches how a capture stream reads a length.
+    static func durationText(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        if total < 60 { return "\(total)s" }
+        let minutes = total / 60
+        if minutes < 60 { return "\(minutes)m" }
+        return "\(minutes / 60)h \(minutes % 60)m"
+    }
+
     @Environment(\.colorScheme) var colorScheme
     let note: Note
 
@@ -2032,11 +2046,23 @@ struct NoteFeedCard: View {
                 .foregroundStyle(.eeonTextPrimary)
                 .lineLimit(2)
 
-            // Time — the day is already the section header, so the card
-            // shows when in the day it was captured (Pocket-style).
-            Text(note.createdAt.formatted(date: .omitted, time: .shortened))
-                .font(.caption2)
-                .foregroundStyle(.eeonTextSecondary)
+            // Metadata line, Pocket-style: time · duration · category.
+            // The day lives in the section header, so the card carries the
+            // time of day, how long the recording ran, and one tag.
+            HStack(spacing: 6) {
+                Text(note.createdAt.formatted(date: .omitted, time: .shortened))
+                if let seconds = note.audioDuration, seconds > 0 {
+                    Text("·")
+                    Text(NoteFeedCard.durationText(seconds))
+                }
+                if let topic = note.topics.first, !topic.isEmpty {
+                    Text("·")
+                    Text(topic.capitalized)
+                        .lineLimit(1)
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.eeonTextSecondary)
 
             // 1-line preview
             if !preview.isEmpty {
