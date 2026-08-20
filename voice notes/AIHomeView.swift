@@ -106,6 +106,7 @@ struct AIHomeView: View {
     @State private var showingTasks = false
     @State private var selectedCategory: String?
     @State private var showingFilterSheet = false
+    @State private var homeLens: HomeLens = .notes
     @State private var selectedDay: Date?
     @State private var selectedIntents: Set<NoteIntent> = []
 
@@ -339,14 +340,14 @@ struct AIHomeView: View {
                             greetingBar
                                 .padding(.horizontal)
 
-                            // Category cards and the 14-day strip were removed
-                            // 2026-08-20. Research across Apple Notes, Bear,
-                            // Craft, Otter, Day One and Things: none of them
-                            // render a category row, a date rail AND section
-                            // headers at once. Date lives in the feed's own
-                            // headers; category is an invoked filter, not
-                            // permanent chrome. Both views remain below for
-                            // the filter sheet to reuse.
+                            // Lens switcher — Notes / Calendar / Categories.
+                            // Mutually exclusive views on the same stream
+                            // (Day One's pattern), never stacked rails.
+                            lensSwitcher
+                                .padding(.horizontal)
+
+                            activeLens
+                                .padding(.horizontal)
 
                             // Tune EEON hero card — prominent until user has compiled a .purpose article
                             if showTuneHeroCard {
@@ -559,6 +560,41 @@ struct AIHomeView: View {
     private var hasCompiledPurpose: Bool {
         guard let article = purposeArticles.first else { return false }
         return (article.thinkingEvolution?.isEmpty == false) || !article.summary.isEmpty
+    }
+
+    // MARK: - Lenses (one at a time, never stacked)
+
+    /// Note counts keyed by start-of-day, for the calendar's dots.
+    private var notesByDayCount: [Date: Int] {
+        var out: [Date: Int] = [:]
+        let calendar = Calendar.current
+        for note in notes where !note.isArchived
+            && note.sourceType != .profileSeed && note.sourceType != .purposeSeed {
+            let day = calendar.startOfDay(for: note.createdAt)
+            out[day, default: 0] += 1
+        }
+        return out
+    }
+
+    private var lensSwitcher: some View {
+        Picker("View", selection: $homeLens) {
+            ForEach(HomeLens.allCases) { lens in
+                Text(lens.rawValue).tag(lens)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    @ViewBuilder
+    private var activeLens: some View {
+        switch homeLens {
+        case .notes:
+            EmptyView()
+        case .calendar:
+            CalendarLensView(notesByDayCount: notesByDayCount, selectedDay: $selectedDay)
+        case .categories:
+            CategoriesLensView(categories: topCategories, selectedCategory: $selectedCategory)
+        }
     }
 
     // MARK: - Filter (invoked, never permanent chrome)
