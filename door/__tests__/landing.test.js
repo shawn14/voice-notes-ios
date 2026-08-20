@@ -77,7 +77,8 @@ describe('Landing page handler', () => {
     
     handler({}, mockRes);
     
-    assert.ok(responseBody.includes('https://t.me/EEON_BOT_USERNAME'));
+    // Fallback is now heyeeon_bot (the actual production bot)
+    assert.ok(responseBody.includes('https://t.me/heyeeon_bot'));
   });
 
   test('handler includes key landing page elements', async () => {

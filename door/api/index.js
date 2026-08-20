@@ -6,7 +6,7 @@
  */
 
 export default function handler(req, res) {
-  const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'EEON_BOT_USERNAME';
+  const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'heyeeon_bot';
   const telegramUrl = `https://t.me/${botUsername}`;
   
   const html = `<!DOCTYPE html>

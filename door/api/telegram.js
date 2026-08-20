@@ -5,12 +5,32 @@
  * using the same templates as the iOS app's RewriteService.
  * 
  * Stanley-shaped loop: chat in → draft out.
+ * 
+ * Auth model:
+ * - Paired users (via /start {token} from iOS app) can use the bot
+ * - Operator allowlist (TELEGRAM_ALLOWED_CHAT_ID) as fallback
+ * - Unpaired unknown chats get a "connect from app" message
  */
 
 import { isAllowedChat, validateEnv } from '../lib/auth.js';
 import { TEMPLATES, DEFAULT_TEMPLATE, routeCommand, extractContent, isPublishRequest, isGreeting, isTooThin, HELP_MESSAGE } from '../lib/templates.js';
 import { rewriteWithGPT, transcribeAudio } from '../lib/openai.js';
 import { sendMessage, downloadFile } from '../lib/telegram.js';
+import { consumePairingToken, savePairing, getPairing, addToInbox } from '../lib/store.js';
+
+// Message for unpaired users
+const CONNECT_MESSAGE = `👋 Welcome to EEON!
+
+To connect your account, open EEON on your phone and tap *Message EEON*.
+
+Once connected, you can text thoughts or send voice notes here — they'll sync to your EEON app.`;
+
+// Message after successful pairing
+const PAIRED_MESSAGE = `✅ *Connected!*
+
+Your Telegram is now linked to EEON. Send a thought or voice note — it'll appear in your app.
+
+Try: "Building in public taught me that feedback is a gift, not a threat"`;
 
 /**
  * Main webhook handler — Vercel serverless function format.
@@ -50,11 +70,27 @@ export async function handleUpdate(update) {
 
   const chatId = message.chat?.id;
   const messageId = message.message_id;
+  const text = message.text || '';
 
-  // Auth check — only respond to allowed chats
-  if (!isAllowedChat(chatId)) {
-    console.log(`[webhook] Ignoring message from unauthorized chat: ${chatId}`);
-    return; // Silent ignore
+  // Check for /start command with pairing token
+  if (text.startsWith('/start ')) {
+    const token = text.slice(7).trim();
+    if (token) {
+      await handlePairing(chatId, messageId, token);
+      return;
+    }
+  }
+
+  // Check auth: paired user OR operator allowlist
+  const eeonUserId = await getPairing(chatId);
+  const isPairedUser = !!eeonUserId;
+  const isAllowed = isAllowedChat(chatId);
+
+  if (!isPairedUser && !isAllowed) {
+    // Unpaired unknown user — tell them to connect from app
+    console.log(`[webhook] Unpaired chat ${chatId}, sending connect message`);
+    await sendMessage(chatId, CONNECT_MESSAGE, messageId);
+    return;
   }
 
   // Determine content type and extract text
@@ -88,6 +124,16 @@ export async function handleUpdate(update) {
   }
 
   if (!content.trim()) {
+    return;
+  }
+
+  // Handle /start without token (already paired or allowlist)
+  if (content === '/start') {
+    if (isPairedUser) {
+      await sendMessage(chatId, '✅ You\'re already connected! Send a thought or voice note.', messageId);
+    } else {
+      await sendMessage(chatId, HELP_MESSAGE, messageId);
+    }
     return;
   }
 
@@ -126,6 +172,18 @@ export async function handleUpdate(update) {
     console.log(`[webhook] Rewriting with template: ${template.name}`);
     const draft = await rewriteWithGPT(textToRewrite, template.systemPrompt);
     
+    // Store to inbox if user is paired (so iOS app can sync)
+    if (isPairedUser) {
+      await addToInbox(eeonUserId, {
+        thought: textToRewrite,
+        draft,
+        templateId,
+        templateName: template.name,
+        isVoice
+      });
+      console.log(`[webhook] Added to inbox for user ${eeonUserId.slice(0, 8)}...`);
+    }
+    
     // Format response
     const response = `✨ *${template.name}*\n\n${draft}`;
     await sendMessage(chatId, response, messageId);
@@ -135,6 +193,31 @@ export async function handleUpdate(update) {
     console.error('[webhook] Rewrite failed:', error);
     await sendMessage(chatId, '❌ Failed to generate draft. Please try again.', messageId);
   }
+}
+
+/**
+ * Handle pairing via /start {token}
+ */
+async function handlePairing(chatId, messageId, token) {
+  console.log(`[webhook] Pairing attempt: chat ${chatId}, token ${token}`);
+  
+  const result = await consumePairingToken(token);
+  
+  if (!result.valid) {
+    console.log(`[webhook] Pairing failed: ${result.reason}`);
+    await sendMessage(
+      chatId,
+      `❌ *Connection failed*\n\n${result.reason}. Please tap "Message EEON" in the app to try again.`,
+      messageId
+    );
+    return;
+  }
+  
+  // Save the pairing
+  await savePairing(chatId, result.eeonUserId);
+  console.log(`[webhook] Paired chat ${chatId} → user ${result.eeonUserId.slice(0, 8)}...`);
+  
+  await sendMessage(chatId, PAIRED_MESSAGE, messageId);
 }
 
 // For local development — run as HTTP server

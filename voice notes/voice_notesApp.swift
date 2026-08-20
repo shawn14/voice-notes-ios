@@ -351,6 +351,9 @@ struct voice_notesApp: App {
         }
         WidgetCenter.shared.reloadAllTimelines()
 
+        // Sync Telegram inbox (thoughts sent via Telegram door)
+        await TelegramService.shared.syncInbox(context: context)
+
         // Tier 2: Refresh session brief (local computation, no AI)
         await IntelligenceService.shared.refreshSessionBriefIfNeeded(
             notes: notes,

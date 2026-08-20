@@ -2,11 +2,17 @@
 
 Text a thought, get a draft back. The Stanley-shaped loop.
 
+**This is not a separate product.** It's a Telegram door into EEON — the same user, both doors, shared drafts.
+
 ## For Users
 
-Visit the landing page → tap "Message EEON" → send a text or voice note → get a polished draft.
+1. Open EEON app → Settings → tap **Message EEON**
+2. This opens Telegram with your account linked
+3. Send a text or voice note
+4. Get a polished draft back
+5. The note syncs to your EEON app automatically
 
-That's it. No app to install, no account to create.
+Copy the draft, paste to post. Done.
 
 ### Commands
 
@@ -19,29 +25,47 @@ That's it. No app to install, no account to create.
 | `bullets: your notes` | Bullet point list |
 | `quick: your ramble` | 2-3 sentence summary |
 
-Copy the draft, paste to post. Done.
+---
+
+## Architecture
+
+### How Pairing Works
+
+1. User taps "Message EEON" in iOS app
+2. App calls `/api/pair?action=request` with Apple user ID
+3. Door generates a 6-character token (expires in 5 min)
+4. App opens `t.me/heyeeon_bot?start={token}`
+5. Bot receives `/start {token}`, validates, saves pairing
+6. User can now send messages
+
+### How Drafts Sync
+
+1. User sends text/voice to bot
+2. Bot transcribes (if voice) and rewrites with template
+3. Draft + original thought stored in user's inbox
+4. iOS app polls `/api/inbox` on foreground
+5. Items converted to Notes with `sourceType: .telegram`
+6. Items acknowledged and removed from inbox
+
+### Auth Model
+
+- **Paired users**: Linked via the iOS app pairing flow
+- **Operator allowlist**: `TELEGRAM_ALLOWED_CHAT_ID` as fallback
+- **Unpaired users**: Get a "connect from app" message
 
 ---
 
 ## For Operators (Setup Once)
-
-This section is for setting up the bot. Users never see this.
 
 ### 1. Create a Telegram Bot
 
 1. Message [@BotFather](https://t.me/botfather) on Telegram
 2. Send `/newbot`
 3. Choose a name (e.g., "EEON")
-4. Choose a username (must end in `bot`, e.g., `eeon_bot`)
+4. Choose a username (e.g., `heyeeon_bot`)
 5. Save the token
 
-### 2. Get Your Chat ID (for testing)
-
-1. Message your new bot
-2. Visit: `https://api.telegram.org/bot<TOKEN>/getUpdates`
-3. Find `chat.id` in the response
-
-### 3. Deploy to Vercel
+### 2. Deploy to Vercel
 
 ```bash
 cd door
@@ -49,42 +73,54 @@ npm install
 vercel
 ```
 
-Set environment variables in Vercel Dashboard → Settings → Environment Variables:
+Set environment variables in Vercel Dashboard:
 
 | Variable | Description |
 |----------|-------------|
 | `TELEGRAM_BOT_TOKEN` | From BotFather |
 | `OPENAI_API_KEY` | For GPT + Whisper |
-| `TELEGRAM_ALLOWED_CHAT_ID` | Your chat ID (or comma-separated list) |
-| `TELEGRAM_BOT_USERNAME` | Bot username without @ (for landing page CTA) |
+| `TELEGRAM_ALLOWED_CHAT_ID` | Operator fallback (optional) |
+| `TELEGRAM_BOT_USERNAME` | Bot username for landing page |
+
+Link Vercel KV for persistent storage:
+```bash
+vercel env pull
+vercel link
+# In Vercel Dashboard: Storage → Create KV → Link to project
+```
 
 Deploy to production:
 ```bash
 vercel --prod
 ```
 
-### 4. Set Webhook
+### 3. Set Webhook
 
 ```bash
 curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-project.vercel.app/api/telegram"
 ```
 
-### 5. Share the Landing Page
+### 4. Update iOS App
 
-Give users your Vercel URL. They see:
-- Clean landing page at `/`
-- "Message EEON" button → opens Telegram
-- QR code for mobile
-
-They never see BotFather, tokens, or webhooks.
+Set the `doorBaseURL` in `TelegramService.swift` to your Vercel deployment URL.
 
 ---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Landing page with "Message EEON" button |
+| `/api/telegram` | POST | Telegram webhook |
+| `/api/pair?action=request` | POST | Generate pairing token |
+| `/api/inbox` | GET | Fetch user's inbox items |
+| `/api/inbox?action=ack` | POST | Acknowledge synced items |
 
 ## Local Development
 
 ```bash
 cp .env.example .env
-# Fill in TELEGRAM_BOT_TOKEN, OPENAI_API_KEY, TELEGRAM_ALLOWED_CHAT_ID, TELEGRAM_BOT_USERNAME
+# Fill in variables
 npm install
 npm run dev
 ```
@@ -92,7 +128,7 @@ npm run dev
 Expose locally with ngrok/localtunnel for webhook testing:
 ```bash
 npm run tunnel
-# Then set webhook to the tunnel URL
+# Set webhook to tunnel URL
 ```
 
 ## Tests
@@ -101,16 +137,26 @@ npm run tunnel
 npm test
 ```
 
-## Architecture
+54 tests covering:
+- Template routing
+- Greeting/thin-content guard
+- Pairing tokens
+- Inbox sync
+- Auth (paired vs unpaired)
+
+## Files
 
 ```
 door/
 ├── api/
-│   ├── index.js         # Landing page (consumer-facing)
-│   └── telegram.js      # Webhook handler
+│   ├── index.js         # Landing page
+│   ├── telegram.js      # Webhook handler
+│   ├── pair.js          # Pairing API
+│   └── inbox.js         # Inbox API
 ├── lib/
 │   ├── auth.js          # Chat ID guard
 │   ├── openai.js        # Whisper + GPT
+│   ├── store.js         # Vercel KV / memory store
 │   ├── telegram.js      # Telegram API
 │   └── templates.js     # Prompts from iOS RewriteService
 └── __tests__/
@@ -119,6 +165,6 @@ door/
 ## What This Is NOT
 
 - ❌ Auto-publishing to X/LinkedIn (V1 is drafts only)
-- ❌ Account system or login
-- ❌ Stripe/payments (free trial for now)
+- ❌ A separate account system (uses Sign in with Apple via iOS)
+- ❌ Stripe/payments
 - ❌ Calendar, insights, earn features
