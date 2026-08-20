@@ -105,6 +105,7 @@ struct AIHomeView: View {
     @State private var showingTagFilter = false
     @State private var showingTasks = false
     @State private var selectedCategory: String?
+    @State private var showingFilterSheet = false
     @State private var selectedDay: Date?
     @State private var selectedIntents: Set<NoteIntent> = []
 
@@ -338,14 +339,14 @@ struct AIHomeView: View {
                             greetingBar
                                 .padding(.horizontal)
 
-                            // 2. Category cards — one tap filters the stream
-                            if !topCategories.isEmpty {
-                                categoryCardsRow
-                            }
-
-                            // 3. Week strip + section header
-                            conversationsHeader
-                            weekStrip
+                            // Category cards and the 14-day strip were removed
+                            // 2026-08-20. Research across Apple Notes, Bear,
+                            // Craft, Otter, Day One and Things: none of them
+                            // render a category row, a date rail AND section
+                            // headers at once. Date lives in the feed's own
+                            // headers; category is an invoked filter, not
+                            // permanent chrome. Both views remain below for
+                            // the filter sheet to reuse.
 
                             // Tune EEON hero card — prominent until user has compiled a .purpose article
                             if showTuneHeroCard {
@@ -458,6 +459,9 @@ struct AIHomeView: View {
             .sheet(isPresented: $showingTasks) {
                 TasksView()
             }
+            .sheet(isPresented: $showingFilterSheet) {
+                filterSheet
+            }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -555,6 +559,78 @@ struct AIHomeView: View {
     private var hasCompiledPurpose: Bool {
         guard let article = purposeArticles.first else { return false }
         return (article.thinkingEvolution?.isEmpty == false) || !article.summary.isEmpty
+    }
+
+    // MARK: - Filter (invoked, never permanent chrome)
+
+    private var activeFilterCount: Int {
+        (selectedCategory == nil ? 0 : 1) + (selectedDay == nil ? 0 : 1)
+    }
+
+    /// One control, invisible until invoked — the pattern Bear, Craft, Otter
+    /// and Superhuman converge on. Category and date live here instead of
+    /// eating two permanent rows above the feed.
+    private var filterSheet: some View {
+        NavigationStack {
+            List {
+                Section("Category") {
+                    ForEach(topCategories, id: \.0) { name, count in
+                        Button {
+                            selectedCategory = (selectedCategory == name) ? nil : name
+                        } label: {
+                            HStack {
+                                Text(name)
+                                    .font(EEONType.body)
+                                    .foregroundStyle(.eeonTextPrimary)
+                                Spacer()
+                                Text("\(count)")
+                                    .font(EEONType.meta)
+                                    .foregroundStyle(.eeonTextSecondary)
+                                if selectedCategory == name {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color.eeonAccent)
+                                }
+                            }
+                            .frame(minHeight: EEONLayout.minTarget)
+                        }
+                    }
+                }
+
+                Section("Day") {
+                    DatePicker(
+                        "Jump to a day",
+                        selection: Binding(
+                            get: { selectedDay ?? Date() },
+                            set: { selectedDay = $0 }
+                        ),
+                        displayedComponents: .date
+                    )
+                    .font(EEONType.body)
+                    if selectedDay != nil {
+                        Button("Show all days") { selectedDay = nil }
+                            .font(EEONType.control)
+                            .foregroundStyle(Color.eeonAccent)
+                            .frame(minHeight: EEONLayout.minTarget)
+                    }
+                }
+            }
+            .navigationTitle("Filter")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Clear all") {
+                        selectedCategory = nil
+                        selectedDay = nil
+                    }
+                    .disabled(activeFilterCount == 0)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showingFilterSheet = false }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     // MARK: - Capture-stream header (category cards + week strip)
@@ -688,26 +764,18 @@ struct AIHomeView: View {
 
     private var greetingBar: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
+            // One line, not four. The greeting is orientation, not content —
+            // it earns a single row or it doesn't run (2026-08-20 redesign).
+            VStack(alignment: .leading, spacing: 2) {
                 Text(greeting)
-                    .font(.title2.weight(.bold))
+                    .font(EEONType.screenTitle)
                     .foregroundStyle(.eeonTextPrimary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(todayDateString)
-                    .font(.subheadline)
+                    .font(EEONType.meta)
                     .foregroundStyle(.eeonTextSecondary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
                     .fixedSize(horizontal: false, vertical: true)
-
-                // Provenance chip — only after tuning has compiled at least once
-                if hasCompiledPurpose {
-                    tunedForYouChip
-                        .padding(.top, 2)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -721,10 +789,21 @@ struct AIHomeView: View {
                 showingTasks = true
             } label: {
                 Image(systemName: "checklist")
-                    .font(.system(size: 16))
+                    .font(.title3)
                     .foregroundStyle(.eeonTextSecondary)
+                    .eeonTapTarget()
             }
-            .padding(.trailing, 8)
+
+            Button {
+                showingFilterSheet = true
+            } label: {
+                Image(systemName: activeFilterCount > 0
+                      ? "line.3.horizontal.decrease.circle.fill"
+                      : "line.3.horizontal.decrease.circle")
+                    .font(.title3)
+                    .foregroundStyle(activeFilterCount > 0 ? Color.eeonAccent : Color.eeonTextSecondary)
+                    .eeonTapTarget()
+            }
 
             // Settings / avatar
             Button {
