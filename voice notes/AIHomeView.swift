@@ -92,6 +92,7 @@ struct AIHomeView: View {
     // Feed tabs & sorting
     enum FeedTab: String, CaseIterable {
         case all = "All"
+        case notebooks = "Notebooks"
         case ai = "AI"
         case favorites = "Favorites"
         case archive = "Archive"
@@ -143,6 +144,8 @@ struct AIHomeView: View {
         let visible = notes.filter { $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed }
         switch selectedTab {
         case .all:
+            base = visible.filter { !$0.isArchived }
+        case .notebooks:
             base = visible.filter { !$0.isArchived }
         case .ai:
             base = visible.filter { !$0.isArchived }
@@ -224,9 +227,33 @@ struct AIHomeView: View {
         return grouped
     }
 
+    /// Notebooks: notes auto-filed by what they are — the matched project's
+    /// name when ProjectMatcher assigned one, else the note's first topic,
+    /// else "Unfiled". Zero manual filing. Groups ordered by most recent note.
+    private var notesByNotebook: [(String, [Note])] {
+        var groups: [String: [Note]] = [:]
+        for note in filteredNotes {
+            let name: String
+            if let pid = note.projectId,
+               let project = projects.first(where: { $0.id == pid }),
+               !project.name.isEmpty {
+                name = project.name
+            } else if let topic = note.topics.first, !topic.isEmpty {
+                name = topic.capitalized
+            } else {
+                name = "Unfiled"
+            }
+            groups[name, default: []].append(note)
+        }
+        return groups.sorted {
+            ($0.value.first?.createdAt ?? .distantPast) > ($1.value.first?.createdAt ?? .distantPast)
+        }.map { ($0.key, $0.value) }
+    }
+
     private var emptyStateIcon: String {
         switch selectedTab {
         case .all: return "waveform.circle"
+        case .notebooks: return "books.vertical"
         case .ai: return "sparkles"
         case .favorites: return "heart.circle"
         case .archive: return "archivebox"
@@ -236,6 +263,7 @@ struct AIHomeView: View {
     private var emptyStateTitle: String {
         switch selectedTab {
         case .all: return "Your memory starts here"
+        case .notebooks: return "Nothing filed yet"
         case .ai: return "Almost there"
         case .favorites: return "Your greatest hits"
         case .archive: return "Clean slate"
@@ -245,6 +273,7 @@ struct AIHomeView: View {
     private var emptyStateSubtitle: String {
         switch selectedTab {
         case .all: return "Hit the mic and say what's on your mind. EEON will remember it for you."
+        case .notebooks: return "Record notes and they'll file themselves into notebooks by project and topic."
         case .ai: return "Record a few more notes and EEON will start connecting the dots."
         case .favorites: return "Tap the heart on any note to pin it here."
         case .archive: return "Archived notes live here. Out of sight, never out of reach."
@@ -1047,9 +1076,10 @@ struct AIHomeView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
             } else {
-                // Chronological feed, grouped by day (Pocket-style)
+                // Chronological feed grouped by day — or by notebook on the
+                // Notebooks tab (auto-filed: project match, else first topic).
                 LazyVStack(spacing: 0, pinnedViews: []) {
-                    ForEach(notesByDay, id: \.0) { day, dayNotes in
+                    ForEach(selectedTab == .notebooks ? notesByNotebook : notesByDay, id: \.0) { day, dayNotes in
                         Section {
                             // Single-column, notepad-style list (2026-08-19 simplification)
                             let columns = [GridItem(.flexible())]
