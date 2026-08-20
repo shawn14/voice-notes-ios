@@ -1994,8 +1994,45 @@ struct SettingsView: View {
             .padding(.vertical, 4)
             .disabled(isSyncing || iCloudStatus != .available)
 
-            // CloudKit diagnostics panel removed 2026-08-20 (settings cleanup) —
-            // CloudKitEventLog still records; the panel lives in git history.
+            // Storage readout. A compact version of the diagnostics panel,
+            // restored 2026-08-20 after removing it made a "where are my
+            // notes?" question impossible to answer from the device.
+            //
+            // Sync mode matters: development-signed builds use CloudKit's
+            // DEVELOPMENT database, TestFlight/App Store builds use
+            // PRODUCTION. Same account, same app, two separate datastores —
+            // which is why notes can appear to vanish when moving between a
+            // sideloaded build and TestFlight. Nothing is deleted.
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Storage")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                    Spacer()
+                    Text(diagInitOutcome)
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextPrimary)
+                }
+                HStack {
+                    Text("Notes on this device")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                    Spacer()
+                    Text("\(notes.count)")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextPrimary)
+                }
+                HStack {
+                    Text("Build")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                    Spacer()
+                    Text(Self.buildDescription)
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextPrimary)
+                }
+            }
+            .padding(.vertical, 4)
         } header: {
             Text("iCloud & Sync")
         } footer: {
@@ -2033,6 +2070,19 @@ struct SettingsView: View {
         let container = CKContainer(identifier: "iCloud.aivoiceeeon")
         let status = (try? await container.accountStatus()) ?? .couldNotDetermine
         await MainActor.run { iCloudStatus = status }
+    }
+
+    /// Version + build, and which CloudKit environment this build talks to.
+    static var buildDescription: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        #if DEBUG
+        let environment = "dev CloudKit"
+        #else
+        let environment = "prod CloudKit"
+        #endif
+        return "\(version) (\(build)) · \(environment)"
     }
 
     private var diagInitOutcome: String {
@@ -2205,16 +2255,8 @@ struct SettingsView: View {
                 iCloudSyncSection
 
                 // MARK: - Appearance Section
-                Section {
-                    Picker("Appearance", selection: $appearanceMode) {
-                        Text("System").tag(0)
-                        Text("Light").tag(1)
-                        Text("Dark").tag(2)
-                    }
-                    .pickerStyle(.segmented)
-                } header: {
-                    Text("Appearance")
-                }
+                // Appearance picker removed 2026-08-20 — the app is light-only
+                // for now, so a control offering three choices would be lying.
 
                 // MARK: - Support Section
                 Section {

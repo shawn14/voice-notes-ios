@@ -111,6 +111,15 @@ struct voice_notesApp: App {
         // user-visible window into why pushes are silently failing.
         CloudKitEventLog.register()
 
+        // Screenshot seed — populates demo data in DEBUG builds when launched
+        // with -SeedScreenshotData. Idempotent. No-op in production.
+        #if DEBUG
+        let seedContext = container.mainContext
+        Task { @MainActor in
+            ScreenshotSeed.seedIfNeeded(in: seedContext)
+        }
+        #endif
+
         // Prime ContextAssembler cache from compiled .self / .purpose articles.
         // Also runs the one-time eeonContext → .profileSeed migration if needed.
         // Capture container locally — escaping the closure would capture mutating self.
@@ -263,7 +272,9 @@ struct voice_notesApp: App {
                     }
                 }
             }
-            .preferredColorScheme(appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : nil)
+            // Light mode only (2026-08-20, Shawn): dark mode is unsupported until
+            // it earns its keep. Forced regardless of the stored setting.
+            .preferredColorScheme(.light)
         }
         .modelContainer(container)
         .backgroundTask(.appRefresh(voice_notesApp.proactiveAlertsTaskId)) {
