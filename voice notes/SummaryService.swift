@@ -470,7 +470,7 @@ enum SummaryService {
     6. People mentioned: names of people referenced (not "I", "me", "myself")
     7. Topics: 1-5 semantic topic tags describing what this note is ABOUT (e.g. "Q2 planning", "hiring", "product launch")
     8. Emotional tone: single word describing the speaker's tone
-    9. Enhanced note: a cleaned-up, complete version of what the user said — never a summary. Keep every fact, name, and number. Remove filler, fix grammar, complete broken thoughts, preserve the user's voice. Scale structure to length: under ~100 words → one or two clean paragraphs; longer → organize into sections with a short **bold label** line at each topic shift and "•" bullets for lists or sequences. Use ONLY **bold** inline markdown and "•" characters — no # headers, no other markdown.
+    9. Enhanced note: a cleaned-up, complete version of what the user said — never a summary. Keep every fact, name, and number. Remove filler, fix grammar, complete broken thoughts, preserve the user's voice. Scale structure to length: under ~100 words → one or two clean paragraphs; longer → begin with a "**Key takeaways**" line followed by 2-4 "•" bullets (the facts someone skimming must not miss), then the full organized text with a short **bold label** line at each topic shift and "•" bullets for lists or sequences. Use ONLY **bold** inline markdown and "•" characters — no # headers, no other markdown.
     10. Standard analysis: summary, key points, decisions, actions, commitments, unresolved
 
     NEXT STEP TYPES (classify based on what resolution requires):
@@ -539,7 +539,7 @@ enum SummaryService {
     - mentionedPeople: Array of proper names mentioned. Exclude "I", "me", "myself". Empty array if none.
     - topics: 1-5 short semantic topic tags. These describe what the note is ABOUT, not keywords. E.g. "Q2 planning", "hiring", "product launch", "design team".
     - emotionalTone: Single word from: confident, uncertain, frustrated, excited, neutral, worried, optimistic, decisive. Pick the best fit.
-    - enhancedNote: A cleaned-up, complete version of what the user said — never a summary; keep every fact, name, and number. Remove filler, fix grammar, complete broken thoughts, preserve the user's voice. Scale structure to length: under ~100 words → clean paragraphs; longer → short **bold label** lines at topic shifts and "•" bullets for lists. ONLY **bold** inline markdown and "•" — no # headers, no other markdown.
+    - enhancedNote: A cleaned-up, complete version of what the user said — never a summary; keep every fact, name, and number. Remove filler, fix grammar, complete broken thoughts, preserve the user's voice. Scale structure to length: under ~100 words → clean paragraphs; longer → begin with a "**Key takeaways**" line + 2-4 "•" bullets, then the full organized text with short **bold label** lines at topic shifts and "•" bullets for lists. ONLY **bold** inline markdown and "•" — no # headers, no other markdown.
     - Return ONLY JSON, no other text
     """
     }
