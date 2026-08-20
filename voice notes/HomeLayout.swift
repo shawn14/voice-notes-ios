@@ -105,14 +105,12 @@ struct HomeLayout: Equatable, Sendable {
     /// Matches today's AIHomeView ordering so behavior is unchanged pre-compile.
     static let `default` = HomeLayout(
         sections: [
-            // Today's 3 is universal AND compact — it stays above the feed so
-            // the daily ritual is never buried (core-loop rule). The feed is
-            // unbounded, so anything below it is effectively hidden — which is
-            // where the knowledge carousel now deliberately lives (feed-first
-            // product decision, 2026-08-19).
+            // Simplified home (2026-08-19): Today's 3 (compact, core-loop rule —
+            // the daily ritual is never buried) + the chronological feed.
+            // Nothing else renders on home; intelligence lives in the feed's
+            // AI tab, Ask, and Settings → Knowledge Base.
             HomeSection(kindRaw: HomeSectionKind.todayThree.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
             HomeSection(kindRaw: HomeSectionKind.recentNotes.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
-            HomeSection(kindRaw: HomeSectionKind.knowledgeCarousel.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
         ],
         version: currentVersion
     )
@@ -125,16 +123,16 @@ struct HomeLayout: Equatable, Sendable {
             // Filter out unknown kinds (forward-compat — old layout referencing deleted section)
             var valid = decoded.sections.filter { $0.kind != nil }
 
-            // Universal anchors: knowledgeCarousel + recentNotes are platform-level,
-            // not persona-specific. Every user has compiled knowledge articles and
-            // captured notes; both should be visible regardless of what the LLM picks.
-            //
-            // Distinct from the removed todayThree prepend (which was founder-bias).
-            // These are structural to the platform — knowledge IS the AI value layer,
-            // notes ARE the raw input — and the LLM should not be able to bury them.
-            valid = anchorKnowledgeAndNotes(in: valid)
+            // Simplified home (product decision 2026-08-19): home renders ONLY
+            // Today's 3 + the chronological feed, for every user — tuned or not.
+            // The compiled persona layout still exists on the purpose article
+            // (and still recompiles) but home is the capture stream;
+            // intelligence lives in the feed's AI tab, Ask, and Settings →
+            // Knowledge Base. To restore the persona-driven home, return
+            // `HomeLayout(sections: anchorKnowledgeAndNotes(in: valid), version: decoded.version)`.
+            _ = valid // decoded + filtered, deliberately unrendered for now
 
-            return HomeLayout(sections: valid, version: decoded.version)
+            return .default
         } catch {
             print("[HomeLayout] decode failed, using default: \(error)")
             return .default
