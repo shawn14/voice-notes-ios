@@ -1661,8 +1661,6 @@ struct SettingsView: View {
                         .font(.subheadline)
                 }
             }
-        } header: {
-            Text("Connections")
         } footer: {
             Text("Action items appear in an \"EEON\" list in Apple Reminders. Exported notes are markdown files in the folder you choose — pick a Google Drive, OneDrive, or Obsidian folder in Files and they sync everywhere those apps do.")
         }
@@ -1778,7 +1776,9 @@ struct SettingsView: View {
 
             // Knowledge Base row removed 2026-08-20 — compiled-article
             // browsing isn't part of the simplified app.
-            autoSummarizeRow
+            // autoSummarizeRow moved to Capture 2026-08-20 — auto-formatting
+            // a note on save is a capture behaviour, not a persona setting.
+            // Filed here, nobody looking for study notes ever found it.
         } header: {
             Text("Personalization")
         } footer: {
@@ -1928,8 +1928,6 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain).padding(.vertical, 4)
             }
-        } header: {
-            Text("Account")
         }
     }
 
@@ -2241,162 +2239,367 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Detail screens
+    //
+    // Each is one domain. The sections they wrap kept their footers (the
+    // explanatory copy is useful once you are IN the room) but lost their
+    // headers, because the navigation title now says the same thing.
+
+    /// The one row that stands in for the whole account domain.
+    private var accountSummaryRow: some View {
+        HStack(spacing: EEONLayout.standard) {
+            ZStack {
+                Circle()
+                    .fill(Color("EEONAccentAI").opacity(0.15))
+                    .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
+                Text(initials)
+                    .font(EEONType.control)
+                    .foregroundStyle(Color("EEONAccentAI"))
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(authService.userName?.isEmpty == false
+                     ? (authService.userName ?? "Account")
+                     : "Account")
+                    .font(EEONType.body)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(authService.isSignedIn ? "Signed in with Apple" : "Not signed in")
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+
+            Spacer(minLength: EEONLayout.tight)
+        }
+        .frame(minHeight: EEONLayout.minTarget)
+        .padding(.vertical, 4)
+    }
+
+    private var initials: String {
+        let name = authService.userName ?? ""
+        let parts = name.split(separator: " ").prefix(2)
+        let letters = parts.compactMap { $0.first }.map(String.init).joined()
+        return letters.isEmpty ? "?" : letters.uppercased()
+    }
+
+    private var accountDetail: some View {
+        List {
+            accountSection
+
+            // Danger zone lives with the account it destroys, not as its own
+            // top-level section shouting at everyone who opens Settings.
+            Section {
+                Button {
+                    showingDeleteAllDataConfirm = true
+                } label: {
+                    HStack(spacing: EEONLayout.standard) {
+                        EEONSettingsIcon(systemName: "trash", destructive: true)
+                        Text("Delete Account & Data")
+                            .font(EEONType.body)
+                            .foregroundStyle(.red)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.vertical, 4)
+            } footer: {
+                Text("This will permanently delete your account, all notes, projects, and associated data from this device and iCloud. This action cannot be undone.")
+                    .font(EEONType.meta)
+            }
+        }
+        .navigationTitle("Account")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var captureDetail: some View {
+        List {
+            Section {
+                NavigationLink {
+                    LanguagePickerView()
+                } label: {
+                    EEONSettingsRow(
+                        icon: "globe",
+                        title: "Transcription Language"
+                    ) {
+                        Text(LanguageSettings.shared.selectedLanguage.displayName)
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                    }
+                }
+            }
+
+            Section {
+                autoSummarizeRow
+            } footer: {
+                Text("New notes are automatically rewritten in your preset's format on save. Students get study notes — headings, key concepts, and review questions — without picking anything.")
+                    .font(EEONType.meta)
+            }
+        }
+        .navigationTitle("Capture")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var connectionsDetail: some View {
+        List {
+            connectionsSection
+        }
+        .navigationTitle("Connections")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var notificationsDetail: some View {
+        List {
+            NotificationSettingsSection()
+        }
+        .navigationTitle("Notifications")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var syncDetail: some View {
+        List {
+            iCloudSyncSection
+        }
+        .navigationTitle("iCloud & Sync")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var dataDetail: some View {
+        List {
+            dataSection
+        }
+        .navigationTitle("Export My Data")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var helpDetail: some View {
+        List {
+            Section {
+                Button {
+                    if let url = URL(string: "mailto:support@eeon.com") {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    EEONSettingsRow(icon: "envelope", title: "Contact Support") {
+                        EEONChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    if let url = URL(string: "https://eeon.com/privacy") {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    EEONSettingsRow(icon: "hand.raised", title: "Privacy Policy") {
+                        EEONChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    if let url = URL(string: "https://eeon.com/terms") {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    EEONSettingsRow(icon: "doc.text", title: "Terms of Use") {
+                        EEONChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .navigationTitle("Help & About")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    #if DEBUG
+    private var developerDetail: some View {
+        List {
+            Section {
+                Button {
+                    OnboardingState.set(.needsSignIn)
+                } label: {
+                    HStack(spacing: EEONLayout.standard) {
+                        EEONSettingsIcon(systemName: "arrow.counterclockwise.circle")
+                        Text("Reset Onboarding")
+                            .font(EEONType.body)
+                            .foregroundStyle(Color("EEONAccentAI"))
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.vertical, 4)
+
+                Button {
+                    UsageService.shared.noteCount = 0
+                    UsageService.shared.hasShownPaywall = false
+                } label: {
+                    HStack(spacing: EEONLayout.standard) {
+                        EEONSettingsIcon(systemName: "gobackward")
+                        Text("Reset Free Notes Counter")
+                            .font(EEONType.body)
+                            .foregroundStyle(.orange)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.vertical, 4)
+            } footer: {
+                Text("Debug tools for testing. Reset Onboarding will restart the app.")
+                    .font(EEONType.meta)
+            }
+        }
+        .navigationTitle("Developer")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    #endif
+
     var body: some View {
         NavigationStack {
+            // Settings is a table of contents, not a pile (2026-08-20).
+            // It had grown to ELEVEN top-level sections, several with
+            // multi-line footers, because every feature filed itself at the
+            // top level and nothing was ever demoted. Two costs: the scroll,
+            // and worse, wrong filing — auto-format sat under
+            // "Personalization" where nobody hunting for study notes would
+            // look, so a shipped feature read as missing. One row per
+            // domain; details one tap deeper.
             List {
                 // MARK: - Your Plan
                 Section {
                     UsageSectionContent(usage: usage, noteCount: notes.count)
+
+                    // The upgrade CTA stays at the top level. It used to live
+                    // inside the Account section; collapsing Account into a
+                    // drill-in would have buried the only paywall entry point
+                    // two taps deep, which is a monetisation regression, not a
+                    // tidy-up. UsageSectionContent only reports usage.
+                    if !usage.isPro {
+                        Button {
+                            showingPaywall = true
+                        } label: {
+                            HStack(spacing: EEONLayout.snug) {
+                                Text("Upgrade to Pro")
+                                    .font(EEONType.control)
+                                    .foregroundStyle(.white)
+                                Spacer()
+                                Text("$9.99/mo")
+                                    .font(EEONType.meta)
+                                    .foregroundStyle(.white.opacity(0.85))
+                            }
+                            .padding(.horizontal, EEONLayout.standard)
+                            .frame(maxWidth: .infinity, minHeight: EEONLayout.minTarget)
+                            .background(Color.eeonAccent)
+                            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.chipRadius))
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+                    }
                 } header: {
                     Text("Your Plan")
                 }
 
-                // MARK: - Account Section
-                accountSection
-
-
-                // MARK: - Personalization
-                personalizationSection
-
-                // MARK: - Capture
+                // MARK: - Account
                 Section {
                     NavigationLink {
-                        LanguagePickerView()
+                        accountDetail
                     } label: {
-                        EEONSettingsRow(
-                            icon: "globe",
-                            title: "Transcription Language"
-                        ) {
-                            Text(LanguageSettings.shared.selectedLanguage.displayName)
-                                .font(EEONType.meta)
-                                .foregroundStyle(.eeonTextSecondary)
-                        }
+                        accountSummaryRow
                     }
-                } header: {
-                    Text("Capture")
                 }
 
-                // MARK: - Connections Section
-                connectionsSection
-
-                // MARK: - Notifications Section
-                NotificationSettingsSection()
-
-                // MARK: - Sync
-                iCloudSyncSection
-
-                // MARK: - Appearance Section
-                // Appearance picker removed 2026-08-20 — the app is light-only
-                // for now, so a control offering three choices would be lying.
-
-                // MARK: - Support Section
+                // MARK: - Setup
                 Section {
-                    Button {
-                        if let url = URL(string: "mailto:support@eeon.com") {
-                            UIApplication.shared.open(url)
-                        }
+                    NavigationLink {
+                        TuneConversationView()
                     } label: {
-                        EEONSettingsRow(icon: "envelope", title: "Contact Support") {
-                            EEONChevron()
-                        }
+                        EEONSettingsRow(
+                            icon: "scope",
+                            title: "Tune EEON",
+                            subtitle: "Who you are, what it's for"
+                        )
                     }
-                    .buttonStyle(.plain)
 
-                    Button {
-                        if let url = URL(string: "https://eeon.com/privacy") {
-                            UIApplication.shared.open(url)
-                        }
+                    NavigationLink {
+                        captureDetail
                     } label: {
-                        EEONSettingsRow(icon: "hand.raised", title: "Privacy Policy") {
-                            EEONChevron()
-                        }
+                        EEONSettingsRow(
+                            icon: "waveform",
+                            title: "Capture",
+                            subtitle: "Language, auto-format"
+                        )
                     }
-                    .buttonStyle(.plain)
 
-                    Button {
-                        if let url = URL(string: "https://eeon.com/terms") {
-                            UIApplication.shared.open(url)
-                        }
+                    NavigationLink {
+                        connectionsDetail
                     } label: {
-                        EEONSettingsRow(icon: "doc.text", title: "Terms of Use") {
-                            EEONChevron()
-                        }
+                        EEONSettingsRow(
+                            icon: "link",
+                            title: "Connections",
+                            subtitle: "Reminders, folder export"
+                        )
                     }
-                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        notificationsDetail
+                    } label: {
+                        EEONSettingsRow(
+                            icon: "bell",
+                            title: "Notifications"
+                        )
+                    }
                 } header: {
-                    Text("Support")
+                    Text("Setup")
+                }
+
+                // MARK: - Data
+                Section {
+                    NavigationLink {
+                        syncDetail
+                    } label: {
+                        EEONSettingsRow(
+                            icon: "icloud",
+                            title: "iCloud & Sync"
+                        )
+                    }
+
+                    NavigationLink {
+                        dataDetail
+                    } label: {
+                        EEONSettingsRow(
+                            icon: "square.and.arrow.up",
+                            title: "Export My Data"
+                        )
+                    }
+                } header: {
+                    Text("Data")
+                }
+
+                // MARK: - Help
+                Section {
+                    NavigationLink {
+                        helpDetail
+                    } label: {
+                        EEONSettingsRow(
+                            icon: "questionmark.circle",
+                            title: "Help & About"
+                        )
+                    }
                 }
 
                 // MARK: - Developer Section (DEBUG only)
                 #if DEBUG
                 Section {
-                    Button {
-                        OnboardingState.set(.needsSignIn)
+                    NavigationLink {
+                        developerDetail
                     } label: {
-                        HStack(spacing: 16) {
-                            EEONSettingsIcon(systemName: "arrow.counterclockwise.circle")
-
-                            Text("Reset Onboarding")
-                                .font(.body)
-                                .foregroundStyle(Color("EEONAccentAI"))
-
-                            Spacer()
-                        }
+                        EEONSettingsRow(
+                            icon: "hammer",
+                            title: "Developer"
+                        )
                     }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-
-                    Button {
-                        // Reset usage counters
-                        UsageService.shared.noteCount = 0
-                        UsageService.shared.hasShownPaywall = false
-                    } label: {
-                        HStack(spacing: 16) {
-                            EEONSettingsIcon(systemName: "gobackward")
-
-                            Text("Reset Free Notes Counter")
-                                .font(.body)
-                                .foregroundStyle(.orange)
-
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Developer")
-                } footer: {
-                    Text("Debug tools for testing. Reset Onboarding will restart the app.")
-                        .font(.caption)
                 }
                 #endif
-
-                // MARK: - Data (export)
-                dataSection
-
-                // MARK: - Danger Zone (at bottom)
-                Section {
-                    Button {
-                        showingDeleteAllDataConfirm = true
-                    } label: {
-                        HStack(spacing: 16) {
-                            EEONSettingsIcon(systemName: "trash", destructive: true)
-
-                            Text("Delete Account & Data")
-                                .font(.body)
-                                .foregroundStyle(.red)
-
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Danger Zone")
-                } footer: {
-                    Text("This will permanently delete your account, all notes, projects, and associated data from this device and iCloud. This action cannot be undone.")
-                        .font(.caption)
-                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
