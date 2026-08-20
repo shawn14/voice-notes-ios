@@ -1046,78 +1046,51 @@ struct NoteDetailView: View {
 
     // MARK: - Bottom Toolbar
 
+    /// One shape for every action in the note toolbar: icon over label,
+    /// 44pt minimum, equal width, secondary tint.
+    private func toolbarButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            toolbarLabel(icon: icon, label: label)
+        }
+    }
+
+    private func toolbarLabel(icon: String, label: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.body)
+            Text(label)
+                .font(EEONType.badge)
+        }
+        .foregroundStyle(.eeonTextSecondary)
+        .frame(maxWidth: .infinity, minHeight: EEONLayout.minTarget)
+        .padding(.vertical, EEONLayout.tight)
+        .contentShape(Rectangle())
+    }
+
+
     private var bottomToolbar: some View {
+        // Rebuilt 2026-08-20. The floating violet "AI" circle is gone: it
+        // opened the template picker, which the `Summary v` switcher at the
+        // top of the note already does — two controls, one job. What remains
+        // is four evenly-weighted actions in the app's own language, each a
+        // 44pt target with a label so nothing is a guess.
         HStack(spacing: 0) {
-            // 1. Copy button
-            Button {
-                let textToCopy = note.enhancedNoteText ?? note.transcript ?? note.content
-                UIPasteboard.general.string = textToCopy
-                withAnimation {
-                    showCopiedFeedback = true
-                }
+            toolbarButton(icon: "doc.on.doc", label: showCopiedFeedback ? "Copied" : "Copy") {
+                UIPasteboard.general.string = note.enhancedNoteText ?? note.transcript ?? note.content
+                withAnimation { showCopiedFeedback = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    withAnimation {
-                        showCopiedFeedback = false
-                    }
+                    withAnimation { showCopiedFeedback = false }
                 }
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.body)
-                    .foregroundStyle(.eeonTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
             }
 
-            // 2. Tags button
-            Button {
+            toolbarButton(icon: "number", label: "Tags") {
                 showingTagPicker = true
-            } label: {
-                Image(systemName: "number")
-                    .font(.body)
-                    .foregroundStyle(.eeonTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
             }
 
-            // 3. AI Magic button (center, prominent)
-            Button {
-                showingRewriteSheet = true
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(
-                            isRewriting ? Color.eeonTextSecondary : Color.eeonAccentAI
-                        )
-                        .frame(width: 48, height: 48)
-
-                    if isRewriting {
-                        ProgressView()
-                            .tint(.white)
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "sparkles")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(.white)
-                    }
-                }
-                .shadow(color: .eeonAccentAI.opacity(0.3), radius: 8, y: 2)
-            }
-            .disabled(isRewriting)
-            .frame(maxWidth: .infinity)
-            .offset(y: -6)
-
-            // 4. Share button — shares note text directly
-            Button {
+            toolbarButton(icon: "square.and.arrow.up", label: "Share") {
                 showingTextShareSheet = true
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.body)
-                    .foregroundStyle(.eeonTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
             }
 
-            // 5. More menu
             Menu {
                 // Share as CloudKit link
                 Button {
@@ -1176,11 +1149,7 @@ struct NoteDetailView: View {
                     Label("Delete Note", systemImage: "trash")
                 }
             } label: {
-                Image(systemName: "ellipsis")
-                    .font(.body)
-                    .foregroundStyle(.eeonTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                toolbarLabel(icon: "ellipsis", label: "More")
             }
         }
         .padding(.horizontal, 4)
