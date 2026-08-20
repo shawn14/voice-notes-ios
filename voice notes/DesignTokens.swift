@@ -152,3 +152,26 @@ struct EEONChevron: View {
             .foregroundStyle(.eeonTextTertiary)
     }
 }
+
+/// The one settings icon treatment. Every settings row used to pick its own —
+/// some wrapped in a tinted circle, most bare — and its own colour from a pool
+/// of eight. This gives them all the same badge, aligned to the same column.
+struct EEONSettingsIcon: View {
+    let systemName: String
+    var destructive: Bool = false
+
+    private var tint: Color {
+        destructive ? .red : Color("EEONAccentAI")
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(tint.opacity(0.15))
+                .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
+            Image(systemName: systemName)
+                .font(.body)
+                .foregroundStyle(tint)
+        }
+    }
+}

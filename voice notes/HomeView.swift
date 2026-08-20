@@ -1980,9 +1980,7 @@ struct SettingsView: View {
                 syncNow()
             } label: {
                 HStack(spacing: 16) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .foregroundStyle(Color("EEONAccent"))
-                        .frame(width: 44)
+                    EEONSettingsIcon(systemName: "arrow.triangle.2.circlepath")
                     Text(isSyncing ? "Syncing…" : (syncFeedback ?? "Sync Now"))
                         .font(.body)
                         .foregroundStyle(isSyncing ? .secondary : Color("EEONAccent"))
@@ -2263,9 +2261,7 @@ struct SettingsView: View {
                         OnboardingState.set(.needsSignIn)
                     } label: {
                         HStack(spacing: 16) {
-                            Image(systemName: "arrow.counterclockwise.circle")
-                                .foregroundStyle(Color("EEONAccentAI"))
-                                .frame(width: 44)
+                            EEONSettingsIcon(systemName: "arrow.counterclockwise.circle")
 
                             Text("Reset Onboarding")
                                 .font(.body)
@@ -2283,9 +2279,7 @@ struct SettingsView: View {
                         UsageService.shared.hasShownPaywall = false
                     } label: {
                         HStack(spacing: 16) {
-                            Image(systemName: "gobackward")
-                                .foregroundStyle(.orange)
-                                .frame(width: 44)
+                            EEONSettingsIcon(systemName: "gobackward")
 
                             Text("Reset Free Notes Counter")
                                 .font(.body)
@@ -2313,9 +2307,7 @@ struct SettingsView: View {
                         showingDeleteAllDataConfirm = true
                     } label: {
                         HStack(spacing: 16) {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
-                                .frame(width: 44)
+                            EEONSettingsIcon(systemName: "trash", destructive: true)
 
                             Text("Delete Account & Data")
                                 .font(.body)
@@ -2757,9 +2749,7 @@ struct NotificationSettingsSection: View {
         Section {
             Toggle(isOn: $proactiveRemindersEnabled) {
                 HStack(spacing: 16) {
-                    Image(systemName: "bell.badge")
-                        .foregroundStyle(.orange)
-                        .frame(width: 44)
+                    EEONSettingsIcon(systemName: "bell.badge")
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Proactive reminders")
