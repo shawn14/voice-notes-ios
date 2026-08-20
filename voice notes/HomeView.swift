@@ -1274,16 +1274,27 @@ struct HomeRecordingOverlay: View {
 
             Spacer()
 
-            // Timer pill with red tint
+            // Timer pill — shows the paused state when a call/Siri takes the
+            // mic (recording auto-resumes; see AudioRecorder interruption
+            // handling).
             HStack(spacing: 6) {
-                Circle()
-                    .fill(accentRed)
-                    .frame(width: 8, height: 8)
-                    .opacity(dotVisible ? 1.0 : 0.3)
+                if audioRecorder.isPaused {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.7))
+                    Text("Paused · auto-resumes")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                } else {
+                    Circle()
+                        .fill(accentRed)
+                        .frame(width: 8, height: 8)
+                        .opacity(dotVisible ? 1.0 : 0.3)
 
-                Text(audioRecorder.formattedTime)
-                    .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Color("EEONTextPrimary"))
+                    Text(audioRecorder.formattedTime)
+                        .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Color("EEONTextPrimary"))
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -1391,39 +1402,13 @@ struct HomeRecordingOverlay: View {
     // MARK: - Bottom Controls
 
     private var bottomControls: some View {
+        // One button to record, one button to stop (2026-08-19 overhaul):
+        // the recording moment carries a single stop control. No upsell, no
+        // restart — the top-bar X covers abandoning a take.
         VStack(spacing: 32) {
-            // Pro upsell (free users only)
-            if !usageService.isPro {
-                HStack(spacing: 4) {
-                    Text("\(usageService.freeNotesRemaining) notes left")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.5))
+            HStack {
+                Spacer()
 
-                    Text("\u{00B7}")
-                        .foregroundStyle(.white.opacity(0.3))
-
-                    Text("Get PRO for unlimited")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-            }
-
-            // Three controls in a row
-            HStack(spacing: 0) {
-                // Restart button
-                Button {
-                    liveTranscription.stop()
-                    onCancel()
-                } label: {
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .frame(width: 56, height: 56)
-                        .background(Color.white.opacity(0.1), in: Circle())
-                }
-                .frame(maxWidth: .infinity)
-
-                // Stop button (center, prominent)
                 Button {
                     liveTranscription.stop()
                     onStop()
@@ -1431,19 +1416,15 @@ struct HomeRecordingOverlay: View {
                     ZStack {
                         Circle()
                             .strokeBorder(Color.white.opacity(0.2), lineWidth: 3)
-                            .frame(width: 72, height: 72)
+                            .frame(width: 84, height: 84)
 
-                        RoundedRectangle(cornerRadius: 6)
+                        RoundedRectangle(cornerRadius: 7)
                             .fill(accentRed)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 32, height: 32)
                     }
                 }
-                .frame(maxWidth: .infinity)
 
-                // Pause placeholder (AudioRecorder doesn't support pause)
-                Color.clear
-                    .frame(width: 56, height: 56)
-                    .frame(maxWidth: .infinity)
+                Spacer()
             }
             .padding(.horizontal, 40)
         }
