@@ -414,6 +414,11 @@ struct AIHomeView: View {
                             showingFullRecorder = false
                             cancelRecording()
                         },
+                        onMinimize: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showingFullRecorder = false
+                            }
+                        },
                         audioRecorder: audioRecorder
                     )
                 }
@@ -1821,6 +1826,10 @@ struct AIHomeView: View {
         do {
             currentAudioFileName = try audioRecorder.startRecording()
             isRecording = true
+            // Show the recorder on tap. Hiding it made pressing record feel
+            // like nothing happened. Swiping it down keeps the capture running
+            // and drops the expensive live transcription.
+            showingFullRecorder = true
             // Lock-screen indicator, so locking the phone mid-recording still
             // shows it's running (and offers a stop button).
             Task { await BackgroundCaptureService.shared.showActivity(for: audioRecorder) }

@@ -1196,6 +1196,10 @@ struct UserAvatarView: View {
 struct HomeRecordingOverlay: View {
     let onStop: () -> Void
     let onCancel: () -> Void
+    /// Dismiss the recorder while recording keeps running in the background.
+    /// Pocket does the same thing — their recording screen says "swipe down
+    /// to go home". Live transcription stops here; the capture does not.
+    var onMinimize: (() -> Void)?
     let audioRecorder: AudioRecorder
 
     // Waveform bars driven by real audio metering — 8 bold bars
@@ -1241,9 +1245,11 @@ struct HomeRecordingOverlay: View {
 
                 Spacer()
 
+                minimizeHint
+
                 // MARK: - Bottom: Pro upsell + controls
                 bottomControls
-                    .padding(.bottom, 60)
+                    .padding(.bottom, 40)
             }
         }
         .onAppear {
@@ -1258,9 +1264,34 @@ struct HomeRecordingOverlay: View {
             meterTimer = nil
             liveTranscription.stop()
         }
+        .gesture(
+            DragGesture().onEnded { value in
+                if value.translation.height > 80 {
+                    liveTranscription.stop()
+                    onMinimize?()
+                }
+            }
+        )
     }
 
     // MARK: - Top Bar
+
+    private var minimizeHint: some View {
+        Button {
+            liveTranscription.stop()
+            onMinimize?()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                Text("Swipe down — keeps recording")
+                    .font(.footnote.weight(.medium))
+            }
+            .foregroundStyle(.white.opacity(0.55))
+            .frame(minHeight: 44)
+        }
+        .buttonStyle(.plain)
+    }
 
     private var topBar: some View {
         HStack {
