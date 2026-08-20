@@ -1748,27 +1748,8 @@ struct SettingsView: View {
             }
             .padding(.vertical, 4)
 
-            NavigationLink {
-                KnowledgeBaseView()
-            } label: {
-                HStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.brown.opacity(0.15))
-                            .frame(width: 44, height: 44)
-                        Image(systemName: "books.vertical.fill")
-                            .foregroundStyle(.brown)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Knowledge Base")
-                            .font(.body.weight(.medium))
-                        Text("Books, articles, domain expertise")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
+            // Knowledge Base row removed 2026-08-20 — compiled-article
+            // browsing isn't part of the simplified app.
             autoSummarizeRow
         } header: {
             Text("Personalization")
@@ -2187,36 +2168,21 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                // MARK: - Appearance Section
-                Section {
-                    Picker("Appearance", selection: $appearanceMode) {
-                        Text("System").tag(0)
-                        Text("Light").tag(1)
-                        Text("Dark").tag(2)
-                    }
-                    .pickerStyle(.segmented)
-                } header: {
-                    Text("Appearance")
-                }
-
-                // MARK: - Personalization
-                personalizationSection
-
-                // MARK: - Usage Section
+                // MARK: - Your Plan
                 Section {
                     UsageSectionContent(usage: usage, noteCount: notes.count)
                 } header: {
-                    Text("Usage")
+                    Text("Your Plan")
                 }
-
-                // MARK: - iCloud & Sync
-                iCloudSyncSection
 
                 // MARK: - Account Section
                 accountSection
 
 
-                // MARK: - Preferences Section
+                // MARK: - Personalization
+                personalizationSection
+
+                // MARK: - Capture
                 Section {
                     NavigationLink {
                         LanguagePickerView()
@@ -2238,14 +2204,29 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                 } header: {
-                    Text("Preferences")
+                    Text("Capture")
                 }
+
+                // MARK: - Connections Section
+                connectionsSection
 
                 // MARK: - Notifications Section
                 NotificationSettingsSection()
 
-                // MARK: - Connections Section
-                connectionsSection
+                // MARK: - Sync
+                iCloudSyncSection
+
+                // MARK: - Appearance Section
+                Section {
+                    Picker("Appearance", selection: $appearanceMode) {
+                        Text("System").tag(0)
+                        Text("Light").tag(1)
+                        Text("Dark").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Appearance")
+                }
 
                 // MARK: - Support Section
                 Section {
