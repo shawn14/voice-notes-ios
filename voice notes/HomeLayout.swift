@@ -105,10 +105,14 @@ struct HomeLayout: Equatable, Sendable {
     /// Matches today's AIHomeView ordering so behavior is unchanged pre-compile.
     static let `default` = HomeLayout(
         sections: [
-            // Today's 3 is universal — show it even pre-tune so the daily ritual is always discoverable
+            // Today's 3 is universal AND compact — it stays above the feed so
+            // the daily ritual is never buried (core-loop rule). The feed is
+            // unbounded, so anything below it is effectively hidden — which is
+            // where the knowledge carousel now deliberately lives (feed-first
+            // product decision, 2026-08-19).
             HomeSection(kindRaw: HomeSectionKind.todayThree.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
-            HomeSection(kindRaw: HomeSectionKind.knowledgeCarousel.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
             HomeSection(kindRaw: HomeSectionKind.recentNotes.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
+            HomeSection(kindRaw: HomeSectionKind.knowledgeCarousel.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
         ],
         version: currentVersion
     )
@@ -137,9 +141,11 @@ struct HomeLayout: Equatable, Sendable {
         }
     }
 
-    /// Ensure `knowledgeCarousel` is at index 0 and `recentNotes` is at index 1,
-    /// preserving any LLM-supplied title/rationale on those sections. Persona-shaped
-    /// sections then follow at index 2+.
+    /// Ensure `recentNotes` (the chronological feed) is at index 0 and
+    /// `knowledgeCarousel` is at index 1, preserving any LLM-supplied
+    /// title/rationale on those sections. Persona-shaped sections follow at
+    /// index 2+. Feed-first is a product decision (2026-08-19): home reads as
+    /// a chronological capture stream; intelligence sections come after.
     private static func anchorKnowledgeAndNotes(in sections: [HomeSection]) -> [HomeSection] {
         var rest = sections
 
@@ -153,7 +159,7 @@ struct HomeLayout: Equatable, Sendable {
             ?? HomeSection(kindRaw: HomeSectionKind.recentNotes.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil)
         rest.removeAll { $0.kind == .recentNotes }
 
-        return [knowledge, recent] + rest
+        return [recent, knowledge] + rest
     }
 }
 

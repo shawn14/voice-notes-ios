@@ -185,27 +185,41 @@ struct AIHomeView: View {
     }
 
     /// Group notes by month for section headers
-    private var notesByMonth: [(String, [Note])] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
+    private var notesByDay: [(String, [Note])] {
+        // Chronological, day-grouped feed: Today / Yesterday / "Tuesday, Mar 4".
+        let calendar = Calendar.current
+        let thisYear = DateFormatter()
+        thisYear.dateFormat = "EEEE, MMM d"
+        let otherYear = DateFormatter()
+        otherYear.dateFormat = "EEEE, MMM d, yyyy"
+
+        func label(for date: Date) -> String {
+            if calendar.isDateInToday(date) { return "Today" }
+            if calendar.isDateInYesterday(date) { return "Yesterday" }
+            if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+                return thisYear.string(from: date)
+            }
+            return otherYear.string(from: date)
+        }
+
         var grouped: [(String, [Note])] = []
-        var currentMonth = ""
+        var currentDay = ""
         var currentGroup: [Note] = []
 
         for note in filteredNotes {
-            let month = formatter.string(from: note.createdAt)
-            if month != currentMonth {
+            let day = label(for: note.createdAt)
+            if day != currentDay {
                 if !currentGroup.isEmpty {
-                    grouped.append((currentMonth, currentGroup))
+                    grouped.append((currentDay, currentGroup))
                 }
-                currentMonth = month
+                currentDay = day
                 currentGroup = [note]
             } else {
                 currentGroup.append(note)
             }
         }
         if !currentGroup.isEmpty {
-            grouped.append((currentMonth, currentGroup))
+            grouped.append((currentDay, currentGroup))
         }
         return grouped
     }
@@ -1164,9 +1178,9 @@ struct AIHomeView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
             } else {
-                // Grouped by month
+                // Chronological feed, grouped by day (Pocket-style)
                 LazyVStack(spacing: 0, pinnedViews: []) {
-                    ForEach(notesByMonth, id: \.0) { month, monthNotes in
+                    ForEach(notesByDay, id: \.0) { day, dayNotes in
                         Section {
                             // 2-column grid
                             let columns = [
@@ -1174,7 +1188,7 @@ struct AIHomeView: View {
                                 GridItem(.flexible(), spacing: 10)
                             ]
                             LazyVGrid(columns: columns, spacing: 10) {
-                                ForEach(monthNotes) { note in
+                                ForEach(dayNotes) { note in
                                     NavigationLink(destination: NoteDetailView(note: note)) {
                                         HStack(spacing: 0) {
                                             if viewMode == .mood {
@@ -1215,13 +1229,19 @@ struct AIHomeView: View {
                             .padding(.horizontal)
                             .padding(.bottom, 16)
                         } header: {
-                            Text(month)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.eeonTextSecondary)
-                                .textCase(.uppercase)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal)
-                                .padding(.vertical, 8)
+                            HStack {
+                                Text(day)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.eeonTextSecondary)
+                                    .textCase(.uppercase)
+                                Spacer()
+                                Text("\(dayNotes.count)")
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.eeonTextTertiary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
                         }
                     }
                 }
@@ -2177,8 +2197,9 @@ struct NoteFeedCard: View {
                 .foregroundStyle(.eeonTextPrimary)
                 .lineLimit(2)
 
-            // Date
-            Text(note.createdAt.formatted(date: .abbreviated, time: .omitted))
+            // Time — the day is already the section header, so the card
+            // shows when in the day it was captured (Pocket-style).
+            Text(note.createdAt.formatted(date: .omitted, time: .shortened))
                 .font(.caption2)
                 .foregroundStyle(.eeonTextSecondary)
 
