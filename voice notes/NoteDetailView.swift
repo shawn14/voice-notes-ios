@@ -753,6 +753,21 @@ struct NoteDetailView: View {
         .meetingSummary, .executiveSummary
     ]
 
+    /// Formats in the order THIS user should see them: Summary first (the
+    /// baseline), then whatever their persona preset defaults to, then the
+    /// rest. A student shouldn't have to scroll past "Clinical Note" and
+    /// "Case Note" to reach study notes — the chip that matters to them
+    /// should be the one sitting next to Summary.
+    private var orderedFormats: [AITransformType] {
+        let all = Self.summaryFormats
+        guard let raw = PersonaPresetStore.defaultTransformRaw,
+              let preferred = AITransformType(rawValue: raw),
+              preferred != .summary,
+              all.contains(preferred)
+        else { return all }
+        return [.summary, preferred] + all.filter { $0 != .summary && $0 != preferred }
+    }
+
     private var currentFormatName: String {
         note.summaryFormat ?? "Summary"
     }
@@ -760,44 +775,106 @@ struct NoteDetailView: View {
     /// Format switcher — the note's rendering is a runtime choice, not a
     /// fixed render. Switching always regenerates from the original
     /// transcript (see handleRewriteTemplate), so formats never stack.
+    /// Format switcher — the note's rendering is a runtime choice, not a
+    /// fixed render. Switching always regenerates from the original
+    /// transcript (see handleRewriteTemplate), so formats never stack.
+    ///
+    /// This was a `Menu` labelled with the CURRENT format ("Summary ⌄") until
+    /// 2026-08-20, and it was invisible: a menu hides its own contents, so the
+    /// alternatives — the only thing that explains what the control is for —
+    /// were exactly what you couldn't see. It also named a state rather than
+    /// an action, so it read as a status badge. Now the options are the
+    /// control: you can see the note can become other things without tapping.
     private var summaryStyleRow: some View {
-        HStack(spacing: 8) {
-            Menu {
-                ForEach(Self.summaryFormats) { format in
-                    Button {
-                        applyFormat(format)
-                    } label: {
-                        Label(format.rawValue, systemImage: format.icon)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("TURN THIS INTO")
+                    .font(.caption2.weight(.bold))
+                    .kerning(0.6)
+                    .foregroundStyle(.eeonTextTertiary)
+
+                if isRewriting {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                }
+
+                Spacer()
+            }
+
+            // Bleeds past the parent's 20pt inset so a partially-visible chip
+            // at the screen edge signals "scroll for more". That peek is
+            // deliberate; it is the affordance, not a truncation bug.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(orderedFormats) { format in
+                        formatChip(format)
                     }
+                    moreFormatsChip
                 }
-                Divider()
-                Button {
-                    showingRewriteSheet = true
-                } label: {
-                    Label("More formats…", systemImage: "ellipsis")
-                }
-            } label: {
-                HStack(spacing: 5) {
-                    Text(currentFormatName)
-                        .font(.subheadline.weight(.semibold))
-                    Image(systemName: "chevron.down")
-                        .font(.caption2.weight(.bold))
-                }
-                .foregroundStyle(.eeonAccentAI)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Color.eeonAccentAI.opacity(0.12))
-                .clipShape(Capsule())
+                .padding(.horizontal, 20)
             }
-            .disabled(isRewriting)
-
-            if isRewriting {
-                ProgressView()
-                    .scaleEffect(0.7)
-            }
-
-            Spacer()
+            .padding(.horizontal, -20)
         }
+        .opacity(isRewriting ? 0.55 : 1)
+    }
+
+    /// One selectable format. The current one is filled; the rest are
+    /// outlined, so the row reads as a set of choices rather than decoration.
+    private func formatChip(_ format: AITransformType) -> some View {
+        let isCurrent = currentFormatName == format.rawValue
+        return Button {
+            applyFormat(format)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: isCurrent ? "checkmark" : format.icon)
+                    .font(.caption2.weight(.bold))
+                Text(format.rawValue)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            .foregroundStyle(isCurrent ? Color.white : Color.eeonAccentAI)
+            .padding(.horizontal, 14)
+            .frame(minHeight: EEONLayout.minTarget)
+            .background(
+                Capsule()
+                    .fill(isCurrent ? Color.eeonAccentAI : Color.eeonAccentAI.opacity(0.10))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(
+                        isCurrent ? Color.clear : Color.eeonAccentAI.opacity(0.35),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isRewriting)
+    }
+
+    /// Escape hatch to the full catalog, including user-authored templates.
+    private var moreFormatsChip: some View {
+        Button {
+            showingRewriteSheet = true
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "ellipsis")
+                    .font(.caption2.weight(.bold))
+                Text("More")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            .foregroundStyle(.eeonTextSecondary)
+            .padding(.horizontal, 14)
+            .frame(minHeight: EEONLayout.minTarget)
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.eeonTextTertiary.opacity(0.45), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isRewriting)
     }
 
     /// Apply a summary format to this note and remember it.
