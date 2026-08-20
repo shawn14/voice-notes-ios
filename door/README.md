@@ -1,132 +1,99 @@
 # EEON Door — Telegram Text Interface
 
-A thin messaging front door for EEON: text a thought, get a draft back. This is the Stanley-shaped loop (chat in, draft out).
+Text a thought, get a draft back. The Stanley-shaped loop.
 
-**This is not a separate product.** It's a Telegram interface to the same RewriteService templates from the EEON iOS app.
+## For Users
 
-## What It Does
+Visit the landing page → tap "Message EEON" → send a text or voice note → get a polished draft.
 
-1. Send a text or voice note to the Telegram bot
-2. Bot transcribes (if voice) and rewrites into a social post using EEON's templates
-3. You get a draft back in the same chat
-4. Copy & paste to post (V1 does not auto-publish)
+That's it. No app to install, no account to create.
 
-## Quick Start
+### Commands
+
+| What you send | What you get |
+|---------------|--------------|
+| Any text | Professional post (LinkedIn style) |
+| Voice note | Transcribed + drafted |
+| `tweet: your thought` | Short post (280 chars) |
+| `email: your thought` | Professional email |
+| `bullets: your notes` | Bullet point list |
+| `quick: your ramble` | 2-3 sentence summary |
+
+Copy the draft, paste to post. Done.
+
+---
+
+## For Operators (Setup Once)
+
+This section is for setting up the bot. Users never see this.
 
 ### 1. Create a Telegram Bot
 
 1. Message [@BotFather](https://t.me/botfather) on Telegram
 2. Send `/newbot`
-3. Choose a name (e.g., "EEON Draft")
-4. Choose a username (must end in `bot`, e.g., `eeon_draft_bot`)
-5. Save the token BotFather gives you
+3. Choose a name (e.g., "EEON")
+4. Choose a username (must end in `bot`, e.g., `eeon_bot`)
+5. Save the token
 
-### 2. Get Your Chat ID
+### 2. Get Your Chat ID (for testing)
 
-1. Message your new bot (any message)
-2. Visit: `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
-3. Find your `chat.id` in the response — it's usually a number like `123456789`
+1. Message your new bot
+2. Visit: `https://api.telegram.org/bot<TOKEN>/getUpdates`
+3. Find `chat.id` in the response
 
-### 3. Set Environment Variables
-
-```bash
-cp .env.example .env
-# Edit .env with your values:
-# TELEGRAM_BOT_TOKEN=<from BotFather>
-# OPENAI_API_KEY=<your OpenAI key>
-# TELEGRAM_ALLOWED_CHAT_ID=<your chat ID>
-```
-
-### 4. Run Locally
+### 3. Deploy to Vercel
 
 ```bash
 cd door
 npm install
-npm run dev
-```
-
-The server runs on `http://localhost:3000`. To test with Telegram, you need a public URL.
-
-### 5. Expose to Telegram (Local Testing)
-
-Use localtunnel or ngrok:
-
-```bash
-# Option A: localtunnel (included in devDependencies)
-npm run tunnel
-# Copy the https URL it gives you
-
-# Option B: ngrok
-ngrok http 3000
-# Copy the https URL
-```
-
-### 6. Set Webhook
-
-```bash
-curl "https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook?url=<YOUR_PUBLIC_URL>/api/telegram"
-```
-
-You should see `{"ok":true,"result":true,"description":"Webhook was set"}`.
-
-## Deploy to Vercel
-
-```bash
-# From the door/ directory
-npm install -g vercel
 vercel
+```
 
-# Set environment variables in Vercel dashboard or CLI:
-vercel env add TELEGRAM_BOT_TOKEN
-vercel env add OPENAI_API_KEY
-vercel env add TELEGRAM_ALLOWED_CHAT_ID
+Set environment variables in Vercel Dashboard → Settings → Environment Variables:
 
-# Deploy to production
+| Variable | Description |
+|----------|-------------|
+| `TELEGRAM_BOT_TOKEN` | From BotFather |
+| `OPENAI_API_KEY` | For GPT + Whisper |
+| `TELEGRAM_ALLOWED_CHAT_ID` | Your chat ID (or comma-separated list) |
+| `TELEGRAM_BOT_USERNAME` | Bot username without @ (for landing page CTA) |
+
+Deploy to production:
+```bash
 vercel --prod
 ```
 
-Then set the webhook to your Vercel URL:
+### 4. Set Webhook
+
 ```bash
-curl "https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook?url=https://your-project.vercel.app/api/telegram"
+curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-project.vercel.app/api/telegram"
 ```
 
-## Usage
+### 5. Share the Landing Page
 
-### Default: Social Post
-Just send any text — bot replies with a LinkedIn-style professional post.
+Give users your Vercel URL. They see:
+- Clean landing page at `/`
+- "Message EEON" button → opens Telegram
+- QR code for mobile
 
+They never see BotFather, tokens, or webhooks.
+
+---
+
+## Local Development
+
+```bash
+cp .env.example .env
+# Fill in TELEGRAM_BOT_TOKEN, OPENAI_API_KEY, TELEGRAM_ALLOWED_CHAT_ID, TELEGRAM_BOT_USERNAME
+npm install
+npm run dev
 ```
-> Building in public is underrated. Shipped 3 features this week and got real user feedback each time.
 
-✨ Professional Post
-
-Building in public isn't just a trend—it's a superpower.
-
-This week, I shipped 3 features and got immediate user feedback on each one. The iteration speed is unreal when you close the loop with real humans.
-
-Stop building in the dark. Your users want to see the journey.
-
-What did you ship this week? 👇
-
-#buildinpublic #startups #productdevelopment
+Expose locally with ngrok/localtunnel for webhook testing:
+```bash
+npm run tunnel
+# Then set webhook to the tunnel URL
 ```
-
-### Commands
-
-| Command | Template | Example |
-|---------|----------|---------|
-| (default) | Professional Post | "My thought here" |
-| `tweet` | Short Post (280 chars) | "tweet: my hot take" |
-| `email` | Professional Email | "email: follow up with client" |
-| `bullets` | Bullet Points | "bullets: meeting notes" |
-| `quick` | 2-3 Sentence Summary | "quick: summarize this ramble" |
-| `enhance` | Clean Prose | "enhance: my rough draft" |
-
-### Voice Notes
-Send a voice message — bot transcribes via Whisper, then rewrites with the default template.
-
-### Publish Request
-Saying "post it" or "publish" returns a message that publish is not wired yet. V1 is drafts only.
 
 ## Tests
 
@@ -134,32 +101,24 @@ Saying "post it" or "publish" returns a message that publish is not wired yet. V
 npm test
 ```
 
-## Security
-
-- Only responds to `TELEGRAM_ALLOWED_CHAT_ID` — all other chats are silently ignored
-- No data stored — stateless request/response
-- API keys never leave the server
-
-## Files
+## Architecture
 
 ```
 door/
 ├── api/
-│   └── telegram.js      # Vercel serverless handler
+│   ├── index.js         # Landing page (consumer-facing)
+│   └── telegram.js      # Webhook handler
 ├── lib/
 │   ├── auth.js          # Chat ID guard
-│   ├── openai.js        # Whisper + GPT calls
-│   ├── telegram.js      # Telegram API helpers
-│   └── templates.js     # System prompts from iOS RewriteService
-├── __tests__/
-│   ├── auth.test.js     # Auth guard tests
-│   └── router.test.js   # Template routing tests
-├── .env.example
-├── package.json
-├── vercel.json
-└── README.md
+│   ├── openai.js        # Whisper + GPT
+│   ├── telegram.js      # Telegram API
+│   └── templates.js     # Prompts from iOS RewriteService
+└── __tests__/
 ```
 
-## Template Prompts
+## What This Is NOT
 
-The system prompts mirror those in `voice notes/RewriteService.swift` from the iOS app. They're the same voice — this is just a different door into the same drafting engine.
+- ❌ Auto-publishing to X/LinkedIn (V1 is drafts only)
+- ❌ Account system or login
+- ❌ Stripe/payments (free trial for now)
+- ❌ Calendar, insights, earn features

@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/telegram.js",
+      "src": "api/*.js",
       "use": "@vercel/node"
     }
   ],
@@ -10,6 +10,10 @@
     {
       "src": "/api/telegram",
       "dest": "/api/telegram.js"
+    },
+    {
+      "src": "^/$",
+      "dest": "/api/index.js"
     }
   ]
 }
