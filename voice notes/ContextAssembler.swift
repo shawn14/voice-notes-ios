@@ -56,12 +56,15 @@ enum AICallContext {
     }
 
     /// Whether this call site benefits from the user's voice & tone directive.
-    /// Narrow on purpose: only stylistic calls (rewrite + title). Analysis/extraction
-    /// already get the heavier purposeDirective which subsumes voice for non-stylistic work.
+    /// Stylistic calls only — which includes .extraction, because the
+    /// enhancedNote (the text the user actually reads on every note) is
+    /// generated inside the extraction call and should sound like them
+    /// (2026-08-19: previously false, so auto-enhancement ignored the tuned
+    /// voice while manual transforms honored it).
     var includesVoiceAndTone: Bool {
         switch self {
-        case .rewrite, .title: return true
-        case .extraction, .rag, .dailyBrief, .analysis, .intent, .tags, .fillerWords: return false
+        case .rewrite, .title, .extraction: return true
+        case .rag, .dailyBrief, .analysis, .intent, .tags, .fillerWords: return false
         }
     }
 
