@@ -75,6 +75,84 @@ The clone target is therefore not "copy Pocket's app" but **"ship Pocket's app m
 
 ---
 
+## Research findings (loop 3 — packaging, 2026-08-20)
+
+**The headline: Pocket's app does not work without the puck.** Their own "5 steps"
+page makes pairing step 1 and states the app cannot function without a paired
+device; the docs, and third-party reviews, agree. The *device* is the recording
+engine (64GB onboard, records away from the phone); the app is a companion.
+There is no phone-mic-only mode. The one partial exception is a desktop beta
+that captures Zoom/Teams/Meet audio.
+
+**What this changes:** Pocket is not a software competitor at all for the ~100%
+of people who don't own the hardware. EEON's competitor set is Otter, Letterly,
+Voicenotes, Audionotes — and against *Pocket specifically*, EEON's pitch is not
+"cheaper Pocket," it's **"Pocket's app, no puck required."** Every Pocket
+review complaining about shipping delays is a person EEON could have served
+that day.
+
+**Pricing, corrected:** public sources uniformly list **$199/year and
+$19.99/month**; the in-app sheet in Shawn's own screenshot showed **$239.99/year**
+with a 2-week trial (unconfirmed publicly — possibly a price change, an A/B
+test, or an annualized monthly SKU). Either way EEON at $79.99/yr undercuts by
+2.5–3×, with no hardware purchase in front of it.
+
+**Free vs Pro (confirmed):** Free = standard-accuracy transcription, **2 Ask
+messages/day**, **summaries deleted after 1 month**, mind maps, plain-text
+export. Pro = permanent summaries, highest-accuracy transcription, speaker-name
+detection, unlimited Ask, advanced models, daily highlights, custom templates,
+attachments, audio + full-format export, priority processing, and **recordings
+up to 4 hours**.
+
+**Two competitive gifts in that list:**
+1. **They cap recordings at 4 hours, and only on Pro.** EEON has no cap at all,
+   for anyone — that's now a headline feature, not an implementation detail.
+2. **They delete free users' summaries after 30 days.** EEON keeps everything
+   forever, locally and in the user's own iCloud.
+
+**Their top complaints → our design targets:** shipping delays and slow support
+(structurally impossible for us — no hardware); **billing/entitlement bugs where
+Sign in with Apple's private-relay email breaks purchase-to-account matching**
+(EEON gates `isPro` on subscription AND `AuthService.isSignedIn` — audit this
+exact failure mode before launch); transcription degrading with cross-talk and
+noise; Bluetooth reconnection failures (N/A for us).
+
+## Research findings (loop 1 — modes & templates)
+
+- **"Normal Mode" is device state, not an AI mode.** The pill reflects the puck's
+  physical slider: *Normal* (two studio mics, room conversations) vs *Call* (contact
+  mic against the phone's earpiece). **EEON should not build this** — it's hardware
+  plumbing we don't have and don't need.
+- **"Auto Detect"** is a summary theme that picks the format from content
+  automatically. Cheap for EEON: the extraction pass already classifies intent.
+- **Custom templates are structured, not free-prompt** — Name + global instructions
+  (tone/style) + reorderable **Sections**, each with a title and its own extraction
+  instructions; docs recommend 3–6 focused sections. Pro-gated. This is a better
+  design than a raw prompt box and is worth cloning outright.
+- **Ask has a model picker**: everyone defaults to a "Thinking" model, Pro can
+  escalate to a stronger one for hard questions.
+- **Unconfirmed:** "Auto-Pilot Mode" and "Reasoning Mode" appear in the in-app
+  theme list but in no public doc, forum, or changelog. Treat any explanation as
+  speculation; check the live app before cloning them.
+
+## Research findings (loop 2 — tasks)
+
+- **Sync appears one-way (Pocket → external app)**, never officially stated. Their
+  own webhook API is outbound-only (`action_items.updated`), community guidance
+  says "export," and a user asking for Reminders→Pocket sync got partial results.
+  EEON's Reminders push is therefore already at parity; **two-way completion sync
+  would beat them**, and it's easy on EventKit.
+- **Every task references its source recording** ("never lose the *why* behind the
+  *what*"). EEON already stores `sourceNoteId` on every `ExtractedAction` — the
+  data is there, the screen isn't.
+- **Tasks drive notifications and a home-screen widget**, plus a morning summary of
+  pending items.
+- **Due dates start from speech** ("...by Friday 5pm" is auto-detected) and are
+  confirmed with a tap-to-schedule step. EEON already parses spoken deadlines into
+  Reminders due dates.
+- **Two tag systems**: conversation tags (user-created *and* AI-suggested) and
+  separate color-coded **task labels** managed in the checklist.
+
 ## Open questions for research loops
 
 1. **Mode pill + Auto-Pilot / Reasoning templates** — what does "Normal Mode" switch, and are Auto-Pilot/Reasoning processing modes rather than formats?
