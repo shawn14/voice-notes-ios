@@ -746,50 +746,72 @@ struct NoteDetailView: View {
     /// row above the body. Each tap rewrites the note text via the existing
     /// rewrite path (voice/tone-aware); "More…" opens the full template picker
     /// including custom templates.
-    private static let quickSummaryStyles: [RewriteTemplate] = [
-        RewriteTemplateCatalog.briefSummary,
-        RewriteTemplateCatalog.detailedSummary,
-        RewriteTemplateCatalog.list,
-        RewriteTemplateCatalog.structured,
-        RewriteTemplateCatalog.email
+    /// The formats a note can be rendered in. "Summary" is the baseline
+    /// enhanced note; the rest are profession/meeting formats.
+    private static let summaryFormats: [AITransformType] = [
+        .summary, .schoolNotes, .clinicalNote, .caseNote,
+        .meetingSummary, .executiveSummary
     ]
 
+    private var currentFormatName: String {
+        note.summaryFormat ?? "Summary"
+    }
+
+    /// Format switcher — the note's rendering is a runtime choice, not a
+    /// fixed render. Switching always regenerates from the original
+    /// transcript (see handleRewriteTemplate), so formats never stack.
     private var summaryStyleRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                Text("Make it:")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.eeonTextTertiary)
-
-                ForEach(Self.quickSummaryStyles) { template in
+        HStack(spacing: 8) {
+            Menu {
+                ForEach(Self.summaryFormats) { format in
                     Button {
-                        handleRewriteTemplate(template)
+                        applyFormat(format)
                     } label: {
-                        Text(template.name)
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(Color.eeonCard)
-                            .foregroundStyle(.eeonTextPrimary)
-                            .clipShape(Capsule())
+                        Label(format.rawValue, systemImage: format.icon)
                     }
-                    .disabled(isRewriting)
                 }
-
+                Divider()
                 Button {
                     showingRewriteSheet = true
                 } label: {
-                    Text("More…")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Color.eeonCard)
-                        .foregroundStyle(.eeonAccentAI)
-                        .clipShape(Capsule())
+                    Label("More formats…", systemImage: "ellipsis")
                 }
-                .disabled(isRewriting)
+            } label: {
+                HStack(spacing: 5) {
+                    Text(currentFormatName)
+                        .font(.subheadline.weight(.semibold))
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(.eeonAccentAI)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.eeonAccentAI.opacity(0.12))
+                .clipShape(Capsule())
             }
+            .disabled(isRewriting)
+
+            if isRewriting {
+                ProgressView()
+                    .scaleEffect(0.7)
+            }
+
+            Spacer()
         }
+    }
+
+    /// Apply a summary format to this note and remember it.
+    private func applyFormat(_ format: AITransformType) {
+        note.summaryFormat = format.rawValue
+        let template = RewriteTemplate(
+            id: "format-" + format.rawValue,
+            name: format.rawValue,
+            emoji: "",
+            section: .summary,
+            isPro: format != .summary,
+            systemPrompt: format.prompt
+        )
+        handleRewriteTemplate(template)
     }
 
     /// Renders the light inline markdown enhanced notes carry (**bold** labels),
@@ -1178,10 +1200,16 @@ struct NoteDetailView: View {
             return
         }
 
-        // Prefer the (possibly hand-corrected) enhanced text so templates use
-        // the correction. Falls back to transcript/content for notes without
-        // enhanced text.
-        let sourceText = note.enhancedNoteText ?? note.transcript ?? note.content
+        // Always regenerate from the original transcript so switching formats
+        // never transforms a transform (Pocket regenerates from source too).
+        // The one exception: a hand-corrected note keeps the user's wording as
+        // the source, because their correction is the truth.
+        let sourceText: String = {
+            if note.enhancedNoteEdited, let edited = note.enhancedNoteText, !edited.isEmpty {
+                return edited
+            }
+            return note.transcript ?? note.enhancedNoteText ?? note.content
+        }()
         guard !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             rewriteError = "No content to rewrite"
             return

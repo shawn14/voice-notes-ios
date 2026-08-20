@@ -195,6 +195,11 @@ final class Note {
     // or after a successful re-run.
     var enhancedNoteEditedAt: Date?
 
+    // Which summary format the note is currently rendered in (an
+    // AITransformType raw value). nil = the baseline enhanced note.
+    // Optional so existing notes and CloudKit records migrate untouched.
+    var summaryFormat: String?
+
     // Persona extraction items (persona extraction schema). JSON array of {category, content, metadata?}.
     // Populated only when the user's .purpose article has a noteExtractionSchemaJSON.
     // Always additive to the baseline Extracted* models — never replaces them.
