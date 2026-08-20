@@ -105,11 +105,11 @@ struct HomeLayout: Equatable, Sendable {
     /// Matches today's AIHomeView ordering so behavior is unchanged pre-compile.
     static let `default` = HomeLayout(
         sections: [
-            // Simplified home (2026-08-19): Today's 3 (compact, core-loop rule —
-            // the daily ritual is never buried) + the chronological feed.
-            // Nothing else renders on home; intelligence lives in the feed's
-            // AI tab, Ask, and Settings → Knowledge Base.
-            HomeSection(kindRaw: HomeSectionKind.todayThree.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
+            // Simplified home (2026-08-19, Shawn): the chronological feed IS the
+            // home. Today's 3 was removed the same day — an explicit reversal
+            // of the earlier "core loop, never hidden" decision, made while
+            // looking at the live app. Intelligence lives in the feed's AI
+            // tab, Ask, and Settings → Knowledge Base.
             HomeSection(kindRaw: HomeSectionKind.recentNotes.rawValue, title: nil, rationale: nil, limit: nil, staleDaysThreshold: nil),
         ],
         version: currentVersion
