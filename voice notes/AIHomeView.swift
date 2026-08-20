@@ -107,6 +107,7 @@ struct AIHomeView: View {
     @State private var selectedCategory: String?
     @State private var showingFilterSheet = false
     @State private var homeLens: HomeLens = .notes
+    @State private var showingFullRecorder = false
     @State private var selectedDay: Date?
     @State private var selectedIntents: Set<NoteIntent> = []
 
@@ -389,14 +390,30 @@ struct AIHomeView: View {
                     }
                 }
                 .safeAreaInset(edge: .bottom) {
-                    bottomBar
+                    VStack(spacing: 0) {
+                        if isRecording && !showingFullRecorder {
+                            recordingBar
+                        }
+                        bottomBar
+                    }
                 }
 
-                // Recording overlay
-                if isRecording {
+                // Recording no longer takes over the screen (2026-08-20).
+                // Press to start, press again to stop — keep scrolling, leave
+                // the app, lock the phone. The full recorder (waveform + live
+                // transcript) is opt-in via the recording bar, because it is
+                // the expensive part: it pins the screen awake and runs
+                // continuous on-device speech recognition.
+                if isRecording && showingFullRecorder {
                     HomeRecordingOverlay(
-                        onStop: stopRecording,
-                        onCancel: cancelRecording,
+                        onStop: {
+                            showingFullRecorder = false
+                            stopRecording()
+                        },
+                        onCancel: {
+                            showingFullRecorder = false
+                            cancelRecording()
+                        },
                         audioRecorder: audioRecorder
                     )
                 }
@@ -1088,6 +1105,42 @@ struct AIHomeView: View {
         }
     }
 
+    /// Slim, always-legible recording state. Tap to open the full recorder
+    /// with waveform and live transcript; the mic button below stops.
+    private var recordingBar: some View {
+        Button {
+            showingFullRecorder = true
+        } label: {
+            HStack(spacing: EEONLayout.snug) {
+                Circle()
+                    .fill(Color.eeonAccent)
+                    .frame(width: 9, height: 9)
+                    .opacity(audioRecorder.isPaused ? 0.4 : 1)
+
+                Text(audioRecorder.isPaused ? "Paused — auto-resumes" : "Recording")
+                    .font(EEONType.control)
+                    .foregroundStyle(.eeonTextPrimary)
+
+                Text(audioRecorder.formattedTime)
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonTextSecondary)
+
+                Spacer()
+
+                Text("View")
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonAccent)
+            }
+            .padding(.horizontal, EEONLayout.standard)
+            .frame(minHeight: EEONLayout.minTarget)
+            .background(Color.eeonCard)
+            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.chipRadius))
+            .padding(.horizontal, EEONLayout.screenMargin)
+            .padding(.bottom, EEONLayout.tight)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - 3. Bottom Bar (Mic / New Note / Search)
 
     private var bottomBar: some View {
@@ -1110,9 +1163,13 @@ struct AIHomeView: View {
                     if isTranscribing {
                         ProgressView()
                             .tint(.white)
+                    } else if isRecording {
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(Color.white)
+                            .frame(width: 24, height: 24)
                     } else {
                         Image(systemName: "mic.fill")
-                            .font(.system(size: 24))
+                            .font(.title2)
                             .foregroundStyle(.white)
                     }
                 }

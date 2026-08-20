@@ -101,9 +101,9 @@ final class AudioRecorder: NSObject {
         installInterruptionObservers()
         recordingTime = 0
 
-        // Prevent auto-lock while recording so long captures don't get cut off
-        // by the screen dimming and the app being suspended.
-        setIdleTimerDisabled(true)
+        // The screen is deliberately NOT pinned awake (2026-08-20). Recording
+        // survives lock via the `audio` background mode and the Live Activity,
+        // so holding the display on was pure battery cost on long captures.
 
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.recordingTime += 1
