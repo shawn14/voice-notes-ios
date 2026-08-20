@@ -1152,30 +1152,45 @@ struct AIHomeView: View {
         HStack {
             Spacer()
 
+            // A labelled pill, not a bare mic (2026-08-20). On iOS a
+            // microphone glyph usually means "dictate into this field" —
+            // voice INPUT — which is part of why recording read as something
+            // you talk into. The label states the action and the state:
+            // Record -> Stop, with the timer inline while running.
             Button(action: {
                 toggleRecording()
             }) {
-                ZStack {
-                    Circle()
-                        .fill(Color.eeonAccent)
-                        .frame(width: 64, height: 64)
-
+                HStack(spacing: EEONLayout.snug) {
                     if isTranscribing {
                         ProgressView()
                             .tint(.white)
                     } else if isRecording {
-                        RoundedRectangle(cornerRadius: 5)
+                        RoundedRectangle(cornerRadius: 4)
                             .fill(Color.white)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 16, height: 16)
                     } else {
-                        Image(systemName: "mic.fill")
-                            .font(.title2)
-                            .foregroundStyle(.white)
+                        Image(systemName: "waveform")
+                            .font(.body.weight(.semibold))
+                    }
+
+                    Text(isTranscribing ? "Working…" : isRecording ? "Stop" : "Record")
+                        .font(EEONType.control)
+
+                    if isRecording {
+                        Text(audioRecorder.formattedTime)
+                            .font(EEONType.control)
+                            .opacity(0.85)
                     }
                 }
+                .foregroundStyle(.white)
+                .padding(.horizontal, EEONLayout.loose)
+                .frame(minHeight: 56)
+                .frame(maxWidth: .infinity)
+                .background(Color.eeonAccent)
+                .clipShape(Capsule())
             }
             .disabled(isTranscribing)
-            .offset(y: -6)
+            .padding(.horizontal, EEONLayout.screenMargin)
 
             Spacer()
         }
