@@ -106,7 +106,7 @@ struct AIHomeView: View {
     @State private var showingTasks = false
     @State private var selectedCategory: String?
     @State private var showingFilterSheet = false
-    @State private var homeLens: HomeLens = .notes
+    @State private var showingDatePicker = false
     @State private var showingFullRecorder = false
     @State private var selectedDay: Date?
     @State private var selectedIntents: Set<NoteIntent> = []
@@ -341,14 +341,13 @@ struct AIHomeView: View {
                             greetingBar
                                 .padding(.horizontal)
 
-                            // Lens switcher — Notes / Calendar / Categories.
-                            // Mutually exclusive views on the same stream
-                            // (Day One's pattern), never stacked rails.
-                            lensSwitcher
-                                .padding(.horizontal)
-
-                            activeLens
-                                .padding(.horizontal)
+                            // Lens switcher removed 2026-08-21. Notes /
+                            // Calendar / Categories were whole-screen views
+                            // you switched INTO to perform a filter and back
+                            // out of afterwards. Both are now dropdowns on
+                            // the feed header: pick a category or a date and
+                            // the notes below re-filter in place. You never
+                            // leave the main screen.
 
                             // Tune EEON hero card — prominent until user has compiled a .purpose article
                             if showTuneHeroCard {
@@ -482,7 +481,23 @@ struct AIHomeView: View {
             .sheet(isPresented: $showingTasks) {
                 TasksView()
             }
-            .sheet(isPresented: $showingFilterSheet) {
+            .sheet(isPresented: $showingDatePicker) {
+            NavigationStack {
+                ScrollView {
+                    CalendarLensView(notesByDayCount: notesByDayCount, selectedDay: $selectedDay)
+                        .padding(.horizontal)
+                }
+                .navigationTitle("Pick a date")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") { showingDatePicker = false }
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingFilterSheet) {
                 filterSheet
             }
             // Stop pressed on the lock-screen indicator while the in-app
@@ -605,22 +620,60 @@ struct AIHomeView: View {
         return out
     }
 
-    private var lensSwitcher: some View {
-        Picker("View", selection: $homeLens) {
-            ForEach(HomeLens.allCases) { lens in
-                Text(lens.rawValue).tag(lens)
-            }
-        }
-        .pickerStyle(.segmented)
+    /// Human label for the active date filter.
+    private var dateFilterLabel: String {
+        guard let selectedDay else { return "All dates" }
+        let calendar = Calendar.current
+        if calendar.isDateInToday(selectedDay) { return "Today" }
+        if calendar.isDateInYesterday(selectedDay) { return "Yesterday" }
+        return selectedDay.formatted(.dateTime.month(.abbreviated).day())
     }
 
-    @ViewBuilder
-    private var activeLens: some View {
-        switch homeLens {
-        case .notes:
-            EmptyView()
-        case .calendar:
-            CalendarLensView(notesByDayCount: notesByDayCount, selectedDay: $selectedDay)
+    /// Date filter as a dropdown, matching the category one. The month grid
+    /// still exists for browsing, but it now opens in a half-height sheet
+    /// instead of taking over the screen as a tab.
+    private var dateFilterMenu: some View {
+        Menu {
+            Button {
+                withAnimation { selectedDay = nil }
+            } label: {
+                if selectedDay == nil {
+                    Label("All dates", systemImage: "checkmark")
+                } else {
+                    Text("All dates")
+                }
+            }
+
+            Divider()
+
+            Button {
+                withAnimation { selectedDay = Calendar.current.startOfDay(for: Date()) }
+            } label: { Text("Today") }
+
+            Button {
+                let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())
+                withAnimation {
+                    selectedDay = yesterday.map { Calendar.current.startOfDay(for: $0) }
+                }
+            } label: { Text("Yesterday") }
+
+            Divider()
+
+            Button {
+                showingDatePicker = true
+            } label: { Label("Pick a date…", systemImage: "calendar") }
+        } label: {
+            HStack(spacing: 5) {
+                Text(dateFilterLabel)
+                    .font(EEONType.meta)
+                    .foregroundStyle(selectedDay == nil ? Color.eeonTextSecondary : Color.eeonAccent)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(selectedDay == nil ? Color.eeonTextSecondary : Color.eeonAccent)
+            }
+            .frame(minHeight: EEONLayout.minTarget)
+            .contentShape(Rectangle())
         }
     }
 
@@ -807,12 +860,65 @@ struct AIHomeView: View {
         .buttonStyle(.plain)
     }
 
+    /// The feed header IS the category filter (2026-08-21).
+    ///
+    /// Categories were a whole-screen lens you switched to in order to perform
+    /// a filter, then switched back from. Moving them into the filter sheet
+    /// fixed the takeover but still buried a one-tap choice behind a sheet.
+    /// A dropdown on the title is the shortest path: the label always states
+    /// what you are looking at, and picking a category re-filters the feed
+    /// underneath without leaving it.
+    ///
+    /// A Menu is the right control here, unlike the note-format switcher that
+    /// had to become visible chips: this label names the CURRENT VIEW ("All
+    /// notes" / "AI"), which is self-explanatory, and filtering is a thing
+    /// users already go looking for. The format switcher hid the fact that
+    /// transforming was possible at all.
     private var conversationsHeader: some View {
-        HStack {
-            Text("Your notes")
-                .font(.headline)
-                .foregroundStyle(.eeonTextPrimary)
-            Spacer()
+        HStack(spacing: EEONLayout.tight) {
+            Menu {
+                Button {
+                    withAnimation { selectedCategory = nil }
+                } label: {
+                    if selectedCategory == nil {
+                        Label("All notes", systemImage: "checkmark")
+                    } else {
+                        Text("All notes")
+                    }
+                }
+
+                if !topCategories.isEmpty {
+                    Divider()
+                    ForEach(topCategories, id: \.0) { name, count in
+                        Button {
+                            withAnimation { selectedCategory = name }
+                        } label: {
+                            if selectedCategory == name {
+                                Label("\(name)  (\(count))", systemImage: "checkmark")
+                            } else {
+                                Text("\(name)  (\(count))")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Text(selectedCategory ?? "All notes")
+                        .font(.headline)
+                        .foregroundStyle(.eeonTextPrimary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+                .frame(minHeight: EEONLayout.minTarget)
+                .contentShape(Rectangle())
+            }
+
+            Spacer(minLength: EEONLayout.tight)
+
+            dateFilterMenu
+
             if selectedCategory != nil || selectedDay != nil {
                 Button {
                     withAnimation { selectedCategory = nil; selectedDay = nil }
@@ -820,6 +926,7 @@ struct AIHomeView: View {
                     Text("Clear")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.eeonAccent)
+                        .frame(minHeight: EEONLayout.minTarget)
                 }
             }
         }
