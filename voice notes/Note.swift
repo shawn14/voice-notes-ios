@@ -200,6 +200,14 @@ final class Note {
     // Optional so existing notes and CloudKit records migrate untouched.
     var summaryFormat: String?
 
+    // Practice questions generated from this note (JSON array of QuizQuestion).
+    // Optional and additive: CloudKit registers the field on first sync of a
+    // record that has a value, so no schema-seed bump is needed. Promoting to
+    // Production still requires Deploy Schema Changes in the Dashboard.
+    // Cached because a quiz costs an API call — regenerating on every open
+    // would also reshuffle the questions mid-study, which defeats repetition.
+    var quizJSON: String?
+
     // Persona extraction items (persona extraction schema). JSON array of {category, content, metadata?}.
     // Populated only when the user's .purpose article has a noteExtractionSchemaJSON.
     // Always additive to the baseline Extracted* models — never replaces them.
@@ -423,6 +431,34 @@ final class Note {
             }
             personaExtractionsJSON = json
         }
+    }
+
+    // MARK: - Quiz
+
+    /// Practice questions for this note. Empty when none have been generated.
+    var quizQuestions: [QuizQuestion] {
+        get {
+            guard let json = quizJSON,
+                  let data = json.data(using: .utf8) else { return [] }
+            return (try? JSONDecoder().decode([QuizQuestion].self, from: data)) ?? []
+        }
+        set {
+            guard !newValue.isEmpty,
+                  let data = try? JSONEncoder().encode(newValue),
+                  let json = String(data: data, encoding: .utf8) else {
+                quizJSON = nil
+                return
+            }
+            quizJSON = json
+        }
+    }
+
+    /// Text a quiz should be built from: the rendered note if there is one,
+    /// otherwise the raw transcript. Mirrors what the reader actually sees.
+    var quizSourceText: String {
+        if let enhanced = enhancedNoteText, !enhanced.isEmpty { return enhanced }
+        if let transcript, !transcript.isEmpty { return transcript }
+        return content
     }
 
     // MARK: - Embedding Helpers

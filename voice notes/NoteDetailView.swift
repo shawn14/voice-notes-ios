@@ -119,6 +119,9 @@ struct NoteDetailView: View {
 
     // Rewrite sheet state
     @State private var showingRewriteSheet = false
+    @State private var showingQuiz = false
+    @State private var isGeneratingQuiz = false
+    @State private var quizError: String?
     @State private var isRewriting = false
     @State private var rewriteError: String?
 
@@ -212,6 +215,12 @@ struct NoteDetailView: View {
 
                         // 4. Body text (hero content)
                         noteBodySection
+                            .padding(.bottom, 20)
+
+                        // 4b. Practice (2026-08-20). Deliberately a visible
+                        // card, not a menu item — the transform control was
+                        // missed for exactly that reason.
+                        quizSection
                             .padding(.bottom, 20)
 
                         // 4a. Image attachments
@@ -436,6 +445,9 @@ struct NoteDetailView: View {
             if let query = assistantQuery, !query.isEmpty {
                 AnswerSheet(initialQuery: query)
             }
+        }
+        .sheet(isPresented: $showingQuiz) {
+            QuizView(note: note, questions: note.quizQuestions)
         }
         .sheet(isPresented: $showingProjectPicker) {
             ProjectPickerSheet(
@@ -875,6 +887,125 @@ struct NoteDetailView: View {
         }
         .buttonStyle(.plain)
         .disabled(isRewriting)
+    }
+
+    // MARK: - Quiz
+
+    /// Entry point for flashcard practice. Hidden only when the note is too
+    /// short to quiz on, so a two-line grocery note doesn't get study chrome.
+    @ViewBuilder
+    private var quizSection: some View {
+        if note.quizSourceText.trimmingCharacters(in: .whitespacesAndNewlines).count
+            >= QuizService.minimumCharacters {
+            VStack(alignment: .leading, spacing: EEONLayout.snug) {
+                HStack(spacing: EEONLayout.snug) {
+                    Image(systemName: "graduationcap.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.eeonAccentAI)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(note.quizQuestions.isEmpty ? "Test yourself" : "Quiz ready")
+                            .font(EEONType.itemTitle)
+                            .foregroundStyle(.eeonTextPrimary)
+                        Text(note.quizQuestions.isEmpty
+                             ? "Turn this note into flashcards"
+                             : "\(note.quizQuestions.count) questions")
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: EEONLayout.tight)
+                }
+
+                Button {
+                    if note.quizQuestions.isEmpty {
+                        generateQuiz()
+                    } else {
+                        showingQuiz = true
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if isGeneratingQuiz {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .tint(.white)
+                            Text("Writing questions…")
+                        } else {
+                            Image(systemName: note.quizQuestions.isEmpty ? "sparkles" : "play.fill")
+                                .font(.caption.weight(.bold))
+                            Text(note.quizQuestions.isEmpty ? "Make a quiz" : "Start quiz")
+                        }
+                    }
+                    .font(EEONType.control)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: EEONLayout.minTarget)
+                    .background(
+                        RoundedRectangle(cornerRadius: EEONLayout.chipRadius)
+                            .fill(Color.eeonAccentAI)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(isGeneratingQuiz)
+
+                if !note.quizQuestions.isEmpty {
+                    Button {
+                        generateQuiz()
+                    } label: {
+                        Text("Write new questions")
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                            .frame(minHeight: EEONLayout.minTarget)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isGeneratingQuiz)
+                }
+
+                if let quizError {
+                    Text(quizError)
+                        .font(EEONType.meta)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(EEONLayout.standard)
+            .background(
+                RoundedRectangle(cornerRadius: EEONLayout.cardRadius)
+                    .fill(Color.eeonAccentAI.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: EEONLayout.cardRadius)
+                    .strokeBorder(Color.eeonAccentAI.opacity(0.22), lineWidth: 1)
+            )
+        }
+    }
+
+    private func generateQuiz() {
+        guard !isGeneratingQuiz else { return }
+        guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
+            quizError = "No OpenAI API key configured."
+            return
+        }
+        isGeneratingQuiz = true
+        quizError = nil
+        let source = note.quizSourceText
+
+        Task {
+            do {
+                let questions = try await QuizService.generateQuiz(for: source, apiKey: apiKey)
+                await MainActor.run {
+                    note.quizQuestions = questions
+                    isGeneratingQuiz = false
+                    showingQuiz = true
+                }
+            } catch {
+                await MainActor.run {
+                    quizError = error.localizedDescription
+                    isGeneratingQuiz = false
+                }
+            }
+        }
     }
 
     /// Apply a summary format to this note and remember it.
