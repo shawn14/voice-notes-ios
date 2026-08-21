@@ -17,10 +17,15 @@ import SwiftUI
 enum HomeLens: String, CaseIterable, Identifiable {
     case notes = "Notes"
     case calendar = "Calendar"
-    case categories = "Categories"
 
     var id: String { rawValue }
 }
+
+// The `categories` lens was removed 2026-08-21. It made you switch VIEWS to
+// perform a filter, while the funnel button in the top bar already filtered by
+// category from the feed itself — two routes to one outcome, and the indirect
+// one was the prominent one. Category filtering now lives only in the filter
+// sheet, reachable without leaving the notes.
 
 // MARK: - Calendar lens
 
@@ -169,66 +174,5 @@ struct CalendarLensView: View {
         if let next = calendar.date(byAdding: .month, value: months, to: visibleMonth) {
             withAnimation(.easeInOut(duration: 0.15)) { visibleMonth = next }
         }
-    }
-}
-
-// MARK: - Categories lens
-
-/// Categories as a full-width list, not a cramped horizontal rail. Names get
-/// the whole row, so nothing truncates — the reason "Product De…" happened.
-struct CategoriesLensView: View {
-    let categories: [(String, Int)]
-    @Binding var selectedCategory: String?
-
-    var body: some View {
-        VStack(spacing: EEONLayout.tight) {
-            ForEach(categories, id: \.0) { name, count in
-                categoryRow(name: name, count: count)
-            }
-        }
-        .padding(.vertical, EEONLayout.tight)
-    }
-
-    private func categoryRow(name: String, count: Int) -> some View {
-        let isSelected = selectedCategory == name
-        return Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                selectedCategory = isSelected ? nil : name
-            }
-        } label: {
-            HStack(spacing: EEONLayout.snug) {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(isSelected ? Color.eeonAccent : Color.eeonAccent.opacity(0.25))
-                    .frame(width: 30, height: 30)
-                    .overlay(
-                        Text(String(name.prefix(1)).uppercased())
-                            .font(EEONType.badge)
-                            .foregroundStyle(isSelected ? Color.white : Color.eeonAccent)
-                    )
-
-                Text(name)
-                    .font(EEONType.body)
-                    .foregroundStyle(.eeonTextPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.leading)
-
-                Spacer(minLength: EEONLayout.tight)
-
-                Text("\(count)")
-                    .font(EEONType.meta)
-                    .foregroundStyle(.eeonTextSecondary)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(EEONType.meta)
-                        .foregroundStyle(Color.eeonAccent)
-                }
-            }
-            .padding(.horizontal, EEONLayout.snug)
-            .frame(minHeight: EEONLayout.minTarget)
-            .background(isSelected ? Color.eeonAccent.opacity(0.12) : Color.eeonCard)
-            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.chipRadius))
-        }
-        .buttonStyle(.plain)
     }
 }

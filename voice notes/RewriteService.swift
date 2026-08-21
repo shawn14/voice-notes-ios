@@ -22,7 +22,14 @@ enum RewriteTemplateSection: String, CaseIterable, Identifiable {
 struct RewriteTemplate: Identifiable, Hashable {
     let id: String
     let name: String
+    /// Retained so persisted CustomRewriteTemplate rows keep decoding, but no
+    /// longer rendered anywhere — see `icon`. Removing the stored property
+    /// would be a SwiftData/CloudKit schema change for no user-facing gain.
     let emoji: String
+    /// SF Symbol shown in the picker. Emoji were replaced 2026-08-21: they
+    /// render at a different optical weight than the rest of the UI, don't
+    /// take the accent colour, and don't scale with Dynamic Type.
+    var icon: String = "wand.and.stars"
     let section: RewriteTemplateSection
     let isPro: Bool
     let systemPrompt: String
@@ -43,6 +50,7 @@ enum RewriteTemplateCatalog {
         id: "magic",
         name: "Enhance",
         emoji: "✨",
+        icon: "wand.and.stars",
         section: .general,
         isPro: false,
         systemPrompt: "Rewrite this voice note into clear, well-structured prose. Expand on ideas, remove filler words, fix grammar, and make it read professionally while preserving the original meaning, intent, and voice. Keep a natural tone."
@@ -52,6 +60,7 @@ enum RewriteTemplateCatalog {
         id: "slightly",
         name: "Polish",
         emoji: "🪶",
+        icon: "sparkles",
         section: .general,
         isPro: true,
         systemPrompt: "Lightly touch up this voice note. Fix only obvious grammar mistakes, remove filler words (um, uh, like, you know), and clean up sentence flow. Make minimal changes — the output should sound almost identical to the original but polished."
@@ -61,6 +70,7 @@ enum RewriteTemplateCatalog {
         id: "significantly",
         name: "Expand",
         emoji: "🔭",
+        icon: "arrow.up.left.and.arrow.down.right",
         section: .general,
         isPro: true,
         systemPrompt: "Substantially rewrite and expand this voice note. Improve clarity, add structure, expand on underdeveloped ideas, strengthen arguments, and produce a polished, comprehensive version. The meaning must be preserved but the writing quality should be dramatically improved."
@@ -70,6 +80,7 @@ enum RewriteTemplateCatalog {
         id: "structured",
         name: "Organize",
         emoji: "📐",
+        icon: "list.bullet.indent",
         section: .textEditing,
         isPro: true,
         systemPrompt: "Rewrite this voice note into a well-structured document with clear headers, sections, and logical organization. Use markdown-style headers (##) to separate sections. Group related ideas together."
@@ -79,6 +90,7 @@ enum RewriteTemplateCatalog {
         id: "list",
         name: "Bullet Points",
         emoji: "📋",
+        icon: "list.bullet",
         section: .textEditing,
         isPro: true,
         systemPrompt: "Convert this voice note into a clean, organized bullet point list. Group related items under headers if appropriate. Each bullet should be concise and actionable. Preserve all key information."
@@ -88,6 +100,7 @@ enum RewriteTemplateCatalog {
         id: "detailed_summary",
         name: "Full Summary",
         emoji: "📄",
+        icon: "doc.text",
         section: .summary,
         isPro: true,
         systemPrompt: "Create a comprehensive summary of this voice note. Cover all key points, decisions, ideas, and action items mentioned. Organize into clear paragraphs. Nothing important should be omitted."
@@ -97,6 +110,7 @@ enum RewriteTemplateCatalog {
         id: "brief_summary",
         name: "Quick Take",
         emoji: "⚡",
+        icon: "bolt",
         section: .summary,
         isPro: true,
         systemPrompt: "Summarize this voice note in 2-3 sentences. Capture only the most essential point(s). Be extremely concise."
@@ -106,6 +120,7 @@ enum RewriteTemplateCatalog {
         id: "email",
         name: "Email",
         emoji: "\u{2709}\u{FE0F}", // ✉️
+        icon: "envelope",
         section: .contentCreation,
         isPro: true,
         systemPrompt: "Rewrite this voice note as a professional email. Include a subject line (on its own line prefixed with 'Subject:'), appropriate greeting, well-structured body paragraphs, and a professional sign-off. Keep the tone professional but warm."
@@ -115,6 +130,7 @@ enum RewriteTemplateCatalog {
         id: "linkedin_post",
         name: "Professional Post",
         emoji: "💼",
+        icon: "briefcase",
         section: .contentCreation,
         isPro: true,
         systemPrompt: "Rewrite this voice note as an engaging LinkedIn post. Start with a compelling hook line, use short paragraphs, include relevant insights or lessons, and end with a question or call-to-action. Keep it concise and professional. Add 2-3 relevant hashtags at the end."
@@ -124,6 +140,7 @@ enum RewriteTemplateCatalog {
         id: "tweet",
         name: "Short Post",
         emoji: "💬",
+        icon: "bubble.left",
         section: .contentCreation,
         isPro: true,
         systemPrompt: "Rewrite this voice note as a single short post (max 280 characters). Make it punchy, engaging, and shareable. Capture the core idea in the most compelling way possible."
@@ -134,6 +151,7 @@ enum RewriteTemplateCatalog {
         id: "favorite_magic",
         name: "Enhance",
         emoji: "✨",
+        icon: "wand.and.stars",
         section: .favorites,
         isPro: false,
         systemPrompt: magic.systemPrompt

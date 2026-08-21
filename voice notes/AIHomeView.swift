@@ -621,8 +621,6 @@ struct AIHomeView: View {
             EmptyView()
         case .calendar:
             CalendarLensView(notesByDayCount: notesByDayCount, selectedDay: $selectedDay)
-        case .categories:
-            CategoriesLensView(categories: topCategories, selectedCategory: $selectedCategory)
         }
     }
 

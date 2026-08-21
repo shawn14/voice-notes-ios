@@ -167,10 +167,11 @@ struct RewriteTemplatePickerSheet: View {
             dismiss()
         } label: {
             HStack(spacing: 14) {
-                Text(custom.emoji.isEmpty ? "✨" : custom.emoji)
-                    .font(.title3)
+                Image(systemName: "wand.and.stars")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.eeonAccentAI)
                     .frame(width: 36, height: 36)
-                    .background(Color(.systemGray6))
+                    .background(Color.eeonAccentAI.opacity(0.12))
                     .cornerRadius(8)
 
                 Text(custom.name)
@@ -214,10 +215,11 @@ struct RewriteTemplatePickerSheet: View {
             dismiss()
         } label: {
             HStack(spacing: 14) {
-                Text(template.emoji)
-                    .font(.title3)
+                Image(systemName: template.icon)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.eeonAccentAI)
                     .frame(width: 36, height: 36)
-                    .background(Color(.systemGray6))
+                    .background(Color.eeonAccentAI.opacity(0.12))
                     .cornerRadius(8)
 
                 Text(template.name)

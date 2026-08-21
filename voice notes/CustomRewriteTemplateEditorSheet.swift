@@ -67,17 +67,11 @@ struct CustomRewriteTemplateEditorSheet: View {
 
     private var identitySection: some View {
         Section {
-            HStack(spacing: 12) {
-                TextField("✨", text: $emoji)
-                    .frame(width: 44)
-                    .multilineTextAlignment(.center)
-                    .font(.title2)
-                    .onChange(of: emoji) { _, newValue in
-                        if newValue.count > 2 { emoji = String(newValue.prefix(2)) }
-                    }
-                TextField("Client call notes, lecture notes, …", text: $name)
-                    .font(.body)
-            }
+            // Emoji picker removed 2026-08-21 — custom templates render with
+            // the same SF Symbol as everything else, so asking for an emoji
+            // collected input that was never displayed.
+            TextField("Client call notes, lecture notes, …", text: $name)
+                .font(.body)
         } header: {
             Text("Name")
         }

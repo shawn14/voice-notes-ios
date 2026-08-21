@@ -765,19 +765,40 @@ struct NoteDetailView: View {
         .meetingSummary, .executiveSummary
     ]
 
-    /// Formats in the order THIS user should see them: Summary first (the
-    /// baseline), then whatever their persona preset defaults to, then the
-    /// rest. A student shouldn't have to scroll past "Clinical Note" and
-    /// "Case Note" to reach study notes — the chip that matters to them
-    /// should be the one sitting next to Summary.
+    /// Formats that only make sense for one profession. A founder has no use
+    /// for "Clinical Note" and a doctor none for "Case Note", so these appear
+    /// as chips ONLY when they are the user's own persona default. Everyone
+    /// else still reaches them through "More" — hidden, not deleted.
+    private static let professionLocked: Set<AITransformType> = [
+        .schoolNotes, .clinicalNote, .caseNote
+    ]
+
+    /// The chips THIS user should see. Summary always leads (every note has
+    /// one), then their persona's default, then formats useful to anyone.
+    ///
+    /// Reordering alone wasn't enough: a founder still had to scroll past two
+    /// other professions' formats. If no preset has been chosen we show
+    /// everything, because guessing wrong and hiding a format the user wanted
+    /// is worse than a slightly longer row.
     private var orderedFormats: [AITransformType] {
         let all = Self.summaryFormats
-        guard let raw = PersonaPresetStore.defaultTransformRaw,
-              let preferred = AITransformType(rawValue: raw),
-              preferred != .summary,
-              all.contains(preferred)
-        else { return all }
-        return [.summary, preferred] + all.filter { $0 != .summary && $0 != preferred }
+        let preferred: AITransformType? = {
+            guard let raw = PersonaPresetStore.defaultTransformRaw,
+                  let type = AITransformType(rawValue: raw),
+                  type != .summary,
+                  all.contains(type)
+            else { return nil }
+            return type
+        }()
+
+        guard let preferred else { return all }
+
+        var out: [AITransformType] = [.summary, preferred]
+        for format in all where format != .summary && format != preferred {
+            if Self.professionLocked.contains(format) { continue }
+            out.append(format)
+        }
+        return out
     }
 
     private var currentFormatName: String {
