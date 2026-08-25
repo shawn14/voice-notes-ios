@@ -145,12 +145,17 @@ struct voice_notesApp: App {
         // record gets its own upload operation, one failure can't take
         // down others, and the framework has time to push each record
         // before any cleanup.
-        let seedKey = "cloudKitSchemaSeedDidRun_v4"
+        let seedKey = "cloudKitSchemaSeedDidRun_v5"
         if !UserDefaults.standard.bool(forKey: seedKey) {
             let seedContext = container.mainContext
             Task { @MainActor in
                 let seedNote = Note(title: "__seed_v3", content: "")
                 seedNote.sourceType = .profileSeed
+                // v5: give the newest optional field a value so CloudKit
+                // registers CD_calendarContextJSON on the CD_Note type. Without
+                // this, Production only learns the field from the first real
+                // synced note that has one — after the App Store build ships.
+                seedNote.calendarContextJSON = "{}"
 
                 let seeds: [(model: any PersistentModel, name: String)] = [
                     (seedNote, "Note"),
@@ -193,7 +198,7 @@ struct voice_notesApp: App {
                 try? seedContext.save()
 
                 UserDefaults.standard.set(true, forKey: seedKey)
-                print("[Schema v4] Done. CloudKit Dashboard → Development → Record Types should now list all 17 CD_* types (added CD_CustomRewriteTemplate). Click Deploy Schema Changes… to promote to Production.")
+                print("[Schema v5] Done. CloudKit Dashboard → Development → Record Types should list all 17 CD_* types, and CD_Note should carry CD_calendarContextJSON. Click Deploy Schema Changes… to promote to Production.")
             }
         }
         #endif

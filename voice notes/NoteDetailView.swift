@@ -192,11 +192,13 @@ struct NoteDetailView: View {
                 // Content
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        // 1. Audio pill + date line
-                        audioPillAndDateRow
-                        calendarContextRow
-                            .padding(.top, 8)
-                            .padding(.bottom, 20)
+                        // 1. Audio pill + date line (+ calendar context when present)
+                        VStack(alignment: .leading, spacing: 8) {
+                            audioPillAndDateRow
+                            calendarContextRow
+                        }
+                        .padding(.top, 8)
+                        .padding(.bottom, 20)
 
                         // 2. Title + favorite
                         titleRow

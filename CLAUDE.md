@@ -145,7 +145,7 @@ Notifications are scheduled by `NotificationScheduler`. To enable background run
 
 ### Data Models (SwiftData)
 
-All models registered in `voice_notesApp.init()` schema (17 types as of seed key `cloudKitSchemaSeedDidRun_v4`):
+All models registered in `voice_notesApp.init()` schema (17 types as of seed key `cloudKitSchemaSeedDidRun_v5` — v5 added no type, it registers the `calendarContextJSON` field on `CD_Note`):
 `Note`, `Tag`, `ExtractedDecision`, `ExtractedAction`, `ExtractedCommitment`, `UnresolvedItem`, `KanbanItem`, `KanbanMovement`, `WeeklyDebrief`, `Project`, `DailyBrief`, `ExtractedURL`, `MentionedPerson`, `KnowledgeArticle`, `KnowledgeEvent`, `DailyIntention`, `CustomRewriteTemplate`
 
 **Default actor isolation is MainActor** for this target: any unannotated class/struct is main-actor-isolated. Types read from actors or from `@Model` accessors (`TranscriptionVocabulary`, `CalendarContext`) must be declared `nonisolated` or the build warns (an error under Swift 6 mode).
@@ -156,7 +156,7 @@ All models registered in `voice_notesApp.init()` schema (17 types as of seed key
 - `enhancedNoteText` — AI-expanded, cleaned-up version of what the user said
 - `embeddingData` — vector embedding for semantic search
 - `personaExtractionsJSON` — persona-schema extractions (only when the user's `.purpose` article has a `noteExtractionSchemaJSON`)
-- `calendarContextJSON` — `CalendarContext` (event title, attendees, times, location) when Calendar context is on and the recording overlapped an event. New optional field on an existing record type: no seed bump, but promote in CloudKit Dashboard before production sync
+- `calendarContextJSON` — `CalendarContext` (event title, attendees, times, location) when Calendar context is on and the recording overlapped an event. Seed v5 registers the field in Development; **release gate: run a DEBUG build once, then Deploy Schema Changes in the CloudKit Dashboard before the App Store build** — a Production schema without the field rejects the first synced note that has one
 
 **Adding a new model requires updating the schema array in `voice_notesApp.swift`** AND incrementing the `cloudKitSchemaSeedDidRun_v*` key so the seed routine re-runs and registers the new record types in the CloudKit Dashboard. Without this, CloudKit silently rejects the new type. After seeding completes (logs say "Done. … 17 CD_* types"), promote in CloudKit Dashboard → Development → Deploy Schema Changes.
 

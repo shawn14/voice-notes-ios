@@ -34,7 +34,6 @@ struct AIHomeView: View {
     @Query(sort: \Project.sortOrder) private var projects: [Project]
     @Query private var tags: [Tag]
     @Query(sort: \DailyBrief.briefDate, order: .reverse) private var dailyBriefs: [DailyBrief]
-    @Query private var feedActions: [ExtractedAction]
     @Query private var extractedCommitments: [ExtractedCommitment]
     @Query private var kanbanItems: [KanbanItem]
     @Query private var kanbanMovements: [KanbanMovement]
@@ -812,7 +811,7 @@ struct AIHomeView: View {
     }
 
     private var openTaskCount: Int {
-        feedActions.filter { !$0.isCompleted }.count
+        extractedActions.filter { !$0.isCompleted }.count
     }
 
     private var conversationsHeader: some View {
@@ -1833,9 +1832,9 @@ struct AIHomeView: View {
         isRecording = false
     }
 
-    private func transcribeAndSave(url: URL) {
+    private func transcribeAndSave(url: URL, isImport: Bool = false) {
         guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
-            saveNote(transcript: nil)
+            saveNote(transcript: nil, isImport: isImport)
             return
         }
 
@@ -1874,12 +1873,12 @@ struct AIHomeView: View {
                         isTranscribing = false
                         pendingAnswerQuery = AnswerQuery(query: transcript)
                     case .newNote:
-                        saveNote(transcript: transcript)
+                        saveNote(transcript: transcript, isImport: isImport)
                     }
                 }
             } catch {
                 await MainActor.run {
-                    saveNote(transcript: nil, pending: true)
+                    saveNote(transcript: nil, pending: true, isImport: isImport)
                 }
             }
         }
@@ -1909,7 +1908,7 @@ struct AIHomeView: View {
         if (try? AVAudioPlayer(contentsOf: destinationURL)) != nil {
             currentAudioFileName = fileName
             isTranscribing = true
-            transcribeAndSave(url: destinationURL)
+            transcribeAndSave(url: destinationURL, isImport: true)
         } else {
             errorMessage = "Could not read audio file"
             showingError = true
@@ -1917,7 +1916,7 @@ struct AIHomeView: View {
         }
     }
 
-    private func saveNote(transcript: String?, pending: Bool = false) {
+    private func saveNote(transcript: String?, pending: Bool = false, isImport: Bool = false) {
         let note = Note(
             title: "",
             content: transcript ?? "",
@@ -1927,6 +1926,11 @@ struct AIHomeView: View {
         modelContext.insert(note)
         if pending {
             note.transcriptionStatus = "pending"
+        }
+        if isImport {
+            // Recorded some other time — the meeting happening at import
+            // time has nothing to do with it.
+            CalendarContextService.shared.excludeFromMatching(note.id)
         }
 
         // Track usage and store duration

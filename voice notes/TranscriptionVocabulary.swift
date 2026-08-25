@@ -14,8 +14,10 @@
 //    - learned: refreshed from MentionedPerson + Project on app-active and after
 //               every extraction pass; never edited by hand
 //
-//  The prompt is capped well under Whisper's 224-token limit. User terms go
-//  first so they are never the ones that get cut.
+//  Whisper keeps only the FINAL 224 tokens of the prompt and silently drops
+//  everything before. So terms are chosen by priority (user terms, then the
+//  most-mentioned people) but EMITTED in reverse — user terms last — so an
+//  overflow drops the least important names, never the ones typed by hand.
 //
 //  Storage is UserDefaults only (no in-memory state), so the singleton is safe
 //  to read from any actor — TranscriptionService reads it at init.
@@ -32,9 +34,9 @@ nonisolated final class TranscriptionVocabulary: @unchecked Sendable {
         static let learned = "transcriptionVocabulary.learned"
     }
 
-    /// Whisper's prompt is limited to 224 tokens. English averages ~4 characters
-    /// per token; proper nouns tokenize worse, so 600 characters leaves headroom.
-    static let maxPromptCharacters = 600
+    /// Whisper's prompt is limited to 224 tokens — the LAST 224. Proper nouns
+    /// tokenize at ~2.5–3.5 chars/token, so 450 characters stays under it.
+    static let maxPromptCharacters = 450
     static let maxLearnedPeople = 40
     static let maxLearnedProjects = 20
 
@@ -79,7 +81,7 @@ nonisolated final class TranscriptionVocabulary: @unchecked Sendable {
 
     /// The text sent as Whisper's `prompt`. Nil when there is nothing to send,
     /// so the request body is byte-identical to before for users with no
-    /// vocabulary.
+    /// vocabulary. Selected by priority, emitted reversed (see header).
     var whisperPrompt: String? {
         var included: [String] = []
         var length = 0
@@ -90,7 +92,7 @@ nonisolated final class TranscriptionVocabulary: @unchecked Sendable {
             length += cost
         }
         guard !included.isEmpty else { return nil }
-        return included.joined(separator: ", ") + "."
+        return included.reversed().joined(separator: ", ") + "."
     }
 
     // MARK: - Parsing

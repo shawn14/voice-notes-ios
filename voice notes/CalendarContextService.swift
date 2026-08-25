@@ -66,7 +66,19 @@ final class CalendarContextService {
 
     private let store = EKEventStore()
 
+    /// Notes already looked up this process (matched or not), plus notes
+    /// excluded outright (audio imports). Every voice path calls
+    /// `attachIfNeeded`, so without this a note with no overlapping event
+    /// would be queried twice (title pass, then processNoteSave).
+    private var settled = Set<UUID>()
+
     private init() {}
+
+    /// Imported audio was recorded some other time; the event at the moment
+    /// of import is irrelevant. Call before the import's first AI pass.
+    func excludeFromMatching(_ noteID: UUID) {
+        settled.insert(noteID)
+    }
 
     var isEnabled: Bool {
         UserDefaults.standard.bool(forKey: Self.enabledKey)
@@ -96,12 +108,13 @@ final class CalendarContextService {
     func attachIfNeeded(to note: Note) async {
         guard isEnabled, isAuthorized else { return }
         guard note.calendarContextJSON == nil,
+              !settled.contains(note.id),
               note.sourceType == .voice,
               let audioURL = note.audioURL else { return }
+        settled.insert(note.id)
 
-        // The note is created when the recording stops, so its window is
-        // [createdAt − duration, createdAt]. Duration may not be on the note
-        // yet (AIHomeView loads it asynchronously); read the file if so.
+        // Duration may not be on the note yet (AIHomeView loads it
+        // asynchronously); read the file if so.
         var duration = note.audioDuration ?? 0
         if duration <= 0 {
             if let loaded = try? await AVURLAsset(url: audioURL).load(.duration) {
@@ -109,8 +122,22 @@ final class CalendarContextService {
                 if seconds.isFinite && seconds > 0 { duration = seconds }
             }
         }
-        let end = note.createdAt
-        let start = end.addingTimeInterval(-duration)
+
+        // Recording window. AudioRecorder creates the file when recording
+        // starts, so the file's creation date is the true start. Note.createdAt
+        // is NOT the stop time on the foreground path — saveNote runs after
+        // Whisper + filler-word cleanup, 10–60s later, which on a back-to-back
+        // schedule is enough to land the note in the wrong meeting.
+        let start: Date
+        let end: Date
+        if let created = (try? FileManager.default.attributesOfItem(atPath: audioURL.path))?[.creationDate] as? Date,
+           created <= note.createdAt {
+            start = created
+            end = duration > 0 ? created.addingTimeInterval(duration) : note.createdAt
+        } else {
+            end = note.createdAt
+            start = end.addingTimeInterval(-duration)
+        }
 
         if let context = event(overlapping: start, end: end) {
             note.calendarContext = context
