@@ -156,8 +156,14 @@ final class IntelligenceService {
                     // Push new actions to Apple Reminders (no-op unless the
                     // user enabled it in Settings). Deduped inside the service.
                     if !newActions.isEmpty {
-                        let actionsToSync = newActions
-                        Task { await EventKitSyncService.shared.sync(actions: actionsToSync) }
+                        // A "remind me…" command already put this note's
+                        // reminder in place (or the user declined it).
+                        let actionsToSync = newActions.filter {
+                            !EventKitSyncService.shared.isHandledByCommand($0.sourceNoteId)
+                        }
+                        if !actionsToSync.isEmpty {
+                            Task { await EventKitSyncService.shared.sync(actions: actionsToSync) }
+                        }
                     }
 
                     for commitment in result.commitments {

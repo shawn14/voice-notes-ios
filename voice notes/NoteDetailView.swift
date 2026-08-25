@@ -124,6 +124,8 @@ struct NoteDetailView: View {
     @State private var quizError: String?
     @State private var isRewriting = false
     @State private var rewriteError: String?
+    /// The text an adjustment replaced — one level of undo (tap again to redo).
+    @State private var adjustmentUndoText: String?
 
     // Enhanced-text inline edit + re-run state
     @State private var isEditingEnhanced = false
@@ -854,6 +856,8 @@ struct NoteDetailView: View {
                 }
 
                 Spacer()
+
+                adjustMenu
             }
 
             // Bleeds past the parent's 20pt inset so a partially-visible chip
@@ -871,6 +875,43 @@ struct NoteDetailView: View {
             .padding(.horizontal, -20)
         }
         .opacity(isRewriting ? 0.55 : 1)
+    }
+
+    /// Adjust the text you are looking at — Shorter / Longer / Simpler /
+    /// More formal — in place, unlike the format chips which regenerate from
+    /// the transcript. A menu is fine here: the label names an action, and
+    /// the four options explain themselves once opened.
+    private var adjustMenu: some View {
+        Menu {
+            ForEach(NoteAdjustment.allCases) { adjustment in
+                Button {
+                    applyAdjustment(adjustment)
+                } label: {
+                    Label(adjustment.title, systemImage: adjustment.icon)
+                }
+            }
+            if adjustmentUndoText != nil {
+                Divider()
+                Button {
+                    undoAdjustment()
+                } label: {
+                    Label("Undo adjustment", systemImage: "arrow.uturn.backward")
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.caption2.weight(.bold))
+                Text("Adjust")
+                    .font(.caption.weight(.semibold))
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
+            }
+            .foregroundStyle(.eeonAccentAI)
+            .frame(minHeight: EEONLayout.minTarget)
+            .contentShape(Rectangle())
+        }
+        .disabled(isRewriting)
     }
 
     /// One selectable format. The current one is filled; the rest are
@@ -1409,6 +1450,54 @@ struct NoteDetailView: View {
             Rectangle()
                 .fill(Color.eeonBackgroundSecondary)
         )
+    }
+
+    // MARK: - Adjustments (in place, undoable)
+
+    private func applyAdjustment(_ adjustment: NoteAdjustment) {
+        let template = adjustment.template
+        if template.isPro && !SubscriptionManager.shared.isSubscribed {
+            showingPaywall = true
+            return
+        }
+
+        // Work on what is on screen: the enhanced note when there is one,
+        // otherwise the transcript — never a stale format.
+        let source: String = {
+            if let enhanced = note.enhancedNoteText, !enhanced.isEmpty { return enhanced }
+            return note.transcript ?? note.content
+        }()
+        guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            rewriteError = "No content to adjust"
+            return
+        }
+
+        isRewriting = true
+        Task {
+            do {
+                let result = try await RewriteService.rewrite(transcript: source, template: template)
+                await MainActor.run {
+                    adjustmentUndoText = source
+                    note.enhancedNoteText = result
+                    note.updatedAt = Date()
+                    showingOriginal = false
+                    isRewriting = false
+                }
+            } catch {
+                await MainActor.run {
+                    rewriteError = error.localizedDescription
+                    isRewriting = false
+                }
+            }
+        }
+    }
+
+    /// Swap the adjusted text with what it replaced. Swapping again redoes.
+    private func undoAdjustment() {
+        guard let previous = adjustmentUndoText else { return }
+        adjustmentUndoText = note.enhancedNoteText
+        note.enhancedNoteText = previous
+        note.updatedAt = Date()
     }
 
     // MARK: - Rewrite Handling

@@ -21,7 +21,47 @@ final class EventKitSyncService {
     private let mapKey = "eventKitReminderMap" // [action UUID string: reminder identifier]
     private let store = EKEventStore()
 
+    /// Notes whose reminder was handled by the "remind me…" command flow.
+    /// The extraction pass will still pull an action item out of the same
+    /// note; skipping those here keeps Reminders from getting it twice.
+    private var commandHandledNotes = Set<UUID>()
+
     private init() {}
+
+    func markHandledByCommand(_ noteID: UUID) {
+        commandHandledNotes.insert(noteID)
+    }
+
+    func isHandledByCommand(_ noteID: UUID?) -> Bool {
+        guard let noteID else { return false }
+        return commandHandledNotes.contains(noteID)
+    }
+
+    enum CreateError: LocalizedError {
+        case accessDenied
+        var errorDescription: String? { "Reminders access is off" }
+    }
+
+    /// One reminder in the EEON list, on the user's explicit ask ("remind
+    /// me…" + confirmation). Independent of the Settings sync toggle —
+    /// requests access on the spot if needed.
+    func createReminder(title: String, due: Date?) async throws {
+        if EKEventStore.authorizationStatus(for: .reminder) != .fullAccess {
+            guard await requestAccess() else { throw CreateError.accessDenied }
+        }
+        let list = try eeonRemindersList()
+        let reminder = EKReminder(eventStore: store)
+        reminder.calendar = list
+        reminder.title = title
+        reminder.notes = "From an EEON voice note"
+        if let due {
+            reminder.dueDateComponents = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute], from: due
+            )
+            reminder.addAlarm(EKAlarm(absoluteDate: due))
+        }
+        try store.save(reminder, commit: true)
+    }
 
     var isEnabled: Bool {
         UserDefaults.standard.bool(forKey: Self.enabledKey)

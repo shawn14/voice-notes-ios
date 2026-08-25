@@ -57,6 +57,8 @@ struct AIHomeView: View {
 
     @State private var showingSettings = false
     @State private var pendingAnswerQuery: AnswerQuery?
+    /// "Remind me…" heard in a recording — confirmed in ReminderConfirmSheet.
+    @State private var pendingReminder: ReminderCommandParser.Command?
     @State private var showingIdentity = false
     @State private var showingWhyThisHome = false
     @State private var showPaywall = false
@@ -441,6 +443,9 @@ struct AIHomeView: View {
                 WhyThisHomeSheet(onTune: {
                     showingIdentity = true
                 })
+            }
+            .sheet(item: $pendingReminder) { command in
+                ReminderConfirmSheet(command: command) { pendingReminder = nil }
             }
             .sheet(item: $pendingAnswerQuery) { item in
                 AnswerSheet(initialQuery: item.query)
@@ -1851,15 +1856,24 @@ struct AIHomeView: View {
                     transcript = rawTranscript
                 }
 
+                // "Remind me…" is decided on-device before any classifier call:
+                // it is a note (the capture is kept) plus a confirmation sheet.
+                // Imports are exempt — an old recording is not a command.
+                let reminderCommand = isImport ? nil : ReminderCommandParser.parse(transcript)
+
                 // Classify intent: question routes to AnswerSheet, note saves as usual.
                 // On classifier failure we fall back to .newNote — the safer default is
                 // "your speech became a note" rather than swallowing it into a Q&A.
                 let intent: IntentType
-                do {
-                    intent = try await IntentClassifier.shared.classify(transcript: transcript)
-                } catch {
-                    print("[IntentClassifier] classification failed, defaulting to newNote: \(error)")
+                if reminderCommand != nil {
                     intent = .newNote
+                } else {
+                    do {
+                        intent = try await IntentClassifier.shared.classify(transcript: transcript)
+                    } catch {
+                        print("[IntentClassifier] classification failed, defaulting to newNote: \(error)")
+                        intent = .newNote
+                    }
                 }
 
                 await MainActor.run {
@@ -1873,12 +1887,19 @@ struct AIHomeView: View {
                         isTranscribing = false
                         pendingAnswerQuery = AnswerQuery(query: transcript)
                     case .newNote:
-                        saveNote(transcript: transcript, isImport: isImport)
+                        let note = saveNote(transcript: transcript, isImport: isImport)
+                        if let reminderCommand {
+                            note.intentType = NoteIntent.reminder.rawValue
+                            // Whatever the user decides in the sheet, the
+                            // extraction pass must not push a second copy.
+                            EventKitSyncService.shared.markHandledByCommand(note.id)
+                            pendingReminder = reminderCommand
+                        }
                     }
                 }
             } catch {
                 await MainActor.run {
-                    saveNote(transcript: nil, pending: true, isImport: isImport)
+                    _ = saveNote(transcript: nil, pending: true, isImport: isImport)
                 }
             }
         }
@@ -1916,7 +1937,8 @@ struct AIHomeView: View {
         }
     }
 
-    private func saveNote(transcript: String?, pending: Bool = false, isImport: Bool = false) {
+    @discardableResult
+    private func saveNote(transcript: String?, pending: Bool = false, isImport: Bool = false) -> Note {
         let note = Note(
             title: "",
             content: transcript ?? "",
@@ -2018,6 +2040,7 @@ struct AIHomeView: View {
             StatusCounters.shared.incrementNotesToday()
             StatusCounters.shared.markSessionStale()
         }
+        return note
     }
 
     // MARK: - Create Typed Note
