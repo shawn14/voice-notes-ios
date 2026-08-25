@@ -71,7 +71,14 @@ final class IntelligenceService {
         do {
             let result: IntentAnalysis
             if note.sourceType == .voice {
-                result = try await SummaryService.extractIntent(text: transcript, apiKey: apiKey)
+                // Calendar context (no-op unless enabled; idempotent) — the
+                // event this recording overlapped, for names and subject.
+                await CalendarContextService.shared.attachIfNeeded(to: note)
+                result = try await SummaryService.extractIntent(
+                    text: transcript,
+                    context: note.calendarContext?.promptLine,
+                    apiKey: apiKey
+                )
             } else {
                 result = try await SummaryService.extractIntentLightweight(text: transcript, apiKey: apiKey)
             }

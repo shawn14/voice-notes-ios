@@ -299,17 +299,25 @@ enum SummaryService {
 
     // MARK: - Title Generation
 
-    static func generateTitle(for text: String, apiKey: String) async throws -> String {
+    /// `context` is an optional fact line about the recording (today: the
+    /// calendar event it overlapped — see CalendarContextService). The model
+    /// may use it for the subject and names; it is told not to invent from it.
+    static func generateTitle(for text: String, context: String? = nil, apiKey: String) async throws -> String {
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        var system = ContextAssembler.flatPrefix(for: .title) + "Generate a concise 3-6 word title for this voice note. No quotes or punctuation."
+        if let context, !context.isEmpty {
+            system += " Context: \(context) If the note is about that event, name the event or the people in the title. Do not invent content from the context."
+        }
+
         let body: [String: Any] = [
             "model": "gpt-4o-mini",
             "messages": [
-                ["role": "system", "content": ContextAssembler.flatPrefix(for: .title) + "Generate a concise 3-6 word title for this voice note. No quotes or punctuation."],
+                ["role": "system", "content": system],
                 ["role": "user", "content": String(text.prefix(500))]
             ],
             "max_tokens": 20
@@ -544,7 +552,9 @@ enum SummaryService {
     """
     }
 
-    static func extractIntent(text: String, apiKey: String) async throws -> IntentAnalysis {
+    /// `context`: optional fact line about the recording (the calendar event
+    /// it overlapped). Used to resolve first names and the subject only.
+    static func extractIntent(text: String, context: String? = nil, apiKey: String) async throws -> IntentAnalysis {
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
 
         var request = URLRequest(url: url)
@@ -552,10 +562,15 @@ enum SummaryService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        var system = intentPrompt
+        if let context, !context.isEmpty {
+            system += "\n\nCONTEXT ABOUT THIS RECORDING: \(context) Use it to resolve first names, the subject, and who was present. Do not add decisions, actions, or commitments that are not in the transcript."
+        }
+
         let body: [String: Any] = [
             "model": "gpt-4o-mini",
             "messages": [
-                ["role": "system", "content": intentPrompt],
+                ["role": "system", "content": system],
                 ["role": "user", "content": text]
             ],
             "temperature": 0.3,

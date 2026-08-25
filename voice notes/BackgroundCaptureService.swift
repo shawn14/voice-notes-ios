@@ -251,7 +251,12 @@ final class BackgroundCaptureService {
             note.updatedAt = Date()
             try? context.save()
 
-            if let title = try? await SummaryService.generateTitle(for: transcript, apiKey: apiKey) {
+            await CalendarContextService.shared.attachIfNeeded(to: note)
+            if let title = try? await SummaryService.generateTitle(
+                for: transcript,
+                context: note.calendarContext?.promptLine,
+                apiKey: apiKey
+            ) {
                 note.title = title
             }
 

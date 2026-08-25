@@ -1599,6 +1599,7 @@ struct SettingsView: View {
     private var authService = AuthService.shared
 
     @AppStorage(EventKitSyncService.enabledKey) private var remindersSyncEnabled = false
+    @AppStorage(CalendarContextService.enabledKey) private var calendarContextEnabled = false
     @AppStorage(DocumentExportService.enabledKey) private var documentExportEnabled = false
     @AppStorage(PersonaPresetStore.autoSummarizeKey) private var autoSummarizeEnabled = false
     @State private var showingExportFolderPicker = false
@@ -1645,6 +1646,7 @@ struct SettingsView: View {
     private var connectionsSection: some View {
         Section {
             remindersSyncRow
+            calendarContextRow
             documentExportRow
             if documentExportEnabled && DocumentExportService.shared.hasFolder {
                 Button {
@@ -1662,7 +1664,7 @@ struct SettingsView: View {
                 }
             }
         } footer: {
-            Text("Action items appear in an \"EEON\" list in Apple Reminders. Exported notes are markdown files in the folder you choose — pick a Google Drive, OneDrive, or Obsidian folder in Files and they sync everywhere those apps do.")
+            Text("Action items appear in an \"EEON\" list in Apple Reminders. Calendar context reads the event a recording overlapped — Apple, Google, or Outlook calendars, whatever the phone already has — so the note gets its title and who was there; EEON never writes to your calendar. Exported notes are markdown files in the folder you choose — pick a Google Drive, OneDrive, or Obsidian folder in Files and they sync everywhere those apps do.")
         }
         .fileImporter(
             isPresented: $showingExportFolderPicker,
@@ -1690,6 +1692,25 @@ struct SettingsView: View {
                 let granted = await EventKitSyncService.shared.requestAccess()
                 if !granted {
                     await MainActor.run { remindersSyncEnabled = false }
+                }
+            }
+        }
+    }
+
+    private var calendarContextRow: some View {
+        Toggle(isOn: $calendarContextEnabled) {
+            EEONSettingsRow(
+                icon: "calendar",
+                title: "Calendar context",
+                subtitle: "Notes recorded during a meeting get its title and attendees"
+            )
+        }
+        .onChange(of: calendarContextEnabled) { _, isOn in
+            guard isOn else { return }
+            Task {
+                let granted = await CalendarContextService.shared.requestAccess()
+                if !granted {
+                    await MainActor.run { calendarContextEnabled = false }
                 }
             }
         }

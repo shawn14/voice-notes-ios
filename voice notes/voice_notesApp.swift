@@ -484,8 +484,14 @@ struct voice_notesApp: App {
                     note.updatedAt = Date()
                     try? context.save()
 
-                    // Run intelligence pipeline
-                    let title = try? await SummaryService.generateTitle(for: transcript, apiKey: apiKey)
+                    // Run intelligence pipeline (calendar context first, so
+                    // the title can name the meeting; no-op unless enabled)
+                    await CalendarContextService.shared.attachIfNeeded(to: note)
+                    let title = try? await SummaryService.generateTitle(
+                        for: transcript,
+                        context: note.calendarContext?.promptLine,
+                        apiKey: apiKey
+                    )
                     if let title = title {
                         note.title = title
                     }

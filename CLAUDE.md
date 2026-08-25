@@ -117,7 +117,9 @@ Notifications are scheduled by `NotificationScheduler`. To enable background run
 |---------|---------|
 | `IntelligenceService` | Orchestrates AI processing across all tiers |
 | `SummaryService` | OpenAI API integration (extraction, analysis) — static methods, no instance state |
-| `TranscriptionService` | Whisper API for audio transcription (`actor` for thread safety) |
+| `TranscriptionService` | Whisper API for audio transcription (`actor` for thread safety). Sends Whisper's `prompt` field from `TranscriptionVocabulary` on every request, including chunked long files |
+| `TranscriptionVocabulary` | Custom vocabulary for Whisper: user terms (Settings → Capture → "Words EEON should know") + names learned from `MentionedPerson`/`Project`, capped under the 224-token prompt limit. `nonisolated`, UserDefaults-only — refreshed on app-active and after extraction |
+| `CalendarContextService` | Read-only EventKit lookup of the calendar event a recording overlapped (Settings → Connections → Calendar context). Stores `CalendarContext` on `Note.calendarContextJSON`; feeds `generateTitle`/`extractIntent` `context:`. `attachIfNeeded` is idempotent and called from every voice path |
 | `LiveTranscriptionService` | On-device live transcript shown during recording (`SFSpeechRecognizer`) — Whisper still runs on the saved audio for the canonical transcript |
 | `EmbeddingService` | Generates OpenAI embedding vectors for notes on save |
 | `VectorSearchService` | Cosine similarity search across note embeddings (Accelerate framework) |
@@ -146,19 +148,23 @@ Notifications are scheduled by `NotificationScheduler`. To enable background run
 All models registered in `voice_notesApp.init()` schema (17 types as of seed key `cloudKitSchemaSeedDidRun_v4`):
 `Note`, `Tag`, `ExtractedDecision`, `ExtractedAction`, `ExtractedCommitment`, `UnresolvedItem`, `KanbanItem`, `KanbanMovement`, `WeeklyDebrief`, `Project`, `DailyBrief`, `ExtractedURL`, `MentionedPerson`, `KnowledgeArticle`, `KnowledgeEvent`, `DailyIntention`, `CustomRewriteTemplate`
 
+**Default actor isolation is MainActor** for this target: any unannotated class/struct is main-actor-isolated. Types read from actors or from `@Model` accessors (`TranscriptionVocabulary`, `CalendarContext`) must be declared `nonisolated` or the build warns (an error under Swift 6 mode).
+
 **Note extraction fields** (stored on the Note model):
 - `topicsJSON` — extracted topic tags as JSON
 - `emotionalTone` — detected emotional tone of the note
 - `enhancedNoteText` — AI-expanded, cleaned-up version of what the user said
 - `embeddingData` — vector embedding for semantic search
 - `personaExtractionsJSON` — persona-schema extractions (only when the user's `.purpose` article has a `noteExtractionSchemaJSON`)
+- `calendarContextJSON` — `CalendarContext` (event title, attendees, times, location) when Calendar context is on and the recording overlapped an event. New optional field on an existing record type: no seed bump, but promote in CloudKit Dashboard before production sync
 
 **Adding a new model requires updating the schema array in `voice_notesApp.swift`** AND incrementing the `cloudKitSchemaSeedDidRun_v*` key so the seed routine re-runs and registers the new record types in the CloudKit Dashboard. Without this, CloudKit silently rejects the new type. After seeding completes (logs say "Done. … 17 CD_* types"), promote in CloudKit Dashboard → Development → Deploy Schema Changes.
 
 ### View Hierarchy
 
 - `voice_notesApp.swift` → onboarding gate (`OnboardingQuizView`) → `AIHomeView` (main hub)
-- `AIHomeView.swift` — Single-button voice capture, query interface, recent notes; persona-tuned sections rendered per `homeLayoutJSON` (see `HomeSections.swift`)
+- `AIHomeView.swift` — Single-button voice capture, query interface, recent notes; persona-tuned sections rendered per `homeLayoutJSON` (see `HomeSections.swift`). The feed header (`conversationsHeader`) is two dropdowns: left = All notes / Tasks / Highlights / categories (`FeedMode`), right = dates. Tasks renders `TasksView(embedded: true)` inline; Highlights renders `TodayHighlightsView` (today's `DailyBrief`) inline — nothing leaves the main screen
+- `TodayHighlightsView.swift` — Today's Tier-3 `DailyBrief` inline (what matters, highlights, tickable next steps, going-stale), with "Full brief" → `DailyBriefSheet`
 - `AssistantView.swift` — AI assistant / query response view
 - `TuneConversationView.swift` — Tune EEON personalization (profile + purpose fields)
 - `KnowledgeBaseView.swift` — Reference material upload/browse (in Settings); `KnowledgeArticleDetailView` renders compiled articles

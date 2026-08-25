@@ -1955,7 +1955,13 @@ struct AIHomeView: View {
 
             Task {
                 do {
-                    let title = try await SummaryService.generateTitle(for: transcript, apiKey: apiKey)
+                    // Calendar context first so the title can name the meeting.
+                    await CalendarContextService.shared.attachIfNeeded(to: note)
+                    let title = try await SummaryService.generateTitle(
+                        for: transcript,
+                        context: note.calendarContext?.promptLine,
+                        apiKey: apiKey
+                    )
                     let extractor = TagExtractor(apiKey: apiKey)
                     let tagNames = try await extractor.extractTags(from: transcript)
 
@@ -2490,13 +2496,21 @@ fileprivate struct RecentNotesSidebarRow: View {
         return formatter.localizedString(for: note.updatedAt, relativeTo: Date())
     }
 
+    /// Pocket-style metadata line: time, then the meeting it was recorded in.
+    private var metaString: String {
+        if let event = note.calendarContext?.title, !event.isEmpty {
+            return "\(timeString) \u{00B7} \(event)"
+        }
+        return timeString
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(preview)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.eeonTextPrimary)
                 .lineLimit(2)
-            Text(timeString)
+            Text(metaString)
                 .font(.caption)
                 .foregroundStyle(.eeonTextSecondary)
         }

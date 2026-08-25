@@ -216,3 +216,16 @@ on notes. Start as a read-only Canvas view fed by `KnowledgeCompiler`'s
 article set; no new persistence.
 
 **Depends on / blocked by:** Nothing.
+
+---
+
+## Pocket gap status (2026-08-25)
+
+Three loops closed: custom vocabulary for Whisper (#loop 1), Daily highlights
+inline on the main screen (#loop 2 — also fixed the never-rendered feed
+dropdown from b987fe2), Calendar context via EventKit (#loop 3). Remaining
+Pocket-only items, still deliberately deferred: #4 MCP server, #6 third-party
+task apps, #7 mind map, speaker detection (Whisper can't diarize), dark theme
+(light-only is Shawn's 08-20 call). Full grade sheet:
+`docs/pocket-teardown-thesis.md` → "Gap status (2026-08-25)".
+

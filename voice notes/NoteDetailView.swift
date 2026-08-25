@@ -194,6 +194,7 @@ struct NoteDetailView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         // 1. Audio pill + date line
                         audioPillAndDateRow
+                        calendarContextRow
                             .padding(.top, 8)
                             .padding(.bottom, 20)
 
@@ -500,6 +501,25 @@ struct NoteDetailView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     generateAIContent(type: transform)
                 }
+            }
+        }
+    }
+
+    // MARK: - Calendar Context Row
+
+    /// "During Standup · with Lena, Marco" — the event this recording
+    /// overlapped (CalendarContextService). Renders nothing when there isn't one.
+    @ViewBuilder
+    private var calendarContextRow: some View {
+        if let ctx = note.calendarContext {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .font(.caption)
+                    .foregroundStyle(.eeonTextSecondary)
+                Text(ctx.attendeesLabel.map { "During \(ctx.title) \u{00B7} \($0)" } ?? "During \(ctx.title)")
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .lineLimit(2)
             }
         }
     }

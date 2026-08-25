@@ -158,3 +158,31 @@ noise; Bluetooth reconnection failures (N/A for us).
 1. **Mode pill + Auto-Pilot / Reasoning templates** — what does "Normal Mode" switch, and are Auto-Pilot/Reasoning processing modes rather than formats?
 2. **Task system mechanics** — are tasks two-way synced with external apps, do they have reminders/notifications, how do they attach back to source notes?
 3. **Packaging** — what exactly is free vs Pro (retention limits, Ask caps), and how does the 14→30-day trial ladder actually convert?
+
+## Gap status (2026-08-25)
+
+Sources: heypocket.com, their announcements feed (Nov 2025 → May 2026), and
+the code. Graded feature by feature.
+
+**Parity or better (closed 08-19 → 08-21):** background capture without the
+puck · 120+ languages · auto-summaries + Pro auto-format · action items +
+Tasks screen · Reminders sync · Drive/OneDrive/Obsidian export · Ask with
+suggested follow-ups · structured custom templates + favorites · format
+switcher / regeneration · widgets (home, lock, Control Center) · share link
+with rich preview · audio/PDF/image/URL import · offline pending-retry ·
+bulk export · folders (Notebooks) · flashcards (Pocket has none).
+
+**Closed today (three loops):**
+
+| Pocket | Shipped | EEON |
+|---|---|---|
+| Custom vocabulary dictionary | Dec 2025 | `TranscriptionVocabulary` → Whisper `prompt`; user terms + names EEON already extracted. Pocket makes you type the list; EEON fills most of it in. |
+| Daily highlights (Pro) | Nov 2025 | `TodayHighlightsView` — the Tier-3 `DailyBrief` was generated daily and shown nowhere. Zero extra API calls. Not Pro-gated (Shawn's call). |
+| Calendar integration (Apple / Google / Outlook) | Nov 2025 | `CalendarContextService` — one EventKit read covers all three; note gets the meeting title + attendees, AI title and extraction get them as context. |
+
+**Open, deliberately:** mind map / visual summaries (TODO #7, presentation
+only) · MCP / ChatGPT / Claude (TODO #4, needs a server) · Todoist / Linear /
+Asana / ClickUp / TickTick (TODO #6, OAuth per app) · speaker names (Whisper
+can't diarize) · dark theme (light-only, 08-20) · Ask model picker · Ask
+attachments · memory import from ChatGPT · "Pocket Wrapped" · desktop/web.
+

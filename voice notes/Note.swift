@@ -213,6 +213,13 @@ final class Note {
     // Always additive to the baseline Extracted* models — never replaces them.
     var personaExtractionsJSON: String?
 
+    // Calendar event the recording overlapped (JSON CalendarContext), set by
+    // CalendarContextService when Settings → Connections → Calendar context is
+    // on. Optional and additive: CloudKit registers the field on first sync of
+    // a record that has a value, so no schema-seed bump; promoting to
+    // Production still requires Deploy Schema Changes in the Dashboard.
+    var calendarContextJSON: String?
+
     // Source type (voice, web article, derived from RAG answer)
     var sourceTypeRaw: String = "voice"
     var originalURL: String?               // For .webArticle — the shared URL
@@ -332,6 +339,23 @@ final class Note {
     }
 
     // MARK: - People Mentioned
+
+    var calendarContext: CalendarContext? {
+        get {
+            guard let json = calendarContextJSON,
+                  let data = json.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(CalendarContext.self, from: data)
+        }
+        set {
+            guard let newValue,
+                  let data = try? JSONEncoder().encode(newValue),
+                  let json = String(data: data, encoding: .utf8) else {
+                calendarContextJSON = nil
+                return
+            }
+            calendarContextJSON = json
+        }
+    }
 
     var mentionedPeople: [String] {
         get {
