@@ -81,6 +81,19 @@ The primary daily UX is intention-setting: the user picks 3 things they want to 
 
 Notes that touch the same topic compound into evergreen articles. `KnowledgeCompiler` periodically re-synthesizes a `KnowledgeArticle` from all `KnowledgeEvent`s on a topic, so the article reflects the *current* state of the user's thinking rather than a stale draft. `ContextAssembler` primes a cache of compiled articles at app launch so RAG queries pull from compiled knowledge before raw notes.
 
+`KnowledgeArticle.kind` has seven cases: `person`, `project`, `topic`, `self` (the user's profile), `purpose` (what EEON is *for* this user), `reference` (uploaded canon), and `index` (singleton wiki overview).
+
+### Tune EEON / Persona Platform (`.purpose` article as personalization root)
+
+`TuneConversationView` (presented by the Tune EEON button — `IdentityView` is preview-only, do not route to it) lets the user dictate two fields: **profile** and **purpose**. Saving persists each as a seed Note and force-compiles the corresponding article. The compiled `.purpose` article then carries the entire personalization state as JSON fields:
+
+- `homeLayoutJSON` — LLM-compiled home screen layout. The section catalog (`HomeSectionKind` in `HomeLayout.swift`) is **intentionally closed**: the LLM only picks and orders sections; new section kinds require engineering.
+- `noteExtractionSchemaJSON` — a `PersonaExtractionSchema` (categories with key/label/icon). Each note saved by a tuned user accrues `PersonaExtractionItem`s into `Note.personaExtractionsJSON`.
+- `focusItemsJSON` — user-declared `FocusItem` priorities (primary/secondary/tertiary weights), read by `ContextAssembler` for prompt injection and `MomentumPictureSection` for activity ranking.
+- `voiceAndTone` — free-text style directive injected into AI call prompts.
+
+**Baseline extraction is permanent.** Persona extraction layers *additively* on top of the baseline decisions/actions/commitments pipeline — it never replaces or migrates it.
+
 ### Proactive Alerts (background tasks)
 
 `ProactiveAlertService` scans for stale commitments, drift from intentions, and unresolved items. It runs on:
@@ -116,7 +129,7 @@ Notifications are scheduled by `NotificationScheduler`. To enable background run
 | `DriftDetector` | Compares stated intentions vs. actual capture activity |
 | `MomentumService` | Streak / momentum scoring on the home screen |
 | `HealthScoreService` | Aggregate "health" score across loops |
-| `RewriteService` | Post-capture transforms (rewrite a note via templates) |
+| `RewriteService` | Post-capture transforms (rewrite a note via templates). Built-in templates plus user-authored `CustomRewriteTemplate` SwiftData models, bridged to `RewriteTemplate` at use time. Transforms honor the Tune EEON voice/tone directive |
 | `TagExtractor` | Suggests tags from note text |
 | `WebContentService` / `PDFExtractionService` / `ImageService` | External content ingestion |
 | `ExportService` | Bulk export of notes |
@@ -130,22 +143,25 @@ Notifications are scheduled by `NotificationScheduler`. To enable background run
 
 ### Data Models (SwiftData)
 
-All models registered in `voice_notesApp.init()` schema (16 types as of schema v3):
-`Note`, `Tag`, `ExtractedDecision`, `ExtractedAction`, `ExtractedCommitment`, `UnresolvedItem`, `KanbanItem`, `KanbanMovement`, `WeeklyDebrief`, `Project`, `DailyBrief`, `ExtractedURL`, `MentionedPerson`, `KnowledgeArticle`, `KnowledgeEvent`, `DailyIntention`
+All models registered in `voice_notesApp.init()` schema (17 types as of seed key `cloudKitSchemaSeedDidRun_v4`):
+`Note`, `Tag`, `ExtractedDecision`, `ExtractedAction`, `ExtractedCommitment`, `UnresolvedItem`, `KanbanItem`, `KanbanMovement`, `WeeklyDebrief`, `Project`, `DailyBrief`, `ExtractedURL`, `MentionedPerson`, `KnowledgeArticle`, `KnowledgeEvent`, `DailyIntention`, `CustomRewriteTemplate`
 
 **Note extraction fields** (stored on the Note model):
 - `topicsJSON` — extracted topic tags as JSON
 - `emotionalTone` — detected emotional tone of the note
 - `enhancedNoteText` — AI-expanded, cleaned-up version of what the user said
 - `embeddingData` — vector embedding for semantic search
+- `personaExtractionsJSON` — persona-schema extractions (only when the user's `.purpose` article has a `noteExtractionSchemaJSON`)
 
-**Adding a new model requires updating the schema array in `voice_notesApp.swift`** AND incrementing the `cloudKitSchemaSeedDidRun_v*` key so the seed routine re-runs and registers the new record types in the CloudKit Dashboard. Without this, CloudKit silently rejects the new type. After seeding completes (logs say "Done. 16 CD_* types"), promote in CloudKit Dashboard → Development → Deploy Schema Changes.
+**Adding a new model requires updating the schema array in `voice_notesApp.swift`** AND incrementing the `cloudKitSchemaSeedDidRun_v*` key so the seed routine re-runs and registers the new record types in the CloudKit Dashboard. Without this, CloudKit silently rejects the new type. After seeding completes (logs say "Done. … 17 CD_* types"), promote in CloudKit Dashboard → Development → Deploy Schema Changes.
 
 ### View Hierarchy
 
-- `voice_notesApp.swift` → onboarding gate → `AIHomeView` (main hub)
-- `AIHomeView.swift` — Single-button voice capture, query interface, recent notes
+- `voice_notesApp.swift` → onboarding gate (`OnboardingQuizView`) → `AIHomeView` (main hub)
+- `AIHomeView.swift` — Single-button voice capture, query interface, recent notes; persona-tuned sections rendered per `homeLayoutJSON` (see `HomeSections.swift`)
 - `AssistantView.swift` — AI assistant / query response view
+- `TuneConversationView.swift` — Tune EEON personalization (profile + purpose fields)
+- `KnowledgeBaseView.swift` — Reference material upload/browse (in Settings); `KnowledgeArticleDetailView` renders compiled articles
 - `NoteDetailView.swift` — Note viewing with enhanced text and extraction chips
 - `NoteEditorView.swift` — Note editing with transcription and extraction
 - `ExtractionChipsView.swift` — Visual chips for extracted decisions, actions, commitments, people
@@ -207,9 +223,27 @@ Direct URLSession calls (no SDK) in `SummaryService.swift`:
 
 ## Testing
 
-UI tests only (no unit tests). Screenshot automation via Fastlane:
-- Launch args: `-UITestMode`, `-SkipOnboarding` for test-specific behavior
+UI tests only (no unit tests — see `TODOS.md` #1 for the planned first unit-test target). Screenshot automation via Fastlane:
+- Launch args: `-UITestMode`, `-SkipOnboarding` for test-specific behavior; `-SeedScreenshotData` (DEBUG only) runs `ScreenshotSeed.swift`, which inserts a curated founder persona — compiled articles, focus items, sample notes, and a pre-baked `homeLayoutJSON` — so screenshots bypass the LLM compile loop
 - `AuthService.debugSignIn()` available in DEBUG builds
+
+## Releases (Fastlane)
+
+Fastlane lives **outside this repo** in `~/projects/fastlane-configs`, keyed by app:
+
+```bash
+cd ~/projects/fastlane-configs
+fastlane beta app:voice-notes         # build + upload to TestFlight (auto-increments build number)
+fastlane screenshots app:voice-notes  # capture + upload App Store screenshots (lanes: snap, push_screenshots)
+fastlane release app:voice-notes      # full release: build, upload, submit for review
+fastlane metadata app:voice-notes     # upload App Store metadata only
+```
+
+When cutting a release, bump **both** the marketing version and the build number — bumping only the build fails App Store submission once a version train has closed.
+
+## Git Workflow
+
+Work happens directly on `main` — no feature branches. Never push without the user's explicit go-ahead.
 
 ## Planning Workflow (`docs/superpowers/`)
 
@@ -218,6 +252,12 @@ Significant features go through a written spec → plan → execute flow:
 - `docs/superpowers/plans/YYYY-MM-DD-feature.md` — step-by-step implementation plan
 
 When asked to build a non-trivial feature, check `docs/superpowers/plans/` first — there may already be a plan to execute. The plans tend to reference specs by filename.
+
+## Other Repo Docs
+
+- `MEMORY.md` (repo root) — product decision log: the v2 pivot rationale, the navigation "kill list", ghost-text coaching, competitive positioning. Read before questioning or redesigning an existing product decision.
+- `TODOS.md` (repo root) — deferred work items written up with enough context to pick up cold.
+- `docs/design-system.md` — brand identity, color tokens (coral accent / AI blue), and component styling. Use these tokens instead of inventing colors.
 
 ## Dead Code
 
