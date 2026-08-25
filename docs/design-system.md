@@ -13,8 +13,8 @@
 ### Primary Accent
 | Token | Light Mode | Dark Mode | Usage |
 |-------|-----------|-----------|-------|
-| **Coral (Accent)** | `#E85D4A` | `#FF6B5A` | Record button, CTAs, tab indicators, selected states, paywall button |
-| **AI Blue** | `#4A7AD4` | `#5B8DEF` | AI magic button, chat bubbles, active threads, sparkles, secondary actions |
+| **Blue (Accent)** | `#0C5DDF` | `#3C83F6` | Record button, CTAs, selected states, paywall button, app icon, system `AccentColor`. StockAlarm blue (`theme-tokens.json --primary`), 2026-08-20. Coral `#E85D4A` is retired. |
+| **AI Accent** | `#0C5DDF` | `#3C83F6` | Same value as the accent since 2026-08-20 — AI surfaces no longer get their own colour |
 
 ### Semantic Colors
 | Token | Color | Usage |
@@ -241,8 +241,8 @@ Rules: Second person always ("you/your"). No first person plural ("we"). No excl
 ### Color References
 ```swift
 // In code, use semantic tokens:
-Color.eeonAccent          // Coral accent
-Color.eeonAccentAI        // AI Blue
+Color.eeonAccent          // Blue accent (#0C5DDF / #3C83F6)
+Color.eeonAccentAI        // Same blue — kept as a token for call sites
 Color.eeonBackground      // Main background (adapts light/dark)
 Color.eeonBackgroundSecondary
 Color.eeonCard            // Card surfaces
@@ -271,7 +271,7 @@ voice notes/Assets.xcassets/
 ├── EEONTextSecondary.colorset/
 ├── EEONTextTertiary.colorset/
 ├── EEONDivider.colorset/
-└── AccentColor.colorset/  (coral, system-wide)
+└── AccentColor.colorset/  (same blue, system-wide tint)
 ```
 
 ### Theme.swift Location

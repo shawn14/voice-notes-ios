@@ -415,6 +415,9 @@ struct voice_notesApp: App {
         let commitments = (try? context.fetch(FetchDescriptor<ExtractedCommitment>())) ?? []
         let unresolved = (try? context.fetch(FetchDescriptor<UnresolvedItem>())) ?? []
 
+        // Whisper custom vocabulary: people + projects EEON already knows
+        TranscriptionVocabulary.shared.refreshLearned(context: context)
+
         // Update widget with latest note
         SharedDefaults.updateTotalNotes(notes.count)
         if let latestNote = notes.first {

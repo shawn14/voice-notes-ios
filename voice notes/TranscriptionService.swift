@@ -102,6 +102,8 @@ class LanguageSettings {
 actor TranscriptionService {
     private let apiKey: String
     private let language: TranscriptionLanguage
+    /// Whisper `prompt` — the custom vocabulary (see TranscriptionVocabulary).
+    private let prompt: String?
 
     enum TranscriptionError: LocalizedError {
         case invalidURL
@@ -123,9 +125,14 @@ actor TranscriptionService {
         }
     }
 
-    init(apiKey: String, language: TranscriptionLanguage = .auto) {
+    init(
+        apiKey: String,
+        language: TranscriptionLanguage = .auto,
+        prompt: String? = TranscriptionVocabulary.shared.whisperPrompt
+    ) {
         self.apiKey = apiKey
         self.language = language
+        self.prompt = prompt
     }
 
     func transcribe(audioURL: URL) async throws -> String {
@@ -172,6 +179,13 @@ actor TranscriptionService {
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n".data(using: .utf8)!)
             body.append("\(language.rawValue)\r\n".data(using: .utf8)!)
+        }
+
+        // Custom vocabulary — Whisper spells the names/terms in `prompt` correctly
+        if let prompt, !prompt.isEmpty {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(prompt)\r\n".data(using: .utf8)!)
         }
 
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
@@ -292,6 +306,13 @@ actor TranscriptionService {
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n".data(using: .utf8)!)
             body.append("\(language.rawValue)\r\n".data(using: .utf8)!)
+        }
+
+        // Custom vocabulary — Whisper spells the names/terms in `prompt` correctly
+        if let prompt, !prompt.isEmpty {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(prompt)\r\n".data(using: .utf8)!)
         }
 
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)

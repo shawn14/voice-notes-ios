@@ -583,6 +583,9 @@ final class IntelligenceService {
 
             // Update commitment counts for people
             updateCommitmentCounts(context: context)
+
+            // New names feed the Whisper vocabulary for the next recording
+            TranscriptionVocabulary.shared.refreshLearned(context: context)
         }
     }
 

@@ -2326,6 +2326,25 @@ struct SettingsView: View {
                             .foregroundStyle(.eeonTextSecondary)
                     }
                 }
+
+                NavigationLink {
+                    VocabularyEditorView()
+                } label: {
+                    EEONSettingsRow(
+                        icon: "character.book.closed",
+                        title: "Words EEON should know"
+                    ) {
+                        let count = TranscriptionVocabulary.shared.customTerms.count
+                        if count > 0 {
+                            Text("\(count)")
+                                .font(EEONType.meta)
+                                .foregroundStyle(.eeonTextSecondary)
+                        }
+                    }
+                }
+            } footer: {
+                Text("Names, products and jargon you add here are spelled correctly in every transcript. People and projects from your notes are included automatically.")
+                    .font(EEONType.meta)
             }
 
             Section {
