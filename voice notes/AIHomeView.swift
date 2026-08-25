@@ -34,6 +34,7 @@ struct AIHomeView: View {
     @Query(sort: \Project.sortOrder) private var projects: [Project]
     @Query private var tags: [Tag]
     @Query(sort: \DailyBrief.briefDate, order: .reverse) private var dailyBriefs: [DailyBrief]
+    @Query private var feedActions: [ExtractedAction]
     @Query private var extractedCommitments: [ExtractedCommitment]
     @Query private var kanbanItems: [KanbanItem]
     @Query private var kanbanMovements: [KanbanMovement]
@@ -87,7 +88,6 @@ struct AIHomeView: View {
     @State private var navigateTransformType: AITransformType?
 
     // Daily brief expansion
-    @State private var isBriefExpanded = false
 
     // Feed tabs & sorting
     enum FeedTab: String, CaseIterable {
@@ -103,9 +103,12 @@ struct AIHomeView: View {
     @State private var selectedTagFilter: Tag?
     @State private var showingTagManagement = false
     @State private var showingTagFilter = false
-    @State private var showingTasks = false
+    /// What the feed shows under the dropdown header. Notes is the default;
+    /// Tasks and Highlights render inline in the same place (2026-08-25) —
+    /// you never leave the main screen.
+    enum FeedMode { case notes, tasks, highlights }
+    @State private var feedMode: FeedMode = .notes
     @State private var selectedCategory: String?
-    @State private var showingFilterSheet = false
     @State private var showingDatePicker = false
     @State private var showingFullRecorder = false
     @State private var selectedDay: Date?
@@ -360,7 +363,7 @@ struct AIHomeView: View {
                             // stream, not a nag surface). driftBanner view kept
                             // in codebase; re-tune lives in Settings / Tune EEON.
 
-                            // Daily brief removed — AI tab handles organization
+                            // Daily brief is "Highlights" in the feed dropdown (2026-08-25), not a card here.
 
                             // Free tier warning
                             if !UsageService.shared.isPro {
@@ -478,9 +481,6 @@ struct AIHomeView: View {
                 TagFilterSheet(selectedTagFilter: $selectedTagFilter)
                     .presentationDetents([.medium])
             }
-            .sheet(isPresented: $showingTasks) {
-                TasksView()
-            }
             .sheet(isPresented: $showingDatePicker) {
             NavigationStack {
                 ScrollView {
@@ -497,9 +497,6 @@ struct AIHomeView: View {
             }
             .presentationDetents([.medium, .large])
         }
-        .sheet(isPresented: $showingFilterSheet) {
-                filterSheet
-            }
             // Stop pressed on the lock-screen indicator while the in-app
             // recorder owns the session.
             .onChange(of: backgroundCapture.inAppStopRequested) { _, requested in
@@ -677,77 +674,8 @@ struct AIHomeView: View {
         }
     }
 
-    // MARK: - Filter (invoked, never permanent chrome)
-
-    private var activeFilterCount: Int {
-        (selectedCategory == nil ? 0 : 1) + (selectedDay == nil ? 0 : 1)
-    }
-
-    /// One control, invisible until invoked — the pattern Bear, Craft, Otter
-    /// and Superhuman converge on. Category and date live here instead of
-    /// eating two permanent rows above the feed.
-    private var filterSheet: some View {
-        NavigationStack {
-            List {
-                Section("Category") {
-                    ForEach(topCategories, id: \.0) { name, count in
-                        Button {
-                            selectedCategory = (selectedCategory == name) ? nil : name
-                        } label: {
-                            HStack {
-                                Text(name)
-                                    .font(EEONType.body)
-                                    .foregroundStyle(.eeonTextPrimary)
-                                Spacer()
-                                Text("\(count)")
-                                    .font(EEONType.meta)
-                                    .foregroundStyle(.eeonTextSecondary)
-                                if selectedCategory == name {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Color.eeonAccent)
-                                }
-                            }
-                            .frame(minHeight: EEONLayout.minTarget)
-                        }
-                    }
-                }
-
-                Section("Day") {
-                    DatePicker(
-                        "Jump to a day",
-                        selection: Binding(
-                            get: { selectedDay ?? Date() },
-                            set: { selectedDay = $0 }
-                        ),
-                        displayedComponents: .date
-                    )
-                    .font(EEONType.body)
-                    if selectedDay != nil {
-                        Button("Show all days") { selectedDay = nil }
-                            .font(EEONType.control)
-                            .foregroundStyle(Color.eeonAccent)
-                            .frame(minHeight: EEONLayout.minTarget)
-                    }
-                }
-            }
-            .navigationTitle("Filter")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Clear all") {
-                        selectedCategory = nil
-                        selectedDay = nil
-                    }
-                    .disabled(activeFilterCount == 0)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { showingFilterSheet = false }
-                        .fontWeight(.semibold)
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
+    // Filter sheet removed 2026-08-25: category and day are the two dropdowns
+    // on the feed header (conversationsHeader). Two controls, one job.
 
     // MARK: - Capture-stream header (category cards + week strip)
 
@@ -874,16 +802,50 @@ struct AIHomeView: View {
     /// notes" / "AI"), which is self-explanatory, and filtering is a thing
     /// users already go looking for. The format switcher hid the fact that
     /// transforming was possible at all.
+    /// The dropdown's label names the CURRENT view.
+    private var feedTitle: String {
+        switch feedMode {
+        case .tasks: return "Tasks"
+        case .highlights: return "Highlights"
+        case .notes: return selectedCategory ?? "All notes"
+        }
+    }
+
+    private var openTaskCount: Int {
+        feedActions.filter { !$0.isCompleted }.count
+    }
+
     private var conversationsHeader: some View {
         HStack(spacing: EEONLayout.tight) {
             Menu {
                 Button {
-                    withAnimation { selectedCategory = nil }
+                    withAnimation { feedMode = .notes; selectedCategory = nil }
                 } label: {
-                    if selectedCategory == nil {
+                    if feedMode == .notes && selectedCategory == nil {
                         Label("All notes", systemImage: "checkmark")
                     } else {
                         Text("All notes")
+                    }
+                }
+
+                Button {
+                    withAnimation { feedMode = .tasks }
+                } label: {
+                    let title = openTaskCount > 0 ? "Tasks  (\(openTaskCount))" : "Tasks"
+                    if feedMode == .tasks {
+                        Label(title, systemImage: "checkmark")
+                    } else {
+                        Text(title)
+                    }
+                }
+
+                Button {
+                    withAnimation { feedMode = .highlights }
+                } label: {
+                    if feedMode == .highlights {
+                        Label("Highlights", systemImage: "checkmark")
+                    } else {
+                        Text("Highlights")
                     }
                 }
 
@@ -891,9 +853,9 @@ struct AIHomeView: View {
                     Divider()
                     ForEach(topCategories, id: \.0) { name, count in
                         Button {
-                            withAnimation { selectedCategory = name }
+                            withAnimation { feedMode = .notes; selectedCategory = name }
                         } label: {
-                            if selectedCategory == name {
+                            if feedMode == .notes && selectedCategory == name {
                                 Label("\(name)  (\(count))", systemImage: "checkmark")
                             } else {
                                 Text("\(name)  (\(count))")
@@ -903,7 +865,7 @@ struct AIHomeView: View {
                 }
             } label: {
                 HStack(spacing: 5) {
-                    Text(selectedCategory ?? "All notes")
+                    Text(feedTitle)
                         .font(.headline)
                         .foregroundStyle(.eeonTextPrimary)
                         .lineLimit(1)
@@ -917,9 +879,11 @@ struct AIHomeView: View {
 
             Spacer(minLength: EEONLayout.tight)
 
-            dateFilterMenu
+            if feedMode == .notes {
+                dateFilterMenu
+            }
 
-            if selectedCategory != nil || selectedDay != nil {
+            if feedMode == .notes && (selectedCategory != nil || selectedDay != nil) {
                 Button {
                     withAnimation { selectedCategory = nil; selectedDay = nil }
                 } label: {
@@ -954,27 +918,8 @@ struct AIHomeView: View {
 
             // Tag filter button removed 2026-08-19 — just the notes.
 
-            // Tasks — every next step, captured (replaces the decision log,
-            // which is on the simplification erase list).
-            Button {
-                showingTasks = true
-            } label: {
-                Image(systemName: "checklist")
-                    .font(.title3)
-                    .foregroundStyle(.eeonTextSecondary)
-                    .eeonTapTarget()
-            }
-
-            Button {
-                showingFilterSheet = true
-            } label: {
-                Image(systemName: activeFilterCount > 0
-                      ? "line.3.horizontal.decrease.circle.fill"
-                      : "line.3.horizontal.decrease.circle")
-                    .font(.title3)
-                    .foregroundStyle(activeFilterCount > 0 ? Color.eeonAccent : Color.eeonTextSecondary)
-                    .eeonTapTarget()
-            }
+            // Tasks and the funnel filter left this row 2026-08-25: both are
+            // choices in the feed dropdown now (conversationsHeader).
 
             // Settings / avatar
             Button {
@@ -1056,104 +1001,9 @@ struct AIHomeView: View {
         return formatter.string(from: Date())
     }
 
-    // MARK: - 2. Daily Brief Card (Collapsible, Executive Summary)
-
-    private var dailyBriefCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header - always visible
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    isBriefExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "sparkles")
-                        .font(.headline)
-                        .foregroundStyle(.blue)
-
-                    if intelligenceService.isRefreshingDaily {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                                .tint(.blue)
-                            Text("Preparing your brief...")
-                                .font(.subheadline)
-                                .foregroundStyle(.eeonTextSecondary)
-                        }
-                    } else {
-                        Text("Daily Brief")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.eeonTextPrimary)
-                    }
-
-                    Spacer()
-
-                    if !intelligenceService.isRefreshingDaily {
-                        Image(systemName: isBriefExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption)
-                            .foregroundStyle(.eeonTextSecondary)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-            }
-            .buttonStyle(.plain)
-
-            // Collapsed: short executive summary (2-3 lines)
-            if !isBriefExpanded && !intelligenceService.isRefreshingDaily {
-                if let brief = todaysBrief, !brief.whatMattersToday.isEmpty {
-                    Text(brief.whatMattersToday)
-                        .font(.subheadline)
-                        .foregroundStyle(.eeonTextPrimary.opacity(0.8))
-                        .lineLimit(3)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 14)
-                }
-            }
-
-            // Expanded: full executive brief
-            if isBriefExpanded, let brief = todaysBrief {
-                Divider()
-                    .background(Color.eeonDivider)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    // Executive summary text
-                    if !brief.whatMattersToday.isEmpty {
-                        Text(brief.whatMattersToday)
-                            .font(.subheadline)
-                            .foregroundStyle(.eeonTextPrimary)
-                            .lineSpacing(3)
-                    }
-
-                    // Warnings as a compact alert line
-                    if !brief.warnings.isEmpty {
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                            Text(brief.warnings.prefix(2).map(\.content).joined(separator: " \u{00B7} "))
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                                .lineLimit(2)
-                        }
-                        .padding(.top, 4)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-            }
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    LinearGradient(
-                        colors: [Color("EEONAccent").opacity(0.12), Color("EEONAccentAI").opacity(0.08)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-    }
+    // dailyBriefCard removed 2026-08-25 — it was dead code since the 08-19
+    // home simplification. Today's brief renders as "Highlights" in the feed
+    // dropdown (TodayHighlightsView).
 
     // MARK: - Free Notes Warning
 
@@ -1452,7 +1302,22 @@ struct AIHomeView: View {
             // chronological feed entirely. Unresolved items still surface
             // via the AI tab and proactive alerts.
 
-            if selectedTab == .ai {
+            // The dropdown header — All notes / Tasks / Highlights / categories
+            // on the left, dates on the right. Defined 2026-08-21 and never
+            // rendered until 2026-08-25 (b987fe2 described wiring that was not
+            // in its diff). A green build proves nothing draws.
+            conversationsHeader
+                .padding(.bottom, 8)
+
+            if feedMode == .tasks {
+                TasksView(embedded: true)
+            } else if feedMode == .highlights {
+                TodayHighlightsView(
+                    brief: todaysBrief,
+                    isRefreshing: intelligenceService.isRefreshingDaily,
+                    sessionBrief: intelligenceService.sessionBrief
+                )
+            } else if selectedTab == .ai {
                 // AI-organized view
                 AITabView(data: aiTabData, noteCount: notes.filter { !$0.isArchived }.count)
             } else if filteredNotes.isEmpty {

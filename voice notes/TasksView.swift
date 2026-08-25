@@ -21,6 +21,11 @@ struct TasksView: View {
     private var actions: [ExtractedAction]
     @Query private var notes: [Note]
 
+    /// Inline on the main screen (feed dropdown → Tasks): no NavigationStack,
+    /// no toolbar, no inner ScrollView — home already scrolls. Default is the
+    /// standalone sheet.
+    var embedded: Bool = false
+
     @State private var showingCompleted = false
     @State private var showingAddTask = false
     @State private var newTaskText = ""
@@ -72,6 +77,67 @@ struct TasksView: View {
     // MARK: - Body
 
     var body: some View {
+        if embedded {
+            embeddedBody
+        } else {
+            standaloneBody
+        }
+    }
+
+    /// Rows only. Rows link to their source note through the enclosing
+    /// NavigationStack (AIHomeView's), the same way feed cards do.
+    private var embeddedBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if visibleActions.isEmpty {
+                emptyState
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+            } else {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(grouped, id: \.0) { day, dayActions in
+                        dayHeader(day, count: dayActions.count)
+                        ForEach(dayActions) { action in
+                            if let note = sourceNote(for: action) {
+                                NavigationLink(destination: NoteDetailView(note: note)) {
+                                    taskRowContent(action)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                taskRowContent(action)
+                            }
+                        }
+                    }
+                }
+            }
+
+            HStack {
+                Button {
+                    showingAddTask = true
+                } label: {
+                    Label("Add task", systemImage: "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.eeonAccent)
+                        .frame(minHeight: EEONLayout.minTarget)
+                }
+                Spacer()
+                Button(showingCompleted ? "Hide completed" : "Show completed") {
+                    withAnimation { showingCompleted.toggle() }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.eeonTextSecondary)
+                .frame(minHeight: EEONLayout.minTarget)
+            }
+            .padding(.horizontal)
+            .padding(.top, 4)
+        }
+        .alert("New task", isPresented: $showingAddTask) {
+            TextField("What needs doing?", text: $newTaskText)
+            Button("Cancel", role: .cancel) { newTaskText = "" }
+            Button("Add") { addTask() }
+        }
+    }
+
+    private var standaloneBody: some View {
         NavigationStack {
             ZStack {
                 Color.eeonBackground.ignoresSafeArea()
@@ -143,6 +209,13 @@ struct TasksView: View {
     }
 
     private func taskRow(_ action: ExtractedAction) -> some View {
+        taskRowContent(action)
+            .onTapGesture {
+                if let note = sourceNote(for: action) { navigateToNote = note }
+            }
+    }
+
+    private func taskRowContent(_ action: ExtractedAction) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Button {
                 toggle(action)
@@ -189,9 +262,6 @@ struct TasksView: View {
         .padding(.horizontal)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
-        .onTapGesture {
-            if let note = sourceNote(for: action) { navigateToNote = note }
-        }
     }
 
     private var addTaskBar: some View {
