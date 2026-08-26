@@ -244,7 +244,7 @@ cd ~/projects/fastlane-configs
 fastlane beta app:voice-notes         # build + upload to TestFlight (auto-increments build number)
 fastlane screenshots app:voice-notes  # capture + upload App Store screenshots (lanes: snap, push_screenshots)
 fastlane release app:voice-notes      # full release: build, upload, submit for review
-fastlane metadata app:voice-notes     # upload App Store metadata only
+fastlane metadata app:voice-notes version:3.8.0  # upload App Store metadata only — version: is required and must be the App Store version the metadata is for
 ```
 
 When cutting a release, bump **both** the marketing version and the build number — bumping only the build fails App Store submission once a version train has closed.
