@@ -18,6 +18,7 @@
 
 import XCTest
 
+@MainActor
 final class ScreenshotTests: XCTestCase {
     var app: XCUIApplication!
 
@@ -41,17 +42,17 @@ final class ScreenshotTests: XCTestCase {
         sleep(3)
         dismissGatesIfNeeded()
         sleep(2)
-        snapshot("01_Home")
+        shot("01_Home")
 
         if openFeedMenu(), tapMenuItem("Highlights") {
             sleep(2)
-            snapshot("02_Highlights")
+            shot("02_Highlights")
             backToAllNotes()
         }
 
         if openFeedMenu(), tapMenuItem("Tasks") {
             sleep(2)
-            snapshot("03_Tasks")
+            shot("03_Tasks")
             backToAllNotes()
         }
 
@@ -61,7 +62,7 @@ final class ScreenshotTests: XCTestCase {
         if row.waitForExistence(timeout: 4) {
             row.tap()
             sleep(2)
-            snapshot("04_NoteDetail")
+            shot("04_NoteDetail")
         }
 
         // 05: relaunch with the demo flag so the confirmation sheet presents itself.
@@ -72,13 +73,37 @@ final class ScreenshotTests: XCTestCase {
         dismissGatesIfNeeded()
         if app.buttons["Add to Reminders"].waitForExistence(timeout: 8) {
             sleep(1)
-            snapshot("05_RemindMe")
+            dismissSystemAlerts()
+            sleep(1)
+            shot("05_RemindMe")
         }
     }
 
     // MARK: - Helpers
 
+    /// fastlane's snapshot() for the snap lane, plus a keepAlways attachment so
+    /// the PNGs can also be exported from the .xcresult with
+    /// `xcrun xcresulttool export attachments` when running xcodebuild directly.
+    private func shot(_ name: String) {
+        snapshot(name)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// System permission alerts (notifications, reminders) belong to
+    /// SpringBoard, not the app — tap Allow so they never sit on a shot.
+    private func dismissSystemAlerts() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for _ in 0..<3 {
+            let allow = springboard.buttons["Allow"]
+            if allow.waitForExistence(timeout: 2) { allow.tap(); sleep(1) } else { break }
+        }
+    }
+
     private func dismissGatesIfNeeded() {
+        dismissSystemAlerts()
         let continueButton = app.buttons["Continue without account"]
         if continueButton.waitForExistence(timeout: 2) {
             continueButton.tap()

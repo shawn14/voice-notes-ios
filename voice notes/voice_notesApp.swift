@@ -146,7 +146,8 @@ struct voice_notesApp: App {
         // down others, and the framework has time to push each record
         // before any cleanup.
         let seedKey = "cloudKitSchemaSeedDidRun_v5"
-        if !UserDefaults.standard.bool(forKey: seedKey) {
+        let isUITest = ProcessInfo.processInfo.arguments.contains("-UITestMode")
+        if !isUITest && !UserDefaults.standard.bool(forKey: seedKey) {
             let seedContext = container.mainContext
             Task { @MainActor in
                 let seedNote = Note(title: "__seed_v3", content: "")

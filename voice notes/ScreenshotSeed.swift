@@ -194,7 +194,7 @@ enum ScreenshotSeed {
             ("Voice-first design constraint", "Capture button MUST be at the bottom thumb zone, always reachable. Knowledge is the value layer; let users navigate into it from anywhere on home.", -10800, "EEON", .idea),
             ("Flash Cards revival?", "Should I bring Flash AI Cards back this quarter or shelve? Capture density has been near zero for 12 days. Probably shelve.", -129600, "Flash AI Cards", .decision),
             ("Reflection feature scoping", "User Q&A across all notes — should it use compiled article summaries (cheap) or raw notes (expensive)? Tier A: compiled. Tier C: map-reduce only when scope is huge.", -3600, "EEON", .idea),
-            ("Daily 3", "1) Ship Mac Catalyst. 2) Review StockAlarm pricing with Patrick. 3) Decide on Flash AI Cards revival.", -1800, nil, .reminder)
+            ("Morning plan", "Three things today: send Lena the pricing deck, review StockAlarm pricing with Patrick, and decide on Flash AI Cards.", -1800, nil, .reminder)
         ]
 
         for (idx, n) in notes.enumerated() {
@@ -228,7 +228,7 @@ enum ScreenshotSeed {
         let actions = [
             ExtractedAction(content: "Send Patrick the updated pricing deck", owner: "Me", deadline: "This week"),
             ExtractedAction(content: "Write streaming pool config for StockAlarm", owner: "Me", deadline: "Friday"),
-            ExtractedAction(content: "Promote 3.5.0 to App Store after TestFlight feedback", owner: "Me", deadline: "Next Monday")
+            ExtractedAction(content: "Reply to Craig about the streaming integration", owner: "Me", deadline: "Next Monday")
         ]
         actions.forEach { context.insert($0) }
 
