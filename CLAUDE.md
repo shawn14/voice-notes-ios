@@ -160,6 +160,8 @@ All models registered in `voice_notesApp.init()` schema (17 types as of seed key
 - `personaExtractionsJSON` — persona-schema extractions (only when the user's `.purpose` article has a `noteExtractionSchemaJSON`)
 - `calendarContextJSON` — `CalendarContext` (event title, attendees, times, location) when Calendar context is on and the recording overlapped an event. Seed v5 registers the field in Development; **release gate: run a DEBUG build once, then Deploy Schema Changes in the CloudKit Dashboard before the App Store build** — a Production schema without the field rejects the first synced note that has one
 
+**Promoting schema to Production without the Dashboard:** `~/projects/fastlane-configs/scripts/cloudkit_schema_sync.sh` (dry run) / `APPLY=1 …` exports the prod + dev schemas with `xcrun cktool`, adds any missing `CD_Note` fields (currently `CD_calendarContextJSON`, `CD_quizJSON`, `CD_summaryFormat`, `CD_personaExtractionsJSON`), validates, imports into development **and production**, re-exports and verifies. Auth is a CloudKit **management token** (Dashboard → account → Tokens → Management Tokens → Generate, then `xcrun cktool save-token`); tokens expire, and the script says so plainly when one has. Team `BYRK5RUS4U`, container `iCloud.aivoiceeeon`. Additive only — CloudKit never removes fields from production.
+
 **Adding a new model requires updating the schema array in `voice_notesApp.swift`** AND incrementing the `cloudKitSchemaSeedDidRun_v*` key so the seed routine re-runs and registers the new record types in the CloudKit Dashboard. Without this, CloudKit silently rejects the new type. After seeding completes (logs say "Done. … 17 CD_* types"), promote in CloudKit Dashboard → Development → Deploy Schema Changes.
 
 ### View Hierarchy
