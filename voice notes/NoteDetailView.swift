@@ -215,9 +215,9 @@ struct NoteDetailView: View {
                                 .padding(.bottom, 12)
                         }
 
-                        // 3b. One-tap summary styles (2026-08-19 overhaul):
-                        // "record, then make it into whatever you need."
-                        summaryStyleRow
+                        // 3b. Format + Adjust, one menu labelled with the
+                        // current format (2026-08-26). See formatMenu.
+                        formatMenu
                             .padding(.bottom, 12)
 
                         // 4. Body text (hero content)
@@ -838,148 +838,80 @@ struct NoteDetailView: View {
         note.summaryFormat ?? "Summary"
     }
 
-    /// Format switcher — the note's rendering is a runtime choice, not a
-    /// fixed render. Switching always regenerates from the original
-    /// transcript (see handleRewriteTemplate), so formats never stack.
-    /// Format switcher — the note's rendering is a runtime choice, not a
-    /// fixed render. Switching always regenerates from the original
-    /// transcript (see handleRewriteTemplate), so formats never stack.
+    /// The format control — one Pocket-style menu labelled with the CURRENT
+    /// format ("Summary ⌄"). Formats are persona-filtered (a founder never
+    /// sees Clinical Note); "More formats…" reaches the full catalog and
+    /// custom templates; the Adjust actions live in the same menu.
     ///
-    /// This was a `Menu` labelled with the CURRENT format ("Summary ⌄") until
-    /// 2026-08-20, and it was invisible: a menu hides its own contents, so the
-    /// alternatives — the only thing that explains what the control is for —
-    /// were exactly what you couldn't see. It also named a state rather than
-    /// an action, so it read as a status badge. Now the options are the
-    /// control: you can see the note can become other things without tapping.
-    private var summaryStyleRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("TURN THIS INTO")
-                    .font(.caption2.weight(.bold))
-                    .kerning(0.6)
-                    .foregroundStyle(.eeonTextTertiary)
-
-                if isRewriting {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                }
-
-                Spacer()
-
-                adjustMenu
-            }
-
-            // Bleeds past the parent's 20pt inset so a partially-visible chip
-            // at the screen edge signals "scroll for more". That peek is
-            // deliberate; it is the affordance, not a truncation bug.
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+    /// History: a "Summary ⌄" menu became visible chips on 2026-08-20 because
+    /// the menu hid that transforming was possible. The chips then put
+    /// profession formats (School Notes, Clinical Note, Case Note) in front
+    /// of users who had never chosen a profession — the fallback showed
+    /// everything. 2026-08-26, Shawn: one menu, the way Pocket does it.
+    private var formatMenu: some View {
+        HStack(spacing: 10) {
+            Menu {
+                Section("Format") {
                     ForEach(orderedFormats) { format in
-                        formatChip(format)
+                        Button {
+                            applyFormat(format)
+                        } label: {
+                            if currentFormatName == format.rawValue {
+                                Label(format.rawValue, systemImage: "checkmark")
+                            } else {
+                                Label(format.rawValue, systemImage: format.icon)
+                            }
+                        }
                     }
-                    moreFormatsChip
+                    Button {
+                        showingRewriteSheet = true
+                    } label: {
+                        Label("More formats…", systemImage: "ellipsis.circle")
+                    }
                 }
-                .padding(.horizontal, 20)
-            }
-            .padding(.horizontal, -20)
-        }
-        .opacity(isRewriting ? 0.55 : 1)
-    }
-
-    /// Adjust the text you are looking at — Shorter / Longer / Simpler /
-    /// More formal — in place, unlike the format chips which regenerate from
-    /// the transcript. A menu is fine here: the label names an action, and
-    /// the four options explain themselves once opened.
-    private var adjustMenu: some View {
-        Menu {
-            ForEach(NoteAdjustment.allCases) { adjustment in
-                Button {
-                    applyAdjustment(adjustment)
-                } label: {
-                    Label(adjustment.title, systemImage: adjustment.icon)
+                Section("Adjust") {
+                    ForEach(NoteAdjustment.allCases) { adjustment in
+                        Button {
+                            applyAdjustment(adjustment)
+                        } label: {
+                            Label(adjustment.title, systemImage: adjustment.icon)
+                        }
+                    }
+                    if adjustmentUndoText != nil {
+                        Button {
+                            undoAdjustment()
+                        } label: {
+                            Label("Undo adjustment", systemImage: "arrow.uturn.backward")
+                        }
+                    }
                 }
-            }
-            if adjustmentUndoText != nil {
-                Divider()
-                Button {
-                    undoAdjustment()
-                } label: {
-                    Label("Undo adjustment", systemImage: "arrow.uturn.backward")
+            } label: {
+                HStack(spacing: 5) {
+                    Text(currentFormatName)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.bold))
                 }
+                .foregroundStyle(Color.eeonAccentAI)
+                .padding(.horizontal, 14)
+                .frame(minHeight: EEONLayout.minTarget)
+                .background(Capsule().fill(Color.eeonAccentAI.opacity(0.10)))
+                .overlay(Capsule().strokeBorder(Color.eeonAccentAI.opacity(0.35), lineWidth: 1))
+                .contentShape(Capsule())
             }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.caption2.weight(.bold))
-                Text("Adjust")
-                    .font(.caption.weight(.semibold))
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.bold))
-            }
-            .foregroundStyle(.eeonAccentAI)
-            .frame(minHeight: EEONLayout.minTarget)
-            .contentShape(Rectangle())
-        }
-        .disabled(isRewriting)
-    }
+            .disabled(isRewriting)
 
-    /// One selectable format. The current one is filled; the rest are
-    /// outlined, so the row reads as a set of choices rather than decoration.
-    private func formatChip(_ format: AITransformType) -> some View {
-        let isCurrent = currentFormatName == format.rawValue
-        return Button {
-            applyFormat(format)
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: isCurrent ? "checkmark" : format.icon)
-                    .font(.caption2.weight(.bold))
-                Text(format.rawValue)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .fixedSize()
+            if isRewriting {
+                ProgressView()
+                    .scaleEffect(0.7)
+                Text("Rewriting…")
+                    .font(.caption)
+                    .foregroundStyle(.eeonTextSecondary)
             }
-            .foregroundStyle(isCurrent ? Color.white : Color.eeonAccentAI)
-            .padding(.horizontal, 14)
-            .frame(minHeight: EEONLayout.minTarget)
-            .background(
-                Capsule()
-                    .fill(isCurrent ? Color.eeonAccentAI : Color.eeonAccentAI.opacity(0.10))
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(
-                        isCurrent ? Color.clear : Color.eeonAccentAI.opacity(0.35),
-                        lineWidth: 1
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(isRewriting)
-    }
 
-    /// Escape hatch to the full catalog, including user-authored templates.
-    private var moreFormatsChip: some View {
-        Button {
-            showingRewriteSheet = true
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "ellipsis")
-                    .font(.caption2.weight(.bold))
-                Text("More")
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .fixedSize()
-            }
-            .foregroundStyle(.eeonTextSecondary)
-            .padding(.horizontal, 14)
-            .frame(minHeight: EEONLayout.minTarget)
-            .overlay(
-                Capsule()
-                    .strokeBorder(Color.eeonTextTertiary.opacity(0.45), lineWidth: 1)
-            )
+            Spacer()
         }
-        .buttonStyle(.plain)
-        .disabled(isRewriting)
     }
 
     // MARK: - Quiz
