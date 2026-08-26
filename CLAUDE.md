@@ -250,6 +250,8 @@ fastlane release app:voice-notes      # full release: build, upload, submit for 
 fastlane metadata app:voice-notes version:3.8.0  # upload App Store metadata only — version: is required and must be the App Store version the metadata is for
 ```
 
+**`fastlane deliver` can report success and apply nothing.** On 2026-08-26 the `metadata` and `screenshots` lanes printed "finished successfully" but ASC 3.8.0 kept the old name/description/keywords and a stale screenshot set. Root cause: deliver tried to set name/subtitle on the app's appInfo, hit the **live** (READY_FOR_SALE) appInfo, got a 409 INVALID_STATE, and abandoned the whole upload silently. **Always verify against the ASC API, not deliver's exit code** (Rule #29). The reliable path is `~/projects/fastlane-configs/scripts/asc_push.py --version 3.8.0` — it PATCHes only the editable (PREPARE_FOR_SUBMISSION) appInfo + version localization, replaces screenshots per display slot (APP_IPHONE_67/65, APP_IPAD_PRO_3GEN_129), retries Apple 5xx, and reads every field back. `--verify-only` reads without writing. Auth is the App Manager `.p8` in `~/.appstoreconnect/private_keys/`.
+
 When cutting a release, bump **both** the marketing version and the build number — bumping only the build fails App Store submission once a version train has closed.
 
 ## Git Workflow
