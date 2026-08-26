@@ -232,6 +232,57 @@ enum ScreenshotSeed {
         ]
         actions.forEach { context.insert($0) }
 
+        // ─── The App Store hero (2026-08-26): what you said → what EEON wrote ──
+        // Mirrors eeon.com's hero artifact so the store and the site tell one story.
+        let standup = Note(title: "Standup with Lena", content: "")
+        standup.transcript = "ok so um remind me to send Lena the pricing deck by Friday at five, Marco said the onboarding copy is done, and we decided blue not coral for the icon"
+        standup.content = standup.transcript ?? ""
+        standup.enhancedNoteText = "**Standup with Lena**\n\nMarco: the onboarding copy is done.\n\n**Decision** — blue accent for the icon, not coral.\n\n**Action** — Send Lena the pricing deck by Friday at 5 PM."
+        standup.createdAt = now.addingTimeInterval(-900)
+        standup.updatedAt = standup.createdAt
+        standup.intentType = NoteIntent.decision.rawValue
+        standup.inferredProjectName = "EEON"
+        standup.emotionalTone = "decisive"
+        standup.topics = ["Pricing", "Onboarding"]
+        standup.mentionedPeople = ["Lena Ortiz", "Marco"]
+        standup.audioDuration = 412
+        standup.calendarContext = CalendarContext(
+            title: "Standup",
+            attendees: ["Lena Ortiz", "Marco"],
+            startDate: now.addingTimeInterval(-1500),
+            endDate: now.addingTimeInterval(-600),
+            location: nil
+        )
+        context.insert(standup)
+        let deck = ExtractedAction(content: "Send Lena the pricing deck", owner: "Me", deadline: "Friday 5:00 PM")
+        deck.sourceNoteId = standup.id
+        deck.priority = "High"
+        context.insert(deck)
+        let decision = ExtractedDecision(content: "Blue accent for the icon, not coral", affects: "Brand", confidence: "High")
+        decision.sourceNoteId = standup.id
+        context.insert(decision)
+
+        // Today's brief, so the Highlights dropdown has content without an API call
+        // (Tier 3 skips generation when a brief for today already exists).
+        let brief = DailyBrief(briefDate: now)
+        brief.whatMattersToday = "Two things move today: Lena needs the pricing deck by Friday, and the icon decision is made — blue, not coral — so the App Store assets can go out."
+        brief.highlights = [
+            "Onboarding copy is done (Marco)",
+            "Icon decision closed: blue accent",
+            "Craig's streaming integration lands Friday"
+        ]
+        brief.suggestedActions = [
+            SuggestedAction(content: "Send Lena the pricing deck", reason: "Due Friday 5 PM — she's blocked on it", projectName: "EEON", priority: .high),
+            SuggestedAction(content: "Write the streaming pool config", reason: "Craig pairs on integration Friday", projectName: "StockAlarm", priority: .medium),
+            SuggestedAction(content: "Decide on Flash AI Cards", reason: "12 days of zero capture — shelve or revive", projectName: "Flash AI Cards", priority: .low)
+        ]
+        brief.warnings = [
+            DailyWarning(type: .stalled, content: "Flash AI Cards has had no activity for 12 days", daysSinceIssue: 12)
+        ]
+        brief.openItemCount = 4
+        brief.notesThisWeek = 9
+        context.insert(brief)
+
         try? context.save()
     }
 }

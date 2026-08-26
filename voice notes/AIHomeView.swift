@@ -444,6 +444,17 @@ struct AIHomeView: View {
                     showingIdentity = true
                 })
             }
+            .onAppear {
+                #if DEBUG
+                // Screenshot automation (fastlane snap, -ShowReminderDemo):
+                // present the "remind me…" confirmation for a fixed utterance.
+                if ProcessInfo.processInfo.arguments.contains("-ShowReminderDemo"), pendingReminder == nil {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        pendingReminder = ReminderCommandParser.parse("Remind me to send Lena the pricing deck on Friday at 5pm")
+                    }
+                }
+                #endif
+            }
             .sheet(item: $pendingReminder) { command in
                 ReminderConfirmSheet(command: command) { pendingReminder = nil }
             }
