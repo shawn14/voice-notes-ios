@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StoreKit
 import SwiftData
 import AVFoundation
 import PhotosUI
@@ -71,6 +72,7 @@ struct NoteDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.requestReview) private var requestReview
 
     @Bindable var note: Note
     var initialTab: NoteTab = .insights
@@ -482,6 +484,13 @@ struct NoteDetailView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView(onDismiss: { showingPaywall = false })
+        }
+        .onAppear {
+            // Rating ask at the transformation moment (see ReviewPrompter).
+            if let enhanced = note.enhancedNoteText, !enhanced.isEmpty,
+               ReviewPrompter.noteEnhancedShown() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { requestReview() }
+            }
         }
         .alert("AI Error", isPresented: .init(
             get: { aiError != nil },
