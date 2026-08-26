@@ -2,7 +2,10 @@
 //  RewriteTemplatePickerSheet.swift
 //  voice notes
 //
-//  Letterly-inspired rewrite template picker
+//  "More formats…" — the full catalog of rewrite templates plus the user's
+//  own. Restyled 2026-08-26 to the app's settings language: an inset-grouped
+//  list, the one settings-row component, a blue "Pro" tag instead of the old
+//  purple gradient, no duplicated Favorites block, and a plain "Formats" title.
 //
 
 import SwiftUI
@@ -14,7 +17,9 @@ struct RewriteTemplatePickerSheet: View {
 
     let onSelectTemplate: (RewriteTemplate) -> Void
 
-    private let sections = RewriteTemplateSection.allCases
+    /// Favorites duplicated "Enhance" from General; the catalog order is the
+    /// order people read: general, editing, summary, content.
+    private let sections: [RewriteTemplateSection] = [.general, .textEditing, .summary, .contentCreation]
 
     @Query(sort: [SortDescriptor(\CustomRewriteTemplate.sortOrder, order: .forward)])
     private var customTemplates: [CustomRewriteTemplate]
@@ -34,72 +39,63 @@ struct RewriteTemplatePickerSheet: View {
         }
     }
 
+    private var isPro: Bool { SubscriptionManager.shared.isSubscribed }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    if !customTemplates.isEmpty {
-                        customTemplatesSection
-                    }
-
-                    ForEach(sections) { section in
-                        let templates = RewriteTemplateCatalog.templates(for: section)
-                        if !templates.isEmpty {
-                            templateSection(title: section.rawValue, templates: templates)
+            List {
+                if !customTemplates.isEmpty {
+                    Section("Your templates") {
+                        ForEach(customTemplates) { custom in
+                            customTemplateRow(custom)
                         }
                     }
-
-                    HStack(spacing: 16) {
-                        Button {
-                            editorTarget = .create
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "plus")
-                                Text("New")
-                            }
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.accentColor.opacity(0.12))
-                            .cornerRadius(10)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 24)
                 }
-                .padding(.top, 8)
+
+                ForEach(sections) { section in
+                    let templates = RewriteTemplateCatalog.templates(for: section)
+                    if !templates.isEmpty {
+                        Section(section.rawValue) {
+                            ForEach(templates) { template in
+                                templateRow(template)
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    Button {
+                        editorTarget = .create
+                    } label: {
+                        EEONSettingsRow(icon: "plus", title: "New template", subtitle: "Name it, describe the sections, use it anywhere") {
+                            EEONChevron()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } footer: {
+                    Text("Pro formats and your own templates need EEON Pro. Enhance is always free.")
+                        .font(EEONType.meta)
+                }
             }
-            .background(Color(.systemBackground))
-            .navigationTitle("AI")
+            .listStyle(.insetGrouped)
+            .navigationTitle("Formats")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.gray)
-                            .font(.title3)
-                    }
+                    Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         editorTarget = .create
                     } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundStyle(Color.accentColor)
-                            .font(.title3)
+                        Image(systemName: "plus")
                     }
-                    .accessibilityLabel("New custom template")
+                    .accessibilityLabel("New template")
                 }
             }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .presentationContentInteraction(.scrolls)
         .sheet(item: $editorTarget) { target in
             switch target {
             case .create:
@@ -123,42 +119,6 @@ struct RewriteTemplatePickerSheet: View {
         }
     }
 
-    // MARK: - Sections
-
-    private var customTemplatesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Your Templates")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .padding(.horizontal)
-
-            VStack(spacing: 2) {
-                ForEach(customTemplates) { custom in
-                    customTemplateRow(custom)
-                }
-            }
-            .padding(.horizontal)
-        }
-    }
-
-    private func templateSection(title: String, templates: [RewriteTemplate]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .padding(.horizontal)
-
-            VStack(spacing: 2) {
-                ForEach(templates) { template in
-                    templateRow(template)
-                }
-            }
-            .padding(.horizontal)
-        }
-    }
-
     // MARK: - Rows
 
     private func customTemplateRow(_ custom: CustomRewriteTemplate) -> some View {
@@ -166,100 +126,30 @@ struct RewriteTemplatePickerSheet: View {
             onSelectTemplate(custom.asRewriteTemplate)
             dismiss()
         } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "wand.and.stars")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.eeonAccentAI)
-                    .frame(width: 36, height: 36)
-                    .background(Color.eeonAccentAI.opacity(0.12))
-                    .cornerRadius(8)
-
-                Text(custom.name)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Spacer()
-
-                Image(systemName: "ellipsis.circle")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+            EEONSettingsRow(icon: "wand.and.stars", title: custom.name) {
+                if !isPro { ProTag() }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color(.systemGray6).opacity(0.5))
-            .cornerRadius(10)
         }
         .buttonStyle(.plain)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) { pendingDelete = custom } label: { Label("Delete", systemImage: "trash") }
+            Button { editorTarget = .edit(custom) } label: { Label("Edit", systemImage: "pencil") }
+                .tint(Color.eeonAccent)
+        }
         .contextMenu {
-            Button {
-                editorTarget = .edit(custom)
-            } label: {
-                Label("Edit", systemImage: "pencil")
-            }
-            Button(role: .destructive) {
-                pendingDelete = custom
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
+            Button { editorTarget = .edit(custom) } label: { Label("Edit", systemImage: "pencil") }
+            Button(role: .destructive) { pendingDelete = custom } label: { Label("Delete", systemImage: "trash") }
         }
     }
 
     private func templateRow(_ template: RewriteTemplate) -> some View {
         Button {
-            if template.isPro && !SubscriptionManager.shared.isSubscribed {
-                onSelectTemplate(template)
-            } else {
-                onSelectTemplate(template)
-            }
+            onSelectTemplate(template)
             dismiss()
         } label: {
-            HStack(spacing: 14) {
-                Image(systemName: template.icon)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.eeonAccentAI)
-                    .frame(width: 36, height: 36)
-                    .background(Color.eeonAccentAI.opacity(0.12))
-                    .cornerRadius(8)
-
-                Text(template.name)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                if template.section == .favorites {
-                    Image(systemName: "star.fill")
-                        .font(.caption)
-                        .foregroundStyle(.yellow)
-                } else if template.isPro {
-                    Text("PRO")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(6)
-                } else {
-                    Text("FREE")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.green)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.green.opacity(0.15))
-                        .cornerRadius(6)
-                }
+            EEONSettingsRow(icon: template.icon, title: template.name) {
+                if template.isPro && !isPro { ProTag() }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color(.systemGray6).opacity(0.5))
-            .cornerRadius(10)
         }
         .buttonStyle(.plain)
     }
@@ -270,6 +160,19 @@ struct RewriteTemplatePickerSheet: View {
         modelContext.delete(template)
         try? modelContext.save()
         pendingDelete = nil
+    }
+}
+
+/// The one Pro marker: accent-tinted capsule, no gradient. Shown only to
+/// people who aren't subscribed — a subscriber never needs the reminder.
+private struct ProTag: View {
+    var body: some View {
+        Text("Pro")
+            .font(EEONType.badge)
+            .foregroundStyle(Color.eeonAccent)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.eeonAccent.opacity(0.12)))
     }
 }
 
