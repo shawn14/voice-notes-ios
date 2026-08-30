@@ -1,0 +1,34 @@
+{
+  "name": "eeon-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "eeon-mcp": "dist/src/index.js",
+    "eeon-cloudkit-auth": "dist/src/auth.js",
+    "eeon-cloudkit-check": "dist/src/check.js",
+    "eeon-cloudkit-doctor": "dist/src/doctor.js",
+    "eeon-cloudkit-install-claude": "dist/src/install-claude.js",
+    "eeon-connect-claude": "dist/src/connect-claude.js"
+  },
+  "scripts": {
+    "auth": "node dist/src/auth.js",
+    "check:cloudkit": "node dist/src/check.js",
+    "doctor": "node dist/src/doctor.js",
+    "install:claude": "node dist/src/install-claude.js",
+    "connect:claude": "node dist/src/connect-claude.js",
+    "build": "tsc",
+    "test": "node --test dist/test/e2e.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

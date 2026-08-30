@@ -34,6 +34,10 @@ struct KnowledgeBaseView: View {
     @State private var errorMessage: String?
     @State private var showingError = false
 
+    private var visibleReferenceArticles: [KnowledgeArticle] {
+        libraryVisibleArticles(referenceArticles)
+    }
+
     var body: some View {
         ZStack {
             Color.eeonBackground.ignoresSafeArea()
@@ -53,7 +57,7 @@ struct KnowledgeBaseView: View {
                         .padding(.vertical, 4)
                     }
 
-                    if referenceArticles.isEmpty {
+                    if visibleReferenceArticles.isEmpty {
                         emptyState
                     } else {
                         libraryList
@@ -164,11 +168,11 @@ struct KnowledgeBaseView: View {
 
     private var libraryList: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\(referenceArticles.count) reference\(referenceArticles.count == 1 ? "" : "s")")
+            Text("\(visibleReferenceArticles.count) reference\(visibleReferenceArticles.count == 1 ? "" : "s")")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.eeonTextSecondary)
 
-            ForEach(referenceArticles) { ref in
+            ForEach(visibleReferenceArticles) { ref in
                 NavigationLink(destination: KnowledgeArticleDetailView(article: ref)) {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: "books.vertical.fill")

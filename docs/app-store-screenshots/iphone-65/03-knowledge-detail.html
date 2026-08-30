@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1242px; height:2688px;
+    background: radial-gradient(ellipse at 50% -10%, rgba(107,74,140,0.18) 0%, transparent 55%),
+                radial-gradient(ellipse at 0% 100%, rgba(232,93,74,0.10) 0%, transparent 60%),
+                linear-gradient(180deg,#0c0a08 0%, #15110D 100%);
+    color:#fff; font-family:'DM Sans',sans-serif; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; -webkit-font-smoothing:antialiased; }
+  .badge { margin-top:130px; font-size:28px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:#C7B0E0; display:flex; align-items:center; gap:18px; }
+  .badge::before, .badge::after { content:''; width:60px; height:1px; background:#C7B0E0; opacity:0.5; }
+  .headline { margin-top:38px; text-align:center; max-width:1100px; padding:0 60px; }
+  .headline h1 { font-family:'Instrument Serif',serif; font-size:156px; line-height:0.95; font-weight:400; letter-spacing:-3px; }
+  .headline h1 em { font-style:italic; color:#C7B0E0; }
+  .headline p { font-size:38px; font-weight:500; color:rgba(255,255,255,0.62); margin-top:36px; line-height:1.35; }
+
+  .phone { margin-top:90px; width:940px; height:1620px; background:#1a1a1a; border-radius:78px; padding:16px; box-shadow:0 60px 140px rgba(0,0,0,0.7), 0 0 0 2px rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.04); position:relative; overflow:hidden; }
+  .screen { width:100%; height:100%; background:#F4F1EC; border-radius:64px; overflow:hidden; position:relative; color:#15110D; display:flex; flex-direction:column; }
+  .island { position:absolute; top:26px; left:50%; transform:translateX(-50%); width:240px; height:56px; background:#1a1a1a; border-radius:30px; z-index:5; }
+  .status { padding:30px 50px 12px; display:flex; justify-content:space-between; align-items:center; font-size:26px; font-weight:700; color:#15110D; }
+
+  .nav { padding:18px 32px; display:flex; align-items:center; gap:24px; }
+  .nav .back { width:54px; height:54px; border-radius:27px; background:rgba(21,17,13,0.06); display:flex; align-items:center; justify-content:center; font-size:32px; color:#4A4137; font-weight:700; }
+  .nav h3 { font-size:34px; font-weight:800; letter-spacing:-0.5px; }
+
+  .body { flex:1; padding:0 32px 40px; overflow:hidden; }
+
+  .hero { margin-top:14px; }
+  .hero-tag { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:500; color:#6B4A8C; letter-spacing:0.14em; text-transform:uppercase; }
+  .hero h2 { font-size:62px; font-weight:800; letter-spacing:-1.4px; line-height:1.05; margin-top:6px; }
+  .meta-row { display:flex; gap:30px; margin-top:18px; font-size:20px; color:#8B8377; }
+  .meta-row strong { color:#15110D; font-weight:600; }
+
+  .summary { margin-top:34px; padding:30px; background:white; border-radius:24px; border:1px solid rgba(220,213,199,0.5); box-shadow:0 1px 3px rgba(21,17,13,0.04); }
+  .summary-label { font-family:'JetBrains Mono',monospace; font-size:15px; letter-spacing:0.14em; text-transform:uppercase; color:#8B8377; margin-bottom:14px; }
+  .summary-text { font-size:25px; line-height:1.45; color:#15110D; }
+
+  .sec { margin-top:30px; }
+  .sec-h { display:flex; align-items:baseline; gap:14px; margin-bottom:14px; }
+  .sec-h h3 { font-size:32px; font-weight:800; letter-spacing:-0.4px; }
+  .sec-h .pill { font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:0.12em; padding:4px 12px; border-radius:6px; background:rgba(107,74,140,0.12); color:#6B4A8C; text-transform:uppercase; font-weight:600; }
+
+  .item { background:white; border-radius:18px; padding:22px 26px; margin-bottom:12px; border:1px solid rgba(220,213,199,0.4); }
+  .item .top { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }
+  .item .title { font-size:23px; font-weight:700; line-height:1.3; flex:1; }
+  .item .status-tag { font-family:'JetBrains Mono',monospace; font-size:14px; padding:4px 10px; border-radius:6px; flex-shrink:0; font-weight:600; letter-spacing:0.04em; }
+  .item .status-tag.open { background:rgba(232,93,74,0.14); color:#B8412F; }
+  .item .status-tag.waiting { background:rgba(255,159,10,0.18); color:#A86200; }
+  .item .status-tag.resolved { background:rgba(92,122,82,0.18); color:#3D5236; }
+  .item .stale { font-size:18px; color:#8B8377; margin-top:6px; }
+
+  .arc { padding:22px 26px; background: linear-gradient(135deg, #F4DCD7 0%, #E5DCED 100%); border-radius:18px; }
+  .arc-label { font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:0.12em; text-transform:uppercase; color:#8B8377; margin-bottom:8px; }
+  .arc-text { font-size:24px; font-weight:600; color:#15110D; }
+</style></head>
+<body>
+  <div class="badge">EEON · WIKI</div>
+  <div class="headline">
+    <h1>Every note <em>compiles</em><br>into a wiki.</h1>
+    <p>Topics, people, projects — the AI<br>compounds them into living articles.</p>
+  </div>
+
+  <div class="phone">
+    <div class="island"></div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span></span><span>100</span></div>
+      <div class="nav">
+        <div class="back">‹</div>
+        <h3>StockAlarm</h3>
+      </div>
+
+      <div class="body">
+        <div class="hero">
+          <div class="hero-tag">PROJECT · 34 mentions · COMPILED 1H AGO</div>
+          <h2>StockAlarm</h2>
+          <div class="meta-row">
+            <span><strong>Active</strong> build focus</span>
+            <span>2 open threads</span>
+            <span>2 decisions</span>
+          </div>
+        </div>
+
+        <div class="summary">
+          <div class="summary-label">✦ AI summary</div>
+          <div class="summary-text">AI-powered stock alert and market intelligence platform. Streaming-data architecture is the current build focus. Recent decision to ship a paid tier in Q3 — pricing finalization with Patrick still in waiting state.</div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-h"><h3>Open Threads</h3><span class="pill">2 OPEN</span></div>
+          <div class="item">
+            <div class="top">
+              <div class="title">Decide between WebSocket and SSE for live quotes</div>
+              <span class="status-tag open">OPEN</span>
+            </div>
+            <div class="stale">3 days open</div>
+          </div>
+          <div class="item">
+            <div class="top">
+              <div class="title">Pricing tier finalization with Patrick</div>
+              <span class="status-tag waiting">WAITING</span>
+            </div>
+            <div class="stale">5 days open</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-h"><h3>Decisions</h3></div>
+          <div class="item">
+            <div class="top">
+              <div class="title">Ship paid tier in Q3</div>
+              <span class="status-tag resolved">RESOLVED</span>
+            </div>
+            <div class="stale">2026-04-22</div>
+          </div>
+          <div class="item">
+            <div class="top">
+              <div class="title">Use Polygon.io for primary feed</div>
+              <span class="status-tag resolved">RESOLVED</span>
+            </div>
+            <div class="stale">2026-04-15</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-h"><h3>Sentiment Arc</h3></div>
+          <div class="arc">
+            <div class="arc-label">✦ AI-tracked over 8 weeks</div>
+            <div class="arc-text">Cautiously confident → Building momentum</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>

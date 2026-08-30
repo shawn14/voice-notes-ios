@@ -4,6 +4,31 @@ Deferred work, captured with enough context to pick up cold.
 
 ---
 
+## Completed 2026-08-28 — Hey Pocket gap pass v1
+
+**What shipped locally:** Covered the first seven Pocket parity gaps with
+native EEON primitives: local MCP over the exported markdown vault, richer
+frontmatter folder export, `eeon-vault.html` desktop/browser index, editable
+speaker labels, Memory Map over compiled `KnowledgeArticle`s, Tasks share/export
+through the iOS share sheet for third-party task handoff, Ask EEON
+Fast/Balanced/Thorough modes, and selected-excerpt cleanup for noisy recordings.
+
+**Verification:** `xcodebuild -quiet -scheme "voice notes" -configuration Debug
+-destination "generic/platform=iOS" build` passed. `npm run build` and
+`npm test` passed in `mcp/`. The debug app was installed and launched on
+Shawn's iPhone (`F3C3794A-23F0-52DE-849D-AEB50EE743DD`) with bundle ID
+`voice.notes.voice-notes`.
+
+**Release gate:** `speakerLabelsJSON` is a new optional `Note` field. Before
+App Store submission, run a DEBUG build so `cloudKitSchemaSeedDidRun_v6`
+registers `CD_speakerLabelsJSON` in CloudKit Development, then deploy schema
+changes to Production.
+
+**Still deferred:** OAuth/native adapters for Todoist/Linear/ClickUp/Asana/etc.
+should be built only after a real user picks the first service. Full automatic
+diarization still needs an audio provider; v1 preserves names when transcript
+speaker markers or calendar attendees are available.
+
 ## 1. Stand up an XCTest unit-test target; cover the re-run preservation/dedup logic
 
 **What:** Add a unit-test target to the Xcode project and write `XCTest`
@@ -228,4 +253,3 @@ Pocket-only items, still deliberately deferred: #4 MCP server, #6 third-party
 task apps, #7 mind map, speaker detection (Whisper can't diarize), dark theme
 (light-only is Shawn's 08-20 call). Full grade sheet:
 `docs/pocket-teardown-thesis.md` → "Gap status (2026-08-25)".
-

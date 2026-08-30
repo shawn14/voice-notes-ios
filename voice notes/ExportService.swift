@@ -28,17 +28,28 @@ enum ExportService {
 
         // Separate Tune EEON seeds from memory notes — they export to a dedicated
         // "Your EEON Profile" section at the top, not mixed into the note log.
-        let profileSeed = allNotes.first { $0.sourceType == .profileSeed }
-        let purposeSeed = allNotes.first { $0.sourceType == .purposeSeed }
-        let notes = allNotes.filter { $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed }
+        let profileSeed = allNotes.first {
+            $0.sourceType == .profileSeed
+            && !libraryIsSchemaSeedName($0.title)
+            && !libraryIsSchemaSeedName($0.content)
+        }
+        let purposeSeed = allNotes.first {
+            $0.sourceType == .purposeSeed
+            && !libraryIsSchemaSeedName($0.title)
+            && !libraryIsSchemaSeedName($0.content)
+        }
+        let notes = librarySearchableNotes(allNotes)
 
-        let articles = (try? context.fetch(FetchDescriptor<KnowledgeArticle>(
+        let articles = libraryVisibleArticles((try? context.fetch(FetchDescriptor<KnowledgeArticle>(
             sortBy: [SortDescriptor(\.articleTypeRaw), SortDescriptor(\.lastMentionedAt, order: .reverse)]
-        ))) ?? []
+        ))) ?? [])
 
-        let decisions = (try? context.fetch(FetchDescriptor<ExtractedDecision>())) ?? []
-        let actions = (try? context.fetch(FetchDescriptor<ExtractedAction>())) ?? []
-        let commitments = (try? context.fetch(FetchDescriptor<ExtractedCommitment>())) ?? []
+        let decisions = ((try? context.fetch(FetchDescriptor<ExtractedDecision>())) ?? [])
+            .filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.affects) }
+        let actions = ((try? context.fetch(FetchDescriptor<ExtractedAction>())) ?? [])
+            .filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
+        let commitments = ((try? context.fetch(FetchDescriptor<ExtractedCommitment>())) ?? [])
+            .filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
 
         // Index extractions by source note ID so we can inline them under each note
         let decisionsByNote = Dictionary(grouping: decisions, by: { $0.sourceNoteId ?? UUID() })

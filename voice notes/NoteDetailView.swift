@@ -104,10 +104,11 @@ struct NoteDetailView: View {
     @State private var isProcessingImage = false
     @State private var selectedImageForFullscreen: String?
     @State private var showingFullscreenImage = false
-    @State private var showingBottomPhotoPicker = false
 
     // Transcript collapsed state
     @State private var showingTranscript = false
+    @State private var showingSpeakerEditor = false
+    @State private var speakerDrafts: [SpeakerLabel] = []
 
     // Extraction collapsed state
     @State private var showingExtractions = false
@@ -134,6 +135,10 @@ struct NoteDetailView: View {
     @State private var enhancedDraft = ""
     @State private var isReprocessing = false
     @State private var reprocessError: String?
+    @State private var showingExcerptEditor = false
+    @State private var excerptDraft = ""
+    @State private var isSummarizingExcerpt = false
+    @State private var excerptError: String?
 
     // Tag assignment sheet state
     @State private var showingTagSheet = false
@@ -188,7 +193,7 @@ struct NoteDetailView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             // Background
             Color.eeonBackground.ignoresSafeArea()
 
@@ -208,6 +213,9 @@ struct NoteDetailView: View {
                         titleRow
                             .padding(.bottom, 24)
 
+                        speakerSummarySection
+                            .padding(.bottom, 20)
+
                         // 3. Enhanced / Original toggle
                         if note.enhancedNoteText != nil && !(note.enhancedNoteText?.isEmpty ?? true),
                            let transcript = note.transcript, !transcript.isEmpty {
@@ -222,6 +230,9 @@ struct NoteDetailView: View {
 
                         // 4. Body text (hero content)
                         noteBodySection
+                            .padding(.bottom, 20)
+
+                        recordingCleanupSection
                             .padding(.bottom, 20)
 
                         // 4b. Practice (2026-08-20). Deliberately a visible
@@ -267,17 +278,12 @@ struct NoteDetailView: View {
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 80) // Space for bottom toolbar
+                    .padding(.bottom, 24)
                     .frame(maxWidth: horizontalSizeClass == .regular ? 720 : .infinity)
                     .frame(maxWidth: .infinity)
                 }
 
                 Spacer(minLength: 0)
-            }
-
-            // Bottom toolbar
-            VStack(spacing: 0) {
-                bottomToolbar
             }
 
             // Copied feedback toast
@@ -291,7 +297,7 @@ struct NoteDetailView: View {
                         .padding(.vertical, 10)
                         .background(Color(.systemGray3))
                         .cornerRadius(20)
-                        .padding(.bottom, 80)
+                        .padding(.bottom, 24)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
@@ -320,6 +326,12 @@ struct NoteDetailView: View {
 
                     // More menu
                     Menu {
+                        Button {
+                            copyNoteText()
+                        } label: {
+                            Label(showCopiedFeedback ? "Copied" : "Copy Note", systemImage: "doc.on.doc")
+                        }
+
                         // Share as CloudKit link
                         Button {
                             showingShareSheet = true
@@ -355,6 +367,7 @@ struct NoteDetailView: View {
                         Button {
                             note.isFavorite.toggle()
                             try? modelContext.save()
+                            DocumentExportService.shared.export(note: note, context: modelContext)
                         } label: {
                             Label(
                                 note.isFavorite ? "Unfavorite" : "Favorite",
@@ -366,6 +379,7 @@ struct NoteDetailView: View {
                         Button {
                             note.isArchived.toggle()
                             try? modelContext.save()
+                            DocumentExportService.shared.export(note: note, context: modelContext)
                             if note.isArchived {
                                 dismiss()
                             }
@@ -459,12 +473,34 @@ struct NoteDetailView: View {
         .sheet(isPresented: $showingProjectPicker) {
             ProjectPickerSheet(
                 selectedProjectId: $note.projectId,
-                projects: allProjects.filter { !$0.isArchived },
+                projects: libraryVisibleProjects(allProjects),
                 noteContent: note.transcript ?? note.content
             )
         }
         .sheet(isPresented: $showingTagPicker) {
             NoteTagPickerSheet(note: note)
+        }
+        .sheet(isPresented: $showingSpeakerEditor) {
+            SpeakerLabelEditorSheet(labels: speakerDrafts) { labels in
+                note.speakerLabels = labels
+                note.updatedAt = Date()
+                try? modelContext.save()
+                DocumentExportService.shared.export(note: note, context: modelContext)
+            }
+        }
+        .sheet(isPresented: $showingExcerptEditor) {
+            TranscriptExcerptEditorSheet(
+                draft: $excerptDraft,
+                isWorking: isSummarizingExcerpt,
+                errorText: excerptError,
+                onCancel: {
+                    showingExcerptEditor = false
+                    excerptError = nil
+                },
+                onSummarize: {
+                    summarizeSelectedExcerpt()
+                }
+            )
         }
         .sheet(isPresented: $showingCustomPrompt) {
             CustomPromptSheet(
@@ -476,7 +512,6 @@ struct NoteDetailView: View {
                 }
             )
         }
-        .photosPicker(isPresented: $showingBottomPhotoPicker, selection: $selectedPhotoItem, matching: .images)
         .sheet(isPresented: $showingRewriteSheet) {
             RewriteTemplatePickerSheet { template in
                 handleRewriteTemplate(template)
@@ -534,6 +569,75 @@ struct NoteDetailView: View {
                     .foregroundStyle(.eeonTextSecondary)
                     .lineLimit(2)
             }
+        }
+    }
+
+    // MARK: - Speakers
+
+    @ViewBuilder
+    private var speakerSummarySection: some View {
+        let labels = speakerDisplayLabels
+        if !labels.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("Speakers", systemImage: "person.2")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.eeonTextSecondary)
+
+                    Spacer()
+
+                    Button("Edit") {
+                        speakerDrafts = editableSpeakerLabels
+                        showingSpeakerEditor = true
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.eeonAccentAI)
+                }
+
+                FlowLayout(spacing: 8) {
+                    ForEach(labels) { label in
+                        HStack(spacing: 5) {
+                            Text(label.marker)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.eeonTextTertiary)
+                            Text(label.displayName)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.eeonTextPrimary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.eeonCard)
+                        .cornerRadius(10)
+                    }
+                }
+            }
+        }
+    }
+
+    private var speakerDisplayLabels: [SpeakerLabel] {
+        if !note.speakerLabels.isEmpty {
+            return note.speakerLabels
+        }
+
+        let markers = SpeakerLabelDetector.markers(in: note.transcript)
+        if !markers.isEmpty {
+            return markers.map { SpeakerLabel(marker: $0, name: "") }
+        }
+
+        let people = note.speakerNames
+        return people.enumerated().map { index, name in
+            SpeakerLabel(marker: "Person \(index + 1)", name: name)
+        }
+    }
+
+    private var editableSpeakerLabels: [SpeakerLabel] {
+        let stored = note.speakerLabels
+        let markers = SpeakerLabelDetector.markers(in: note.transcript)
+        let base = markers.isEmpty
+            ? speakerDisplayLabels.map(\.marker)
+            : markers
+        return base.map { marker in
+            stored.first { $0.marker == marker } ?? SpeakerLabel(marker: marker, name: "")
         }
     }
 
@@ -916,12 +1020,11 @@ struct NoteDetailView: View {
 
     // MARK: - Quiz
 
-    /// Entry point for flashcard practice. Hidden only when the note is too
-    /// short to quiz on, so a two-line grocery note doesn't get study chrome.
+    /// Entry point for flashcard practice. This is intentionally opt-in and
+    /// contextual: ordinary work notes should not look like study material.
     @ViewBuilder
     private var quizSection: some View {
-        if note.quizSourceText.trimmingCharacters(in: .whitespacesAndNewlines).count
-            >= QuizService.minimumCharacters {
+        if shouldOfferQuiz {
             VStack(alignment: .leading, spacing: EEONLayout.snug) {
                 HStack(spacing: EEONLayout.snug) {
                     Image(systemName: "graduationcap.fill")
@@ -1004,6 +1107,29 @@ struct NoteDetailView: View {
                     .strokeBorder(Color.eeonAccentAI.opacity(0.22), lineWidth: 1)
             )
         }
+    }
+
+    private var shouldOfferQuiz: Bool {
+        if !note.quizQuestions.isEmpty { return true }
+
+        let source = note.quizSourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard source.count >= QuizService.minimumCharacters else { return false }
+
+        if note.summaryFormat == AITransformType.schoolNotes.rawValue ||
+            note.activeRewriteType == AITransformType.schoolNotes.rawValue {
+            return true
+        }
+
+        let haystack = ([note.title, source] + note.topics)
+            .joined(separator: " ")
+            .lowercased()
+        let studySignals = [
+            "lecture", "class", "course", "study", "exam", "quiz",
+            "homework", "chapter", "lesson", "textbook", "reading",
+            "definition", "vocabulary", "theorem", "formula",
+            "flashcard", "review question", "training", "certification"
+        ]
+        return studySignals.contains { haystack.contains($0) }
     }
 
     private func generateQuiz() {
@@ -1101,6 +1227,73 @@ struct NoteDetailView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private var recordingCleanupSection: some View {
+        let transcript = note.transcript ?? note.content
+        if !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "text.viewfinder")
+                        .font(.subheadline)
+                        .foregroundStyle(.eeonAccentAI)
+                        .frame(width: 22)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Clean up recording")
+                            .font(EEONType.itemTitle)
+                            .foregroundStyle(.eeonTextPrimary)
+                        Text("Use only the part that matters and regenerate this note.")
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: EEONLayout.tight)
+                }
+
+                Button {
+                    excerptDraft = transcript
+                    excerptError = nil
+                    showingExcerptEditor = true
+                } label: {
+                    Label("Select excerpt", systemImage: "scissors")
+                        .font(EEONType.control)
+                        .foregroundStyle(Color.eeonAccentAI)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: EEONLayout.minTarget)
+                        .background(
+                            RoundedRectangle(cornerRadius: EEONLayout.chipRadius)
+                                .fill(Color.eeonAccentAI.opacity(0.09))
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(isSummarizingExcerpt || isRewriting || isReprocessing)
+
+                if isSummarizingExcerpt {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Writing cleaned note...")
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                    }
+                }
+
+                if let excerptError {
+                    Text(excerptError)
+                        .font(EEONType.meta)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(EEONLayout.standard)
+            .background(
+                RoundedRectangle(cornerRadius: EEONLayout.cardRadius)
+                    .fill(Color.eeonCard.opacity(0.8))
+            )
+        }
     }
 
     // MARK: - Transform Output Section
@@ -1277,120 +1470,12 @@ struct NoteDetailView: View {
         }
     }
 
-    // MARK: - Bottom Toolbar
-
-    /// One shape for every action in the note toolbar: icon over label,
-    /// 44pt minimum, equal width, secondary tint.
-    private func toolbarButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            toolbarLabel(icon: icon, label: label)
+    private func copyNoteText() {
+        UIPasteboard.general.string = note.enhancedNoteText ?? note.transcript ?? note.content
+        withAnimation { showCopiedFeedback = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation { showCopiedFeedback = false }
         }
-    }
-
-    private func toolbarLabel(icon: String, label: String) -> some View {
-        VStack(spacing: 3) {
-            Image(systemName: icon)
-                .font(.body)
-            Text(label)
-                .font(EEONType.badge)
-        }
-        .foregroundStyle(.eeonTextSecondary)
-        .frame(maxWidth: .infinity, minHeight: EEONLayout.minTarget)
-        .padding(.vertical, EEONLayout.tight)
-        .contentShape(Rectangle())
-    }
-
-
-    private var bottomToolbar: some View {
-        // Rebuilt 2026-08-20. The floating violet "AI" circle is gone: it
-        // opened the template picker, which the `Summary v` switcher at the
-        // top of the note already does — two controls, one job. What remains
-        // is four evenly-weighted actions in the app's own language, each a
-        // 44pt target with a label so nothing is a guess.
-        HStack(spacing: 0) {
-            toolbarButton(icon: "doc.on.doc", label: showCopiedFeedback ? "Copied" : "Copy") {
-                UIPasteboard.general.string = note.enhancedNoteText ?? note.transcript ?? note.content
-                withAnimation { showCopiedFeedback = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    withAnimation { showCopiedFeedback = false }
-                }
-            }
-
-            toolbarButton(icon: "number", label: "Tags") {
-                showingTagPicker = true
-            }
-
-            toolbarButton(icon: "square.and.arrow.up", label: "Share") {
-                showingTextShareSheet = true
-            }
-
-            Menu {
-                // Share as CloudKit link
-                Button {
-                    showingShareSheet = true
-                } label: {
-                    Label("Share as Link", systemImage: "link")
-                }
-
-                Divider()
-
-                // Project assignment
-                Button {
-                    showingProjectPicker = true
-                } label: {
-                    Label("Assign Project", systemImage: "folder")
-                }
-
-                // Photo picker
-                Button {
-                    showingBottomPhotoPicker = true
-                } label: {
-                    Label("Add Photo", systemImage: "photo.badge.plus")
-                }
-
-                // Favorite toggle
-                Button {
-                    note.isFavorite.toggle()
-                    try? modelContext.save()
-                } label: {
-                    Label(
-                        note.isFavorite ? "Unfavorite" : "Favorite",
-                        systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
-                    )
-                }
-
-                // Archive toggle
-                Button {
-                    note.isArchived.toggle()
-                    try? modelContext.save()
-                    if note.isArchived {
-                        dismiss()
-                    }
-                } label: {
-                    Label(
-                        note.isArchived ? "Unarchive" : "Archive",
-                        systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
-                    )
-                }
-
-                Divider()
-
-                // Delete
-                Button(role: .destructive) {
-                    showingDeleteConfirm = true
-                } label: {
-                    Label("Delete Note", systemImage: "trash")
-                }
-            } label: {
-                toolbarLabel(icon: "ellipsis", label: "More")
-            }
-        }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 4)
-        .background(
-            Rectangle()
-                .fill(Color.eeonBackgroundSecondary)
-        )
     }
 
     // MARK: - Adjustments (in place, undoable)
@@ -1529,6 +1614,54 @@ struct NoteDetailView: View {
                 isReprocessing = false
                 if !ok {
                     reprocessError = "Couldn't re-run. Check your connection and try again."
+                }
+            }
+        }
+    }
+
+    private func summarizeSelectedExcerpt() {
+        let source = excerptDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty else {
+            excerptError = "Select the part of the transcript to keep."
+            return
+        }
+        guard !isSummarizingExcerpt else { return }
+
+        let template = RewriteTemplate(
+            id: "selected-excerpt-summary",
+            name: "Selected Excerpt",
+            emoji: "",
+            icon: "text.viewfinder",
+            section: .summary,
+            isPro: false,
+            systemPrompt: """
+            Rewrite this selected transcript excerpt into a clean, useful note. Remove false starts, filler, duplicate phrasing, and off-topic fragments. Preserve names, dates, numbers, decisions, and action items exactly. Do not mention that this was an excerpt.
+            """
+        )
+
+        excerptError = nil
+        isSummarizingExcerpt = true
+
+        Task {
+            do {
+                let result = try await RewriteService.rewrite(transcript: source, template: template)
+                await MainActor.run {
+                    adjustmentUndoText = note.enhancedNoteText ?? note.transcript ?? note.content
+                    note.enhancedNoteText = result
+                    note.summaryFormat = "Selected Excerpt"
+                    note.enhancedNoteEdited = false
+                    note.updatedAt = Date()
+                    showingOriginal = false
+                    isSummarizingExcerpt = false
+                    showingExcerptEditor = false
+                    excerptDraft = ""
+                    try? modelContext.save()
+                    DocumentExportService.shared.export(note: note, context: modelContext)
+                }
+            } catch {
+                await MainActor.run {
+                    excerptError = error.localizedDescription
+                    isSummarizingExcerpt = false
                 }
             }
         }
@@ -1755,6 +1888,127 @@ struct ProjectPickerSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Speaker Label Editor
+
+private struct SpeakerLabelEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var labels: [SpeakerLabel]
+    let onSave: ([SpeakerLabel]) -> Void
+
+    init(labels: [SpeakerLabel], onSave: @escaping ([SpeakerLabel]) -> Void) {
+        _labels = State(initialValue: labels)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach($labels) { $label in
+                        HStack(spacing: 12) {
+                            Text(label.marker)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 90, alignment: .leading)
+                            TextField("Name", text: $label.name)
+                                .textInputAutocapitalization(.words)
+                        }
+                    }
+                } footer: {
+                    Text("EEON keeps these labels with this note. Full automatic speaker diarization requires a dedicated audio provider; this editor preserves speaker names when the transcript already has speaker markers.")
+                }
+            }
+            .navigationTitle("Speakers")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(labels)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+// MARK: - Transcript Excerpt Editor
+
+private struct TranscriptExcerptEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var draft: String
+    let isWorking: Bool
+    let errorText: String?
+    let onCancel: () -> Void
+    let onSummarize: () -> Void
+
+    private var canSubmit: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isWorking
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Delete the parts to ignore, then use the remaining text as the source for a cleaned note.")
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                TextEditor(text: $draft)
+                    .font(.body)
+                    .lineSpacing(4)
+                    .padding(8)
+                    .background(Color.eeonCard)
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Color.eeonTextTertiary.opacity(0.18), lineWidth: 1)
+                    )
+
+                if isWorking {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Writing cleaned note...")
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                    }
+                }
+
+                if let errorText {
+                    Text(errorText)
+                        .font(EEONType.meta)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding()
+            .navigationTitle("Select Excerpt")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                        dismiss()
+                    }
+                    .disabled(isWorking)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Use Excerpt") {
+                        onSummarize()
+                    }
+                    .disabled(!canSubmit)
+                }
+            }
+        }
+        .presentationDetents([.large])
     }
 }
 

@@ -110,6 +110,44 @@ struct MissingInfoItem: Codable, Sendable {
     }
 }
 
+// MARK: - Speaker Labels
+
+struct SpeakerLabel: Codable, Identifiable, Hashable {
+    var id: String { marker }
+    var marker: String
+    var name: String
+
+    var displayName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? marker : name
+    }
+}
+
+enum SpeakerLabelDetector {
+    static func markers(in transcript: String?) -> [String] {
+        guard let transcript, !transcript.isEmpty else { return [] }
+        let patterns = [
+            #"(?im)^\s*(Speaker\s*\d{1,2})\s*:"#,
+            #"(?im)^\s*(Speaker\s*[A-Z])\s*:"#,
+            #"(?im)^\s*\[[^\]]+\]\s*(Speaker\s*\d{1,2})\s*:"#
+        ]
+        var seen: [String] = []
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(transcript.startIndex..., in: transcript)
+            regex.enumerateMatches(in: transcript, range: range) { match, _, _ in
+                guard let match, let swiftRange = Range(match.range(at: 1), in: transcript) else { return }
+                let marker = transcript[swiftRange]
+                    .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !seen.contains(marker) {
+                    seen.append(marker)
+                }
+            }
+        }
+        return seen
+    }
+}
+
 // MARK: - Next Step Types
 
 enum NextStepType: String, Codable, CaseIterable {
@@ -219,6 +257,11 @@ final class Note {
     // a record that has a value, so no schema-seed bump; promoting to
     // Production still requires Deploy Schema Changes in the Dashboard.
     var calendarContextJSON: String?
+
+    // User-named speaker labels for transcripts that include speaker markers
+    // ("Speaker 1", "Speaker 2"). Optional/additive: full diarization needs a
+    // backend provider, but this keeps named speakers attached once known.
+    var speakerLabelsJSON: String?
 
     // Source type (voice, web article, derived from RAG answer)
     var sourceTypeRaw: String = "voice"
@@ -376,6 +419,33 @@ final class Note {
 
     var hasMentionedPeople: Bool {
         !mentionedPeople.isEmpty
+    }
+
+    var speakerLabels: [SpeakerLabel] {
+        get {
+            guard let json = speakerLabelsJSON,
+                  let data = json.data(using: .utf8) else { return [] }
+            return (try? JSONDecoder().decode([SpeakerLabel].self, from: data)) ?? []
+        }
+        set {
+            guard !newValue.isEmpty,
+                  let data = try? JSONEncoder().encode(newValue),
+                  let json = String(data: data, encoding: .utf8) else {
+                speakerLabelsJSON = nil
+                return
+            }
+            speakerLabelsJSON = json
+            updatedAt = Date()
+        }
+    }
+
+    var speakerNames: [String] {
+        let named = speakerLabels
+            .map(\.displayName)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        if !named.isEmpty { return named }
+        if let attendees = calendarContext?.attendees, !attendees.isEmpty { return attendees }
+        return mentionedPeople
     }
 
     // MARK: - Image Attachments

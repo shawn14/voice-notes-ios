@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EEON — Tune EEON · Focus field</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #F4F1EC;
+    --cream-deep: #EBE6DC;
+    --ink: #15110D;
+    --ink-soft: #4A4137;
+    --ink-mute: #8B8377;
+    --rule: #DCD5C7;
+    --paper: #FFFFFF;
+
+    --coral: #E85D4A;
+    --coral-soft: #F4DCD7;
+    --coral-deep: #B8412F;
+
+    --violet: #6B4A8C;
+    --violet-soft: #E5DCED;
+    --violet-deep: #4D3168;
+
+    --shadow-sm: 0 1px 2px rgba(21,17,13,0.04), 0 1px 1px rgba(21,17,13,0.03);
+    --shadow-md: 0 6px 16px -4px rgba(21,17,13,0.08), 0 2px 6px rgba(21,17,13,0.04);
+    --shadow-lg: 0 24px 48px -16px rgba(21,17,13,0.18), 0 4px 12px rgba(21,17,13,0.06);
+    --shadow-xl: 0 40px 80px -24px rgba(21,17,13,0.24), 0 8px 16px rgba(21,17,13,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background:
+      radial-gradient(ellipse at 25% 0%, rgba(232,93,74,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse at 75% 100%, rgba(107,74,140,0.04) 0%, transparent 50%),
+      var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  .frame { max-width: 1480px; margin: 0 auto; padding: 56px 48px 96px; }
+
+  /* ===== Header ===== */
+  .doc-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 32px;
+    align-items: end;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 64px;
+  }
+  .doc-mark {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 24px;
+    display: flex; gap: 16px; align-items: center;
+  }
+  .doc-mark::before { content: ''; width: 24px; height: 1px; background: var(--coral); }
+  .doc-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(48px, 6vw, 80px);
+    line-height: 0.94;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+  .doc-title em { font-style: italic; color: var(--coral); }
+  .doc-meta {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-mute);
+    line-height: 1.8;
+  }
+  .doc-meta strong { color: var(--ink); font-weight: 500; }
+
+  /* ===== Lede ===== */
+  .lede {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 80px;
+    margin-bottom: 80px;
+    align-items: start;
+  }
+  .lede-kicker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--coral);
+    margin-bottom: 16px;
+  }
+  .lede-headline {
+    font-family: 'Instrument Serif', serif;
+    font-size: 36px;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    font-weight: 400;
+  }
+  .lede-headline em { font-style: italic; }
+  .lede-body p {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 16px;
+  }
+  .lede-body p:first-child::first-letter {
+    font-family: 'Instrument Serif', serif;
+    font-size: 56px;
+    line-height: 0.85;
+    float: left;
+    margin: 4px 8px -4px 0;
+    color: var(--ink);
+    font-style: italic;
+  }
+  .lede-body code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    background: var(--cream-deep);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* ===== Diptych ===== */
+  .diptych {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 80px;
+    align-items: start;
+  }
+
+  .persona-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0;
+    animation: rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .persona-col:nth-child(1) { animation-delay: 0.1s; }
+  .persona-col:nth-child(2) { animation-delay: 0.25s; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .persona-tag {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 24px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .persona-tag-num {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 56px;
+    line-height: 0.9;
+    letter-spacing: -0.02em;
+  }
+  .persona-tag-num.coral { color: var(--coral); }
+  .persona-tag-num.violet { color: var(--violet); }
+  .persona-tag-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    line-height: 1.6;
+    flex: 1;
+  }
+  .persona-tag-label strong {
+    display: block;
+    color: var(--ink);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    text-transform: none;
+    font-family: 'DM Sans', sans-serif;
+    margin-top: 4px;
+  }
+
+  /* ===== Phone ===== */
+  .phone {
+    width: 400px;
+    height: 820px;
+    border-radius: 42px;
+    background: var(--cream);
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .phone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 42px;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.55);
+  }
+
+  .status-bar {
+    padding: 14px 20px 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .dyn-island { width: 100px; height: 26px; background: #1a1a1a; border-radius: 16px; }
+  .battery { color: var(--ink-mute); }
+
+  /* Tune EEON header (the modal nav) */
+  .tune-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 20px;
+    position: relative;
+    border-bottom: 1px solid rgba(220, 213, 199, 0.5);
+  }
+  .tune-close {
+    position: absolute;
+    left: 20px;
+    width: 28px; height: 28px;
+    border-radius: 14px;
+    background: rgba(21, 17, 13, 0.06);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+  .tune-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+
+  .tune-screen {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px 16px 24px;
+  }
+  .tune-screen::-webkit-scrollbar { display: none; }
+
+  /* Review card (each tuning section) */
+  .tune-card {
+    background: var(--paper);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 14px;
+  }
+  .tune-card.collapsed {
+    padding: 14px 16px;
+  }
+
+  .tune-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .tune-card-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .tune-card-icon.profile { background: rgba(232,93,74,0.12); color: var(--coral); }
+  .tune-card-icon.focus { background: rgba(232,93,74,0.12); color: var(--coral); }
+  .tune-card-icon.focus.violet { background: rgba(107,74,140,0.12); color: var(--violet); }
+  .tune-card-icon.purpose { background: rgba(74,111,165,0.12); color: #4A6FA5; }
+  .tune-card-icon.purpose.violet { background: rgba(107,74,140,0.12); color: var(--violet); }
+  .tune-card-icon.lens { background: rgba(232,93,74,0.12); color: var(--coral); }
+
+  .tune-card-titlebox {
+    flex: 1;
+    min-width: 0;
+  }
+  .tune-card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    line-height: 1.2;
+    margin-top: 6px;
+  }
+  .tune-card-edit {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--coral);
+    background: rgba(232,93,74,0.12);
+    padding: 5px 12px;
+    border-radius: 8px;
+    align-self: flex-start;
+    margin-top: 4px;
+  }
+  .tune-card-edit.violet {
+    color: var(--violet);
+    background: rgba(107,74,140,0.12);
+  }
+
+  .tune-card-content {
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: var(--ink-soft);
+  }
+  .tune-card-content em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    color: var(--ink);
+  }
+
+  /* Focus list */
+  .focus-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .focus-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--cream);
+    border-radius: 10px;
+    border: 1px solid var(--rule);
+    position: relative;
+    transition: transform 0.15s, box-shadow 0.15s;
+    cursor: grab;
+  }
+  .focus-row:hover {
+    box-shadow: var(--shadow-sm);
+    transform: translateX(2px);
+  }
+
+  .focus-drag {
+    color: var(--ink-mute);
+    font-size: 14px;
+    line-height: 1;
+    user-select: none;
+    flex-shrink: 0;
+    cursor: grab;
+  }
+
+  .focus-content { flex: 1; min-width: 0; }
+  .focus-content-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    line-height: 1.3;
+  }
+  .focus-content-note {
+    font-size: 11px;
+    color: var(--ink-mute);
+    margin-top: 2px;
+    font-style: italic;
+    font-family: 'Instrument Serif', serif;
+    line-height: 1.3;
+  }
+
+  .focus-weight {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    border-radius: 5px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .focus-weight.primary {
+    background: var(--coral);
+    color: white;
+  }
+  .focus-weight.primary.violet {
+    background: var(--violet);
+    color: white;
+  }
+  .focus-weight.secondary {
+    background: var(--coral-soft);
+    color: var(--coral-deep);
+  }
+  .focus-weight.secondary.violet {
+    background: var(--violet-soft);
+    color: var(--violet-deep);
+  }
+  .focus-weight.tertiary {
+    background: var(--cream-deep);
+    color: var(--ink-mute);
+  }
+
+  .focus-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1.5px dashed var(--rule);
+    border-radius: 10px;
+    color: var(--coral);
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .focus-add.violet { color: var(--violet); }
+  .focus-add:hover {
+    background: rgba(232,93,74,0.04);
+    border-color: var(--coral);
+  }
+  .focus-add.violet:hover {
+    background: rgba(107,74,140,0.04);
+    border-color: var(--violet);
+  }
+
+  .focus-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-top: 10px;
+    text-align: center;
+  }
+
+  /* Compiled preview block (existing — used for purpose) */
+  .compiled-preview {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+  }
+  .compiled-preview-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .compiled-preview-text {
+    font-family: 'Instrument Serif', serif;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--ink-soft);
+    line-height: 1.4;
+  }
+
+  /* ===== Annotations ===== */
+  .annotations {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    margin-bottom: 96px;
+    padding-top: 32px;
+    border-top: 1px solid var(--rule);
+  }
+  .annot {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .annot-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--ink-mute);
+  }
+  .annot-h {
+    font-family: 'Instrument Serif', serif;
+    font-size: 26px;
+    line-height: 1.1;
+    letter-spacing: -0.005em;
+  }
+  .annot-h em { font-style: italic; }
+  .annot-h em.coral { color: var(--coral); }
+  .annot-h em.violet { color: var(--violet); }
+  .annot-b {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  /* ===== Editor sheet detail ===== */
+  .editor-section {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 80px;
+    margin-bottom: 96px;
+    padding-top: 64px;
+    border-top: 1px solid var(--rule);
+    align-items: start;
+  }
+
+  .editor-intro h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 44px;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    font-weight: 400;
+    margin-bottom: 24px;
+  }
+  .editor-intro h2 em { font-style: italic; color: var(--coral); }
+  .editor-intro p {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+
+  /* Floating editor sheet */
+  .editor-sheet {
+    background: var(--paper);
+    border-radius: 28px;
+    padding: 24px 24px 24px;
+    box-shadow: var(--shadow-xl);
+    border: 1px solid var(--rule);
+    max-width: 480px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .editor-handle {
+    width: 40px;
+    height: 4px;
+    background: var(--rule);
+    border-radius: 2px;
+    margin: 0 auto 18px;
+  }
+
+  .editor-h {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .editor-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 24px;
+    line-height: 1;
+    font-style: italic;
+  }
+  .editor-cancel {
+    font-size: 14px;
+    color: var(--ink-mute);
+    font-weight: 500;
+  }
+
+  .editor-prompt {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin-bottom: 18px;
+    line-height: 1.4;
+  }
+
+  .editor-textarea {
+    background: var(--cream);
+    border-radius: 14px;
+    padding: 14px;
+    min-height: 110px;
+    font-size: 15px;
+    color: var(--ink);
+    line-height: 1.5;
+    margin-bottom: 16px;
+    border: 1px solid var(--rule);
+  }
+  .editor-textarea em {
+    color: var(--ink-mute);
+    font-style: normal;
+  }
+
+  .editor-weight {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .editor-weight-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    align-self: center;
+    margin-right: 6px;
+    flex-shrink: 0;
+  }
+  .weight-chip {
+    padding: 6px 11px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--cream-deep);
+    color: var(--ink-mute);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .weight-chip.active {
+    background: var(--coral);
+    color: white;
+    border-color: var(--coral);
+  }
+
+  .editor-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .mic-circle {
+    width: 56px; height: 56px;
+    border-radius: 28px;
+    background: var(--coral);
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    box-shadow: 0 4px 16px rgba(232,93,74,0.3);
+    flex-shrink: 0;
+  }
+  .save-btn {
+    flex: 1;
+    padding: 16px;
+    background: var(--coral);
+    color: white;
+    border-radius: 28px;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(232,93,74,0.3);
+  }
+
+  .editor-tip {
+    margin-top: 16px;
+    padding: 10px 12px;
+    background: var(--cream);
+    border-radius: 10px;
+    font-size: 11px;
+    color: var(--ink-mute);
+    line-height: 1.4;
+    border-left: 3px solid var(--coral);
+  }
+  .editor-tip strong { color: var(--ink); }
+
+  /* ===== Schema field section ===== */
+  .schema-section {
+    background: linear-gradient(135deg, var(--ink) 0%, #1d1812 100%);
+    color: var(--cream);
+    border-radius: 28px;
+    padding: 56px 48px;
+    margin-bottom: 96px;
+    position: relative;
+    overflow: hidden;
+  }
+  .schema-section::before {
+    content: '';
+    position: absolute;
+    top: -120px; right: -120px;
+    width: 360px; height: 360px;
+    background: radial-gradient(circle, rgba(232,93,74,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .schema-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 64px;
+    align-items: start;
+    position: relative;
+    z-index: 1;
+  }
+
+  .schema-grid h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 44px;
+    line-height: 1.02;
+    font-weight: 400;
+    letter-spacing: -0.012em;
+    margin-bottom: 16px;
+  }
+  .schema-grid h2 em { font-style: italic; color: #FFB59E; }
+  .schema-grid p {
+    font-size: 15px;
+    line-height: 1.55;
+    color: rgba(244,241,236,0.75);
+  }
+
+  .schema-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .schema-field-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 32px;
+    align-items: baseline;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(244,241,236,0.12);
+  }
+  .schema-field-row:last-child { border-bottom: none; }
+  .schema-field-row.new {
+    background: rgba(232,93,74,0.06);
+    border: 1px solid rgba(232,93,74,0.3);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 4px 0;
+  }
+  .schema-field-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--cream);
+  }
+  .schema-field-row.new .schema-field-name { color: #FFB59E; }
+  .schema-field-row.new .schema-field-name::after {
+    content: 'NEW';
+    font-size: 9px;
+    background: var(--coral);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  .schema-field-desc {
+    font-size: 13.5px;
+    color: rgba(244,241,236,0.7);
+    line-height: 1.45;
+  }
+  .schema-field-desc em { color: var(--cream); font-style: normal; font-weight: 500; }
+  .schema-field-desc.user {
+    color: rgba(244,241,236,0.9);
+  }
+
+  /* ===== Footer ===== */
+  .footer {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 80px;
+    padding-top: 48px;
+    border-top: 1px solid var(--rule);
+  }
+  .footer-quote {
+    font-family: 'Instrument Serif', serif;
+    font-size: 28px;
+    line-height: 1.2;
+    font-style: italic;
+    color: var(--ink);
+  }
+  .footer-quote::before {
+    content: '"';
+    font-size: 64px;
+    color: var(--coral);
+    line-height: 0.3;
+    margin-right: 4px;
+    vertical-align: -16px;
+  }
+  .footer-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-mute);
+    line-height: 1.8;
+  }
+  .footer-meta strong { color: var(--ink); font-weight: 500; }
+  .footer-meta code {
+    font-size: 10.5px;
+    color: var(--ink);
+    background: var(--cream-deep);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .diptych { grid-template-columns: 1fr; gap: 64px; justify-items: center; }
+    .annotations { grid-template-columns: 1fr; gap: 32px; }
+    .lede { grid-template-columns: 1fr; gap: 32px; }
+    .editor-section { grid-template-columns: 1fr; gap: 32px; }
+    .schema-grid { grid-template-columns: 1fr; gap: 32px; }
+    .schema-field-row { grid-template-columns: 1fr; gap: 4px; }
+    .footer { grid-template-columns: 1fr; gap: 24px; }
+  }
+  @media (max-width: 600px) {
+    .frame { padding: 32px 20px 64px; }
+    .doc-header { grid-template-columns: 1fr; }
+    .doc-meta { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+
+  <!-- Header -->
+  <header class="doc-header">
+    <div>
+      <div class="doc-mark">EEON · Tune EEON · Focus field addition</div>
+      <h1 class="doc-title">One new card.<br>The rest <em>stays.</em></h1>
+    </div>
+    <div class="doc-meta">
+      v0.3 · 2026.05.07<br>
+      <strong>Tune EEON · 3 cards</strong><br>
+      Focus drives MomentumPicture
+    </div>
+  </header>
+
+  <!-- Lede -->
+  <section class="lede">
+    <div>
+      <div class="lede-kicker">The change</div>
+      <h2 class="lede-headline">Tune EEON gets one structured field — <em>Focus</em>. A list of what matters right now, in priority order. Voice-input. Drag to reorder.</h2>
+    </div>
+    <div class="lede-body">
+      <p>The previous tuning surface had two free-text fields: <em>About You</em> and <em>What EEON Is For You</em>. Both are stable across months — your role doesn't change weekly. <code>Focus</code> changes weekly. Burying it in a paragraph means re-typing the whole purpose to nudge a priority. Making it a structured list means you reorder by dragging a handle.</p>
+      <p>Same field, persona-shaped. For a founder it's a list of projects with weights. For a dream user it's a list of intents. The Karpathy LLM reads <code>focus</code> alongside profile + purpose and compiles the home accordingly.</p>
+      <p>Below: the new Tune EEON, side by side for two real personas.</p>
+    </div>
+  </section>
+
+  <!-- Diptych -->
+  <section class="diptych">
+
+    <!-- Founder -->
+    <div class="persona-col">
+      <div class="persona-tag">
+        <span class="persona-tag-num coral">01</span>
+        <span class="persona-tag-label">
+          Founder · Builder
+          <strong>Tune EEON · review mode</strong>
+        </span>
+      </div>
+      <div class="phone">
+        <div class="status-bar">
+          <span>3:13</span>
+          <div class="dyn-island"></div>
+          <span class="battery">98</span>
+        </div>
+        <div class="tune-header">
+          <div class="tune-close">×</div>
+          <div class="tune-title">Tune EEON</div>
+        </div>
+        <div class="tune-screen">
+
+          <!-- About You — collapsed -->
+          <div class="tune-card collapsed">
+            <div class="tune-card-header">
+              <div class="tune-card-icon profile">●</div>
+              <div class="tune-card-titlebox">
+                <div class="tune-card-title">About You</div>
+              </div>
+              <div class="tune-card-edit">Edit</div>
+            </div>
+            <div class="tune-card-content">
+              I'm Shawn. Founder running multiple businesses — currently building voice-first AI memory tools. Verbal thinker. I capture meetings, ideas, half-baked product specs, and learnings.
+            </div>
+          </div>
+
+          <!-- Focus — NEW -->
+          <div class="tune-card">
+            <div class="tune-card-header">
+              <div class="tune-card-icon focus">⊙</div>
+              <div class="tune-card-titlebox">
+                <div class="tune-card-title">Your Focus Right Now</div>
+              </div>
+              <div class="tune-card-edit">Edit</div>
+            </div>
+            <div class="focus-list">
+              <div class="focus-row">
+                <span class="focus-drag">⋮⋮</span>
+                <div class="focus-content">
+                  <div class="focus-content-title">StockAlarm</div>
+                  <div class="focus-content-note">where I want to spend most of my time</div>
+                </div>
+                <span class="focus-weight primary">Primary</span>
+              </div>
+              <div class="focus-row">
+                <span class="focus-drag">⋮⋮</span>
+                <div class="focus-content">
+                  <div class="focus-content-title">EEON</div>
+                  <div class="focus-content-note">memory app — tune coverage v2 in flight</div>
+                </div>
+                <span class="focus-weight secondary">Secondary</span>
+              </div>
+              <div class="focus-row">
+                <span class="focus-drag">⋮⋮</span>
+                <div class="focus-content">
+                  <div class="focus-content-title">Flash AI Cards</div>
+                </div>
+                <span class="focus-weight tertiary">Tertiary</span>
+              </div>
+              <div class="focus-add">
+                <span style="font-size:16px;line-height:1">+</span>
+                Add focus
+              </div>
+            </div>
+            <div class="focus-hint">DRAG TO REORDER · TAP TO EDIT</div>
+          </div>
+
+          <!-- Purpose — collapsed with compiled preview -->
+          <div class="tune-card collapsed">
+            <div class="tune-card-header">
+              <div class="tune-card-icon purpose">◎</div>
+              <div class="tune-card-titlebox">
+                <div class="tune-card-title">What EEON Is For You</div>
+              </div>
+              <div class="tune-card-edit">Edit</div>
+            </div>
+            <div class="tune-card-content">
+              I want EEON to organize my notes across all my businesses, surface the threads, and call me out when I'm drifting from what I said matters most.
+            </div>
+            <div class="compiled-preview">
+              <div class="compiled-preview-label">✦ WHAT EEON NOW UNDERSTANDS</div>
+              <div class="compiled-preview-text">"You ship voice-first AI products and run multiple businesses. Frame responses to prioritize execution readiness. Surface drift between stated focus and observed capture density."</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Dream user -->
+    <div class="persona-col">
+      <div class="persona-tag">
+        <span class="persona-tag-num violet">02</span>
+        <span class="persona-tag-label">
+          Dream Interpreter
+          <strong>Tune EEON · review mode</strong>
+        </span>
+      </div>
+      <div class="phone">
+        <div class="status-bar">
+          <span>7:24</span>
+          <div class="dyn-island"></div>
+          <span class="battery">82</span>
+        </div>
+        <div class="tune-header">
+          <div class="tune-close">×</div>
+          <div class="tune-title">Tune EEON</div>
+        </div>
+        <div class="tune-screen">
+
+          <!-- About You — collapsed -->
+          <div class="tune-card collapsed">
+            <div class="tune-card-header">
+              <div class="tune-card-icon profile" style="background:rgba(107,74,140,0.12);color:var(--violet);">●</div>
+              <div class="tune-card-titlebox">
+                <div class="tune-card-title">About You</div>
+              </div>
+              <div class="tune-card-edit violet">Edit</div>
+            </div>
+            <div class="tune-card-content">
+              Sage. I keep a dream journal each morning. Drawn to Jung, Hillman, archetypal psychology. I want to follow the threads of my unconscious over time, not just record them.
+            </div>
+          </div>
+
+          <!-- Focus — NEW -->
+          <div class="tune-card">
+            <div class="tune-card-header">
+              <div class="tune-card-icon focus violet">⊙</div>
+              <div class="tune-card-titlebox">
+                <div class="tune-card-title">Your Focus Right Now</div>
+              </div>
+              <div class="tune-card-edit violet">Edit</div>
+            </div>
+            <div class="focus-list">
+              <div class="focus-row">
+                <span class="focus-drag">⋮⋮</span>
+                <div class="focus-content">
+                  <div class="focus-content-title">Find recurring symbols across my dreams</div>
+                  <div class="focus-content-note">water, stairs, pursuit have been surfacing</div>
+                </div>
+                <span class="focus-weight primary violet">Primary</span>
+              </div>
+              <div class="focus-row">
+                <span class="focus-drag">⋮⋮</span>
+                <div class="focus-content">
+                  <div class="focus-content-title">Interpret through Jungian archetypes</div>
+                </div>
+                <span class="focus-weight secondary violet">Secondary</span>
+              </div>
+              <div class="focus-row">
+                <span class="focus-drag">⋮⋮</span>
+                <div class="focus-content">
+                  <div class="focus-content-title">Track emotional arc over time</div>
+                </div>
+                <span class="focus-weight tertiary">Tertiary</span>
+              </div>
+              <div class="focus-add violet">
+                <span style="font-size:16px;line-height:1">+</span>
+                Add focus
+              </div>
+            </div>
+            <div class="focus-hint">DRAG TO REORDER · TAP TO EDIT</div>
+          </div>
+
+          <!-- Purpose — collapsed with compiled preview -->
+          <div class="tune-card collapsed">
+            <div class="tune-card-header">
+              <div class="tune-card-icon purpose violet">◎</div>
+              <div class="tune-card-titlebox">
+                <div class="tune-card-title">What EEON Is For You</div>
+              </div>
+              <div class="tune-card-edit violet">Edit</div>
+            </div>
+            <div class="tune-card-content">
+              Read my dreams as a Jungian would. Surface what's recurring, what's emerging, what I'm avoiding. Speak in archetypes and elemental metaphors, not productivity language.
+            </div>
+            <div class="compiled-preview">
+              <div class="compiled-preview-label" style="color:var(--violet);">✦ WHAT EEON NOW UNDERSTANDS</div>
+              <div class="compiled-preview-text">"You record dreams and want them read through the Jungian lens. Frame all extraction through archetypes; surface recurring imagery; honor the dreamer's feeling over the symbol's literal meaning."</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- Annotations -->
+  <section class="annotations">
+    <div class="annot">
+      <div class="annot-num">01</div>
+      <h3 class="annot-h"><em class="coral">Same shape</em>, different content.</h3>
+      <p class="annot-b">A founder's focus is a list of projects. A dream user's focus is a list of intents. The card is identical in structure — three rows, drag handles, weight chips, voice-input. The persona shapes the words inside; the architecture stays one component.</p>
+    </div>
+    <div class="annot">
+      <div class="annot-num">02</div>
+      <h3 class="annot-h">Drag to <em>reorder.</em></h3>
+      <p class="annot-b">Priorities shift. Yesterday StockAlarm was primary; tomorrow EEON might be. Reordering is a drag, not a re-write. Weight chips (Primary / Secondary / Tertiary) update automatically based on position. The home picks up the new order on next refresh — no recompile needed for ordering changes.</p>
+    </div>
+    <div class="annot">
+      <div class="annot-num">03</div>
+      <h3 class="annot-h">Voice in, structured out.</h3>
+      <p class="annot-b">Tap "Add focus" or an existing item, hit the mic, say <em>"StockAlarm — primary, where I want to spend most of my time."</em> The transcribe pass extracts the item, the weight, and the optional note. You never type unless you want to.</p>
+    </div>
+  </section>
+
+  <!-- Editor sheet -->
+  <section class="editor-section">
+    <div class="editor-intro">
+      <div class="lede-kicker">Editing one item</div>
+      <h2>Tap a row, get the <em>same editor</em> Tune EEON already uses.</h2>
+      <p>Existing pattern — sheet slides up, big mic at the bottom, transcript appears above it. The only addition for focus items: three weight chips in the middle. No new component to learn.</p>
+      <p>The note field is optional. Most focus items will be one line. Some will have a clarifying sentence — "where I want to spend most of my time" — that helps the LLM weight more accurately.</p>
+    </div>
+
+    <div class="editor-sheet">
+      <div class="editor-handle"></div>
+      <div class="editor-h">
+        <div class="editor-title">Edit focus</div>
+        <div class="editor-cancel">Cancel</div>
+      </div>
+      <div class="editor-prompt">
+        What do you want EEON to weight as your <strong>primary</strong> focus right now?
+      </div>
+      <div class="editor-textarea">
+        StockAlarm — where I want to spend most of my time. We're closing in on the streaming-data release.<em> </em>
+      </div>
+
+      <div class="editor-weight">
+        <span class="editor-weight-label">Weight</span>
+        <span class="weight-chip active">Primary</span>
+        <span class="weight-chip">Secondary</span>
+        <span class="weight-chip">Tertiary</span>
+      </div>
+
+      <div class="editor-actions">
+        <div class="mic-circle">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+        </div>
+        <div class="save-btn">Save</div>
+      </div>
+
+      <div class="editor-tip">
+        <strong>Try saying:</strong> "StockAlarm — primary, where I want to spend most of my time" — EEON parses item, weight, and note in one pass.
+      </div>
+    </div>
+  </section>
+
+  <!-- Schema field section -->
+  <section class="schema-section">
+    <div class="schema-grid">
+      <div>
+        <h2>What gets <em>added</em> to the schema.</h2>
+        <p>One nullable structured field on the <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:rgba(244,241,236,0.12);padding:2px 5px;border-radius:3px;color:var(--cream)">.purpose</code> KnowledgeArticle. Voice & tone, layout, extraction schema continue to be LLM-compiled from the existing free-text fields. Focus is the only new <em>user-declared</em> structure.</p>
+      </div>
+      <div class="schema-fields">
+        <div class="schema-field-row">
+          <span class="schema-field-name">profile (free text)</span>
+          <span class="schema-field-desc user">user-declared · "About You" — paragraph</span>
+        </div>
+        <div class="schema-field-row">
+          <span class="schema-field-name">purpose (free text)</span>
+          <span class="schema-field-desc user">user-declared · "What EEON Is For You" — paragraph</span>
+        </div>
+        <div class="schema-field-row new">
+          <span class="schema-field-name">focusItems</span>
+          <span class="schema-field-desc user">user-declared · ordered list of <em>{content, weight, note?}</em> — drives MomentumPicture, drift detection, and home prioritization</span>
+        </div>
+        <div class="schema-field-row">
+          <span class="schema-field-name">homeLayoutJSON</span>
+          <span class="schema-field-desc">LLM-compiled from above · which sections render and in what order</span>
+        </div>
+        <div class="schema-field-row">
+          <span class="schema-field-name">noteExtractionSchemaJSON</span>
+          <span class="schema-field-desc">LLM-compiled · what categories to extract from each note</span>
+        </div>
+        <div class="schema-field-row">
+          <span class="schema-field-name">voiceAndTone</span>
+          <span class="schema-field-desc">LLM-compiled · stylistic directive for rewrites + titles (shipped this batch)</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-quote">
+      Add a structured field only when the user changes it more often than what's around it, and when the system needs structure to compute against it. Focus passes both. Nothing else does, today.
+    </div>
+    <div class="footer-meta">
+      <strong>What changes</strong><br>
+      Add <code>focusItems: [FocusItem]?</code> on KnowledgeArticle<br>
+      Define <code>FocusItem = { id, content, weight, note? }</code><br>
+      Add Focus card to TuneConversationView<br>
+      Reuse existing editor sheet pattern<br>
+      MomentumPicture reads <code>focusItems</code> for ordering<br>
+      <br>
+      <strong>What stays</strong><br>
+      Profile + Purpose free-text fields<br>
+      Extraction lens regenerate flow<br>
+      Voice & tone compile<br>
+      Mic-first capture, accept/edit/save loop<br>
+      <br>
+      <strong>What this kills</strong><br>
+      Today's 3 as a daily-input ritual<br>
+      "AI suggests 3 things" feature<br>
+      Per-day intention-setting friction
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  // Drag indicator hover
+  document.querySelectorAll('.focus-row').forEach(row => {
+    row.addEventListener('mousedown', () => {
+      row.style.cursor = 'grabbing';
+    });
+    row.addEventListener('mouseup', () => {
+      row.style.cursor = 'grab';
+    });
+  });
+
+  // Weight chip click
+  document.querySelectorAll('.weight-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const parent = chip.parentElement;
+      parent.querySelectorAll('.weight-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+  });
+
+  // Save button feedback
+  document.querySelectorAll('.save-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Saved';
+      setTimeout(() => { btn.textContent = orig; }, 1400);
+    });
+  });
+
+  // Edit chip → scroll to editor
+  document.querySelectorAll('.tune-card-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sheet = document.querySelector('.editor-section');
+      if (sheet) sheet.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+</script>
+
+</body>
+</html>

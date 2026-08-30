@@ -214,14 +214,8 @@ struct OnboardingQuizView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
 
-                Button {
-                    signInAsReturningUser()
-                } label: {
-                    Text("I already have an account")
-                        .font(EEONType.control)
-                        .foregroundStyle(.eeonTextSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: EEONLayout.minTarget)
+                appleSignInButton {
+                    OnboardingState.set(.completed)
                 }
             }
         }
@@ -396,23 +390,9 @@ struct OnboardingQuizView: View {
                     }
 
                     // Sign In with Apple — primary CTA
-                    SignInWithAppleButton(.signIn) { request in
-                        request.requestedScopes = [.fullName, .email]
-                    } onCompletion: { result in
-                        switch result {
-                        case .success(let authorization):
-                            authService.handleSignInResult(.success(authorization))
-                            if authService.isSignedIn {
-                                purchaseSubscription()
-                            }
-                        case .failure(let error):
-                            errorMessage = error.localizedDescription
-                            showError = true
-                        }
+                    appleSignInButton {
+                        purchaseSubscription()
                     }
-                    .signInWithAppleButtonStyle(.black)
-                    .frame(height: 54)
-                    .cornerRadius(14)
 
                     if isPurchasing {
                         ProgressView("Setting up your account...")
@@ -573,42 +553,6 @@ struct OnboardingQuizView: View {
         .buttonStyle(.plain)
     }
 
-    private func signInAsReturningUser() {
-        let provider = ASAuthorizationAppleIDProvider()
-        let request = provider.createRequest()
-        request.requestedScopes = [.fullName, .email]
-
-        let controller = ASAuthorizationController(authorizationRequests: [request])
-        let delegate = QuizSignInDelegate { result in
-            switch result {
-            case .success(let authorization):
-                authService.handleSignInResult(.success(authorization))
-                if authService.isSignedIn {
-                    OnboardingState.set(.completed)
-                }
-            case .failure(let error):
-                errorMessage = error.localizedDescription
-                showError = true
-            }
-        }
-        QuizSignInDelegate.current = delegate
-        controller.delegate = delegate
-
-        let scene = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { $0.activationState == .foregroundActive }
-            ?? UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .first
-        let window = scene?.windows.first(where: { $0.isKeyWindow }) ?? scene?.windows.first
-        if let window {
-            let contextProvider = QuizSignInPresentationContext(window: window)
-            controller.presentationContextProvider = contextProvider
-            QuizSignInPresentationContext.current = contextProvider
-        }
-        controller.performRequests()
-    }
-
     private func purchaseSubscription() {
         isPurchasing = true
         Task {
@@ -647,6 +591,37 @@ struct OnboardingQuizView: View {
                     OnboardingState.set(.completed)
                 }
             }
+        }
+    }
+
+    private func appleSignInButton(onSuccess: @escaping () -> Void) -> some View {
+        SignInWithAppleButton(.signIn) { request in
+            request.requestedScopes = [.fullName, .email]
+        } onCompletion: { result in
+            handleAppleSignInCompletion(result, onSuccess: onSuccess)
+        }
+        .signInWithAppleButtonStyle(.black)
+        .frame(height: 54)
+        .cornerRadius(14)
+    }
+
+    private func handleAppleSignInCompletion(
+        _ result: Result<ASAuthorization, Error>,
+        onSuccess: () -> Void
+    ) {
+        switch result {
+        case .success(let authorization):
+            authService.handleSignInResult(.success(authorization))
+            if authService.isSignedIn {
+                onSuccess()
+            }
+        case .failure(let error):
+            if let authorizationError = error as? ASAuthorizationError,
+               authorizationError.code == .canceled {
+                return
+            }
+            errorMessage = error.localizedDescription
+            showError = true
         }
     }
 
@@ -748,37 +723,5 @@ struct OnboardingQuizView: View {
             .foregroundStyle(Color("EEONBackground"))
             .cornerRadius(14)
         }
-    }
-}
-
-private class QuizSignInDelegate: NSObject, ASAuthorizationControllerDelegate {
-    static var current: QuizSignInDelegate?
-    let completion: (Result<ASAuthorization, Error>) -> Void
-
-    init(completion: @escaping (Result<ASAuthorization, Error>) -> Void) {
-        self.completion = completion
-    }
-
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        completion(.success(authorization))
-        QuizSignInDelegate.current = nil
-    }
-
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        completion(.failure(error))
-        QuizSignInDelegate.current = nil
-    }
-}
-
-private class QuizSignInPresentationContext: NSObject, ASAuthorizationControllerPresentationContextProviding {
-    static var current: QuizSignInPresentationContext?
-    let window: UIWindow
-
-    init(window: UIWindow) {
-        self.window = window
-    }
-
-    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        window
     }
 }

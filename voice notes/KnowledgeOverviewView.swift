@@ -32,19 +32,19 @@ struct KnowledgeOverviewView: View {
     }
 
     private var indexArticle: KnowledgeArticle? {
-        allArticles.first { $0.articleType == .index && !$0.summary.isEmpty }
+        libraryVisibleArticles(allArticles).first { $0.articleType == .index && !$0.summary.isEmpty }
     }
 
     private var filteredArticles: [KnowledgeArticle] {
         // Exclude the index article from the list — it's surfaced separately as the hero card.
-        let visible = allArticles.filter { $0.articleType != .index }
+        let visible = libraryVisibleArticles(allArticles).filter { $0.articleType != .index }
         guard let type = selectedType.articleType else { return visible }
         return visible.filter { $0.articleType == type }
     }
 
     private var updatedTodayCount: Int {
         let today = Calendar.current.startOfDay(for: Date())
-        return allArticles.filter { article in
+        return libraryVisibleArticles(allArticles).filter { article in
             guard let compiled = article.lastCompiledAt else { return false }
             return compiled >= today
         }.count
@@ -56,7 +56,7 @@ struct KnowledgeOverviewView: View {
     }
 
     private var recentEvents: [KnowledgeEvent] {
-        Array(allEvents.prefix(5))
+        Array(allEvents.filter { !libraryIsSchemaSeedName($0.title) }.prefix(5))
     }
 
     var body: some View {
@@ -70,6 +70,27 @@ struct KnowledgeOverviewView: View {
 
                 // Stats header
                 statsHeader
+
+                NavigationLink(destination: KnowledgeMindMapView()) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "point.3.connected.trianglepath.dotted")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        Text("Memory Map")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 50)
+                    .background(Color.eeonAccentAI)
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal)
 
                 // Filter picker
                 Picker("Filter", selection: $selectedType) {
@@ -156,7 +177,7 @@ struct KnowledgeOverviewView: View {
 
     private var statsHeader: some View {
         HStack(spacing: 16) {
-            statBadge(value: "\(allArticles.count)", label: "Articles")
+            statBadge(value: "\(libraryVisibleArticles(allArticles).count)", label: "Articles")
             statBadge(value: "\(updatedTodayCount)", label: "Updated Today")
             statBadge(value: "\(ingestedThisWeekCount)", label: "Ingested This Week")
         }
@@ -282,5 +303,181 @@ struct KnowledgeOverviewView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(.vertical, 40)
+    }
+}
+
+// MARK: - Knowledge Mind Map
+
+private struct KnowledgeMindMapView: View {
+    @Query(sort: \KnowledgeArticle.lastMentionedAt, order: .reverse)
+    private var articles: [KnowledgeArticle]
+
+    private var visibleArticles: [KnowledgeArticle] {
+        libraryVisibleArticles(articles)
+            .filter { $0.articleType != .purpose && !$0.summary.isEmpty }
+            .prefix(24)
+            .map { $0 }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if visibleArticles.isEmpty {
+                    ContentUnavailableView(
+                        "No Map Yet",
+                        systemImage: "point.3.connected.trianglepath.dotted",
+                        description: Text("Record or import more notes to build connected knowledge.")
+                    )
+                    .frame(minHeight: 360)
+                } else {
+                    GeometryReader { proxy in
+                        let layout = nodeLayout(in: proxy.size)
+                        ZStack {
+                            Canvas { context, _ in
+                                for edge in edges(layout: layout) {
+                                    var path = Path()
+                                    path.move(to: edge.from)
+                                    path.addLine(to: edge.to)
+                                    context.stroke(
+                                        path,
+                                        with: .color(Color.eeonTextTertiary.opacity(0.28)),
+                                        lineWidth: 1
+                                    )
+                                }
+                            }
+
+                            ForEach(layout) { node in
+                                NavigationLink(destination: KnowledgeArticleDetailView(article: node.article)) {
+                                    VStack(spacing: 4) {
+                                        Image(systemName: node.article.articleType.icon)
+                                            .font(.caption.weight(.semibold))
+                                        Text(node.article.name)
+                                            .font(.caption2.weight(.semibold))
+                                            .lineLimit(2)
+                                            .multilineTextAlignment(.center)
+                                    }
+                                    .foregroundStyle(.eeonTextPrimary)
+                                    .frame(width: node.diameter, height: node.diameter)
+                                    .background(node.article.articleType.mapColor.opacity(0.18))
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(node.article.articleType.mapColor.opacity(0.45), lineWidth: 1)
+                                    )
+                                    .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+                                .position(node.point)
+                            }
+                        }
+                    }
+                    .frame(height: 540)
+                    .background(Color.eeonCard.opacity(0.55))
+                    .cornerRadius(14)
+
+                    connectionList
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Memory Map")
+        .navigationBarTitleDisplayMode(.large)
+    }
+
+    private var connectionList: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Connections")
+                .font(.headline)
+                .foregroundStyle(.eeonTextPrimary)
+
+            let connected = visibleArticles.filter { !$0.connections.isEmpty }
+            if connected.isEmpty {
+                Text("Connections appear as EEON compiles links between people, projects, and topics.")
+                    .font(.subheadline)
+                    .foregroundStyle(.eeonTextSecondary)
+            } else {
+                ForEach(connected) { article in
+                    ForEach(article.connections) { connection in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "link")
+                                .font(.caption)
+                                .foregroundStyle(.eeonAccentAI)
+                                .frame(width: 18)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(article.name) -> \(connection.articleName)")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.eeonTextPrimary)
+                                Text(connection.reason)
+                                    .font(.caption)
+                                    .foregroundStyle(.eeonTextSecondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(12)
+                        .background(Color.eeonCard)
+                        .cornerRadius(10)
+                    }
+                }
+            }
+        }
+    }
+
+    private func nodeLayout(in size: CGSize) -> [MindMapNode] {
+        let articles = visibleArticles
+        guard !articles.isEmpty else { return [] }
+
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let radius = max(120, min(size.width, size.height) * 0.36)
+        let centerArticle = articles.first { $0.articleType == .index } ?? articles.first
+        let outerArticles = articles.filter { $0.id != centerArticle?.id }
+
+        var nodes: [MindMapNode] = []
+        if let centerArticle {
+            nodes.append(MindMapNode(article: centerArticle, point: center, diameter: 112))
+        }
+
+        for (index, article) in outerArticles.enumerated() {
+            let angle = (Double(index) / Double(max(outerArticles.count, 1))) * Double.pi * 2 - Double.pi / 2
+            let ringAdjust = CGFloat(index % 2) * 34
+            let point = CGPoint(
+                x: center.x + CGFloat(cos(angle)) * (radius + ringAdjust),
+                y: center.y + CGFloat(sin(angle)) * (radius + ringAdjust)
+            )
+            nodes.append(MindMapNode(article: article, point: point, diameter: 92))
+        }
+        return nodes
+    }
+
+    private func edges(layout: [MindMapNode]) -> [(from: CGPoint, to: CGPoint)] {
+        var byName: [String: CGPoint] = [:]
+        for node in layout {
+            byName[node.article.name.lowercased()] = node.point
+        }
+        return layout.flatMap { node in
+            node.article.connections.compactMap { connection in
+                guard let to = byName[connection.articleName.lowercased()] else { return nil }
+                return (from: node.point, to: to)
+            }
+        }
+    }
+}
+
+private struct MindMapNode: Identifiable {
+    var id: UUID { article.id }
+    let article: KnowledgeArticle
+    let point: CGPoint
+    let diameter: CGFloat
+}
+
+private extension KnowledgeArticleType {
+    var mapColor: Color {
+        switch self {
+        case .person: return .blue
+        case .project: return .green
+        case .topic: return .orange
+        case .self: return .purple
+        case .purpose: return .indigo
+        case .reference: return .brown
+        case .index: return .cyan
+        }
     }
 }

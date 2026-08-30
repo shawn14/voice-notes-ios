@@ -70,6 +70,7 @@ nonisolated final class TranscriptionVocabulary: @unchecked Sendable {
 
         let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
         let projectNames = projects
+            .filter { !$0.isArchived && !libraryIsSchemaSeedName($0.name) }
             .prefix(Self.maxLearnedProjects)
             .flatMap { [$0.name] + $0.aliases }
 
@@ -117,6 +118,7 @@ nonisolated final class TranscriptionVocabulary: @unchecked Sendable {
             let key = term.lowercased()
             guard term.count >= 2,
                   !term.hasPrefix("_"),
+                  !libraryIsSchemaSeedName(term),
                   key != "me", key != "i", key != "unknown",
                   !seen.contains(key) else { continue }
             seen.insert(key)

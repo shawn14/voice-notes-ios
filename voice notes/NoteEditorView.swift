@@ -1522,7 +1522,7 @@ struct ProjectAssociationView: View {
 
                 Divider()
 
-                ForEach(allProjects.filter { !$0.isArchived }) { project in
+                ForEach(libraryVisibleProjects(allProjects)) { project in
                     Button(project.name) {
                         assignedProjectId = project.id
                     }

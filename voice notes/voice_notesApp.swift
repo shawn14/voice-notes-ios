@@ -48,6 +48,7 @@ struct voice_notesApp: App {
             UserDefaults.standard.removeObject(forKey: "cloudKitInitError")
             UserDefaults.standard.set(Date(), forKey: "cloudKitInitAt")
             cleanupDuplicateTags(in: container.mainContext)
+            cleanupSchemaSeedRecords(in: container.mainContext)
         } catch {
             // If CloudKit fails, try without CloudKit
             print("CloudKit container failed, trying local: \(error)")
@@ -59,6 +60,7 @@ struct voice_notesApp: App {
                 let localConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
                 container = try ModelContainer(for: schema, configurations: [localConfig])
                 cleanupDuplicateTags(in: container.mainContext)
+                cleanupSchemaSeedRecords(in: container.mainContext)
             } catch {
                 // Last resort — back up the old store before recreating
                 // Previous code deleted the store here which destroyed all local notes
@@ -87,6 +89,7 @@ struct voice_notesApp: App {
                         cloudKitDatabase: .private("iCloud.aivoiceeeon")
                     )
                     container = try ModelContainer(for: schema, configurations: [freshConfig])
+                    cleanupSchemaSeedRecords(in: container.mainContext)
                     UserDefaults.standard.set("recoveredCloudKit", forKey: "cloudKitInitOutcome")
                     print("Recovery succeeded — notes will re-sync from CloudKit")
                 } catch {
@@ -97,6 +100,7 @@ struct voice_notesApp: App {
                     do {
                         let memConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
                         container = try ModelContainer(for: schema, configurations: [memConfig])
+                        cleanupSchemaSeedRecords(in: container.mainContext)
                     } catch {
                         fatalError("Failed to create ModelContainer: \(error)")
                     }
@@ -145,18 +149,19 @@ struct voice_notesApp: App {
         // record gets its own upload operation, one failure can't take
         // down others, and the framework has time to push each record
         // before any cleanup.
-        let seedKey = "cloudKitSchemaSeedDidRun_v5"
+        let seedKey = "cloudKitSchemaSeedDidRun_v6"
         let isUITest = ProcessInfo.processInfo.arguments.contains("-UITestMode")
         if !isUITest && !UserDefaults.standard.bool(forKey: seedKey) {
             let seedContext = container.mainContext
             Task { @MainActor in
                 let seedNote = Note(title: "__seed_v3", content: "")
                 seedNote.sourceType = .profileSeed
-                // v5: give the newest optional field a value so CloudKit
-                // registers CD_calendarContextJSON on the CD_Note type. Without
-                // this, Production only learns the field from the first real
-                // synced note that has one — after the App Store build ships.
+                // v5/v6: give newest optional Note fields values so CloudKit
+                // registers them on CD_Note. Without this, Production only
+                // learns the field from the first real synced note that has
+                // one — after the App Store build ships.
                 seedNote.calendarContextJSON = "{}"
+                seedNote.speakerLabelsJSON = #"[{"marker":"Speaker 1","name":"__seed"}]"#
 
                 let seeds: [(model: any PersistentModel, name: String)] = [
                     (seedNote, "Note"),
@@ -199,7 +204,7 @@ struct voice_notesApp: App {
                 try? seedContext.save()
 
                 UserDefaults.standard.set(true, forKey: seedKey)
-                print("[Schema v5] Done. CloudKit Dashboard → Development → Record Types should list all 17 CD_* types, and CD_Note should carry CD_calendarContextJSON. Click Deploy Schema Changes… to promote to Production.")
+                print("[Schema v6] Done. CloudKit Dashboard → Development → Record Types should list all 17 CD_* types, and CD_Note should carry CD_calendarContextJSON + CD_speakerLabelsJSON. Click Deploy Schema Changes… to promote to Production.")
             }
         }
         #endif
@@ -400,7 +405,7 @@ struct voice_notesApp: App {
 
         // Process any pending ingests from share extension
         print("[App] triggerAppActiveRefresh called — checking pending ingests")
-        let allProjects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+        let allProjects = libraryVisibleProjects((try? context.fetch(FetchDescriptor<Project>())) ?? [])
         let allTags = (try? context.fetch(FetchDescriptor<Tag>())) ?? []
         await IntelligenceService.shared.processPendingIngests(
             context: context,
@@ -413,8 +418,9 @@ struct voice_notesApp: App {
         SharedDefaults.updateProStatus(UsageService.shared.isPro)
 
         // Fetch all required data
-        let notes = (try? context.fetch(FetchDescriptor<Note>())) ?? []
-        let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+        let allNotes = (try? context.fetch(FetchDescriptor<Note>())) ?? []
+        let notes = librarySearchableNotes(allNotes)
+        let projects = libraryVisibleProjects((try? context.fetch(FetchDescriptor<Project>())) ?? [])
         let items = (try? context.fetch(FetchDescriptor<KanbanItem>())) ?? []
         let movements = (try? context.fetch(FetchDescriptor<KanbanMovement>())) ?? []
         let actions = (try? context.fetch(FetchDescriptor<ExtractedAction>())) ?? []
@@ -465,7 +471,7 @@ struct voice_notesApp: App {
         await runProactiveAlertScan(context: context)
 
         // Retry pending transcriptions
-        let pendingNotes = notes.filter { $0.transcriptionStatus == "pending" && $0.audioFileName != nil }
+        let pendingNotes = allNotes.filter { $0.transcriptionStatus == "pending" && $0.audioFileName != nil }
         if !pendingNotes.isEmpty, let apiKey = APIKeys.openAI, !apiKey.isEmpty {
             let tags = (try? context.fetch(FetchDescriptor<Tag>())) ?? []
 
@@ -624,6 +630,100 @@ struct voice_notesApp: App {
             try context.save()
         } catch {
             print("Tag cleanup failed: \(error)")
+        }
+    }
+
+    /// Deletes stranded CloudKit schema-registration records from DEBUG builds.
+    /// They are implementation probes, not user notes, and must not appear in
+    /// Library, Ask, summaries, vocabulary, or generated knowledge.
+    private func cleanupSchemaSeedRecords(in context: ModelContext) {
+        do {
+            var deleted = 0
+
+            for note in try context.fetch(FetchDescriptor<Note>())
+            where libraryIsSchemaSeedName(note.title) || libraryIsSchemaSeedName(note.content) {
+                context.delete(note)
+                deleted += 1
+            }
+
+            for tag in try context.fetch(FetchDescriptor<Tag>())
+            where libraryIsSchemaSeedName(tag.name) {
+                context.delete(tag)
+                deleted += 1
+            }
+
+            for project in try context.fetch(FetchDescriptor<Project>())
+            where libraryIsSchemaSeedName(project.name) {
+                context.delete(project)
+                deleted += 1
+            }
+
+            for person in try context.fetch(FetchDescriptor<MentionedPerson>())
+            where libraryIsSchemaSeedName(person.displayName) {
+                context.delete(person)
+                deleted += 1
+            }
+
+            for article in try context.fetch(FetchDescriptor<KnowledgeArticle>())
+            where libraryIsSchemaSeedName(article.name) {
+                context.delete(article)
+                deleted += 1
+            }
+
+            for decision in try context.fetch(FetchDescriptor<ExtractedDecision>())
+            where libraryIsSchemaSeedName(decision.content) || libraryIsSchemaSeedName(decision.affects) {
+                context.delete(decision)
+                deleted += 1
+            }
+
+            for action in try context.fetch(FetchDescriptor<ExtractedAction>())
+            where libraryIsSchemaSeedName(action.content) || libraryIsSchemaSeedName(action.owner) {
+                context.delete(action)
+                deleted += 1
+            }
+
+            for commitment in try context.fetch(FetchDescriptor<ExtractedCommitment>())
+            where libraryIsSchemaSeedName(commitment.who) || libraryIsSchemaSeedName(commitment.what) {
+                context.delete(commitment)
+                deleted += 1
+            }
+
+            for unresolved in try context.fetch(FetchDescriptor<UnresolvedItem>())
+            where libraryIsSchemaSeedName(unresolved.content) || libraryIsSchemaSeedName(unresolved.reason) {
+                context.delete(unresolved)
+                deleted += 1
+            }
+
+            for item in try context.fetch(FetchDescriptor<KanbanItem>())
+            where libraryIsSchemaSeedName(item.content) || libraryIsSchemaSeedName(item.reason) {
+                context.delete(item)
+                deleted += 1
+            }
+
+            for url in try context.fetch(FetchDescriptor<ExtractedURL>())
+            where url.url.contains("example.invalid/seed") || libraryIsSchemaSeedName(url.displayTitle) {
+                context.delete(url)
+                deleted += 1
+            }
+
+            for intention in try context.fetch(FetchDescriptor<DailyIntention>())
+            where libraryIsSchemaSeedName(intention.content) || libraryIsSchemaSeedName(intention.dateKey) {
+                context.delete(intention)
+                deleted += 1
+            }
+
+            for template in try context.fetch(FetchDescriptor<CustomRewriteTemplate>())
+            where libraryIsSchemaSeedName(template.name) || libraryIsSchemaSeedName(template.systemPrompt) {
+                context.delete(template)
+                deleted += 1
+            }
+
+            guard deleted > 0 else { return }
+            try context.save()
+            TranscriptionVocabulary.shared.refreshLearned(context: context)
+            print("[SchemaSeedCleanup] Deleted \(deleted) stranded schema seed record(s)")
+        } catch {
+            print("[SchemaSeedCleanup] Failed: \(error)")
         }
     }
 }

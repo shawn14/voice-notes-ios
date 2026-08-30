@@ -6,6 +6,7 @@ APIKeys.swift
 *.xcscmblueprint
 xcuserdata/
 DerivedData/
+build/
 .build/
 
 # macOS
@@ -16,3 +17,7 @@ DerivedData/
 
 # CocoaPods
 Pods/
+
+# MCP
+mcp/node_modules/
+mcp/dist/

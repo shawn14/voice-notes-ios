@@ -2,10 +2,9 @@
 //  AnswerSheet.swift
 //  voice notes
 //
-//  Single-question one-shot Q&A modal. Voice-routed questions (via IntentClassifier)
-//  and extraction-chip taps open this sheet. The user sees one question and one
-//  answer at a time — submitting "Ask another" REPLACES the current answer rather
-//  than appending to a chat history.
+//  Q&A surface for chat-with-memory. Voice-routed questions and extraction-chip
+//  taps still open it as a modal; Library uses the same view pushed in the
+//  current NavigationStack so it does not stack a prompt sheet over an answer sheet.
 //
 
 import SwiftUI
@@ -21,97 +20,158 @@ struct AnswerSheet: View {
     @Query private var projects: [Project]
     @Query private var dailyBriefs: [DailyBrief]
 
-    /// The question to run on appear. Required; non-optional by design.
-    let initialQuery: String
+    /// When present, run this question on appear. When nil, the view opens as
+    /// a composer for Ask Library.
+    let initialQuery: String?
+    let navigationTitle: String
+    let showsDoneButton: Bool
+    let wrapsInNavigationStack: Bool
 
     private enum LoadState {
+        case idle
         case loading
         case answer(question: String, response: RAGResponse)
         case error(String)
     }
 
-    @State private var state: LoadState = .loading
+    private struct AnswerTurn: Identifiable {
+        let id = UUID()
+        let question: String
+        let answer: String
+        let routeBadge: String
+        let sourceTitles: [String]
+    }
+
+    @State private var state: LoadState = .idle
+    @State private var previousTurns: [AnswerTurn] = []
+    @State private var activeScopePrefix: String?
     @State private var followUpInput: String = ""
     @State private var didSave: Bool = false
     @State private var showingSaveConfirmation: Bool = false
     @State private var navigateToNote: Note?
     @State private var hasRunInitial: Bool = false
+    @FocusState private var isComposerFocused: Bool
+
+    init(
+        initialQuery: String,
+        navigationTitle: String = "Answer",
+        showsDoneButton: Bool = true,
+        wrapsInNavigationStack: Bool = true
+    ) {
+        self.initialQuery = initialQuery
+        self.navigationTitle = navigationTitle
+        self.showsDoneButton = showsDoneButton
+        self.wrapsInNavigationStack = wrapsInNavigationStack
+    }
+
+    init(
+        navigationTitle: String = "Ask Library",
+        showsDoneButton: Bool = false,
+        wrapsInNavigationStack: Bool = false
+    ) {
+        self.initialQuery = nil
+        self.navigationTitle = navigationTitle
+        self.showsDoneButton = showsDoneButton
+        self.wrapsInNavigationStack = wrapsInNavigationStack
+    }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        switch state {
-                        case .loading:
-                            loadingView
-                        case .answer(let question, let response):
-                            answerView(question: question, response: response)
-                        case .error(let message):
-                            errorView(message: message)
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                Divider()
-                    .overlay(Color.eeonDivider)
-
-                // "Ask another" input — replaces the current answer
-                HStack(spacing: 12) {
-                    TextField("Ask another", text: $followUpInput, axis: .vertical)
-                        .textFieldStyle(.plain)
-                        .lineLimit(1...4)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.eeonCard)
-                        .cornerRadius(20)
-                        .onSubmit { submitFollowUp() }
-
-                    Button(action: submitFollowUp) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title)
-                            .foregroundColor(canSubmit ? .eeonAccentAI : .eeonTextTertiary)
-                    }
-                    .disabled(!canSubmit)
-                }
-                .padding()
-                .background(Color.eeonBackground)
-            }
-            .navigationTitle("Answer")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .overlay(alignment: .top) {
-                if showingSaveConfirmation {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Saved to Notes")
-                            .font(.subheadline.weight(.medium))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.regularMaterial)
-                    .cornerRadius(20)
-                    .shadow(radius: 4)
-                    .padding(.top, 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
-            .navigationDestination(item: $navigateToNote) { note in
-                NoteDetailView(note: note)
-            }
-            .onAppear {
-                guard !hasRunInitial else { return }
-                hasRunInitial = true
-                runQuery(initialQuery)
+        Group {
+            if wrapsInNavigationStack {
+                NavigationStack { answerContent }
+            } else {
+                answerContent
             }
         }
+    }
+
+    private var answerContent: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if !previousTurns.isEmpty {
+                        historyView
+                    }
+
+                    switch state {
+                    case .idle:
+                        askStartView
+                    case .loading:
+                        loadingView
+                    case .answer(let question, let response):
+                        answerView(question: question, response: response)
+                    case .error(let message):
+                        errorView(message: message)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Divider()
+                .overlay(Color.eeonDivider)
+
+            HStack(spacing: 12) {
+                TextField(inputPlaceholder, text: $followUpInput, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...4)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.eeonCard)
+                    .cornerRadius(20)
+                    .focused($isComposerFocused)
+                    .onSubmit { submitFollowUp() }
+
+                Button(action: submitFollowUp) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title)
+                        .foregroundColor(canSubmit ? .eeonAccentAI : .eeonTextTertiary)
+                }
+                .disabled(!canSubmit)
+            }
+            .padding()
+            .background(Color.eeonBackground)
+        }
+        .navigationTitle(navigationTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { answerToolbar }
+        .overlay(alignment: .top) {
+            if showingSaveConfirmation {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Saved to Notes")
+                        .font(.subheadline.weight(.medium))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial)
+                .cornerRadius(20)
+                .shadow(radius: 4)
+                .padding(.top, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .navigationDestination(item: $navigateToNote) { note in
+            NoteDetailView(note: note)
+        }
+        .onAppear {
+            guard !hasRunInitial else { return }
+            hasRunInitial = true
+            if let query = initialQuery?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty {
+                runQuery(query)
+            } else {
+                state = .idle
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    isComposerFocused = true
+                }
+            }
+        }
+    }
+
+    private var inputPlaceholder: String {
+        if case .idle = state { return "Ask your Library" }
+        return "Ask another"
     }
 
     private var canSubmit: Bool {
@@ -121,12 +181,45 @@ struct AnswerSheet: View {
         return true
     }
 
+    @ToolbarContentBuilder
+    private var answerToolbar: some ToolbarContent {
+        if showsDoneButton {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") { dismiss() }
+            }
+        }
+    }
+
     // MARK: - Sub-views
+
+    private var askStartView: some View {
+        VStack(spacing: 12) {
+            Spacer(minLength: 42)
+
+            Image(systemName: "sparkle.magnifyingglass")
+                .font(.system(size: 38, weight: .semibold))
+                .foregroundStyle(.eeonAccentAI)
+                .frame(width: 68, height: 68)
+                .background(Circle().fill(Color.eeonAccentAI.opacity(0.14)))
+
+            Text("Ask Library")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.eeonTextPrimary)
+
+            Text("Type a question about your notes.")
+                .font(.subheadline)
+                .foregroundStyle(.eeonTextSecondary)
+                .multilineTextAlignment(.center)
+
+            Spacer(minLength: 24)
+        }
+        .frame(maxWidth: .infinity, minHeight: 300)
+    }
 
     private var loadingView: some View {
         HStack(spacing: 12) {
             TypingIndicator()
-            Text("Searching your notes...")
+            Text("Searching your Library...")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -218,6 +311,79 @@ struct AnswerSheet: View {
                 .cornerRadius(10)
             }
             .disabled(didSave)
+
+            if !response.suggestedFollowUps.isEmpty {
+                followUpSuggestions(response.suggestedFollowUps)
+            }
+        }
+    }
+
+    private var historyView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("SESSION")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            ForEach(previousTurns.suffix(3)) { turn in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(turn.question)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.eeonTextPrimary)
+                            .lineLimit(2)
+                        Spacer(minLength: 8)
+                        Text(turn.routeBadge)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(turn.answer)
+                        .font(.caption)
+                        .foregroundStyle(.eeonTextSecondary)
+                        .lineLimit(3)
+                    if !turn.sourceTitles.isEmpty {
+                        Text(turn.sourceTitles.prefix(3).joined(separator: ", "))
+                            .font(.caption2)
+                            .foregroundStyle(.eeonTextTertiary)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(10)
+                .background(Color.eeonCard.opacity(0.7))
+                .cornerRadius(10)
+            }
+        }
+    }
+
+    private func followUpSuggestions(_ suggestions: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("FOLLOW-UPS")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            FlowLayout(spacing: 8) {
+                ForEach(suggestions.prefix(3), id: \.self) { suggestion in
+                    Button {
+                        askFollowUp(suggestion)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text(suggestion)
+                                .font(.caption.weight(.medium))
+                                .lineLimit(2)
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption2.weight(.bold))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.eeonAccentAI.opacity(0.1))
+                        .foregroundStyle(.eeonAccentAI)
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
@@ -245,12 +411,37 @@ struct AnswerSheet: View {
         guard !trimmed.isEmpty else { return }
         if case .loading = state { return }
         followUpInput = ""
+        appendCurrentTurnToHistory()
         runQuery(trimmed)
+    }
+
+    private func askFollowUp(_ query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if case .loading = state { return }
+        followUpInput = ""
+        appendCurrentTurnToHistory()
+        runQuery(trimmed)
+    }
+
+    private func appendCurrentTurnToHistory() {
+        guard case let .answer(question, response) = state else { return }
+        let turn = AnswerTurn(
+            question: question,
+            answer: response.answer,
+            routeBadge: response.route.badgeText,
+            sourceTitles: response.sourceNotes.map(\.displayTitle)
+        )
+        previousTurns.append(turn)
     }
 
     private func runQuery(_ query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        if activeScopePrefix == nil, let scope = scopePrefix(in: trimmed) {
+            activeScopePrefix = scope
+        }
+        let ragQuery = contextualQuery(for: trimmed)
 
         state = .loading
         didSave = false
@@ -258,7 +449,7 @@ struct AnswerSheet: View {
         Task {
             do {
                 let response = try await RAGService.shared.answerQuestion(
-                    query: trimmed,
+                    query: ragQuery,
                     allNotes: allNotes,
                     articles: Array(knowledgeArticles),
                     projects: projects,
@@ -273,6 +464,44 @@ struct AnswerSheet: View {
                 }
             }
         }
+    }
+
+    private func contextualQuery(for query: String) -> String {
+        var resolvedQuery = query
+        if let prefix = activeScopePrefix, scopePrefix(in: query) == nil {
+            resolvedQuery = "\(prefix) \(query)"
+        }
+
+        guard !previousTurns.isEmpty else { return resolvedQuery }
+        let context = previousTurns.suffix(3).map { turn -> String in
+            var lines = [
+                "Previous question: \(turn.question)",
+                "Previous answer: \(turn.answer)"
+            ]
+            if !turn.sourceTitles.isEmpty {
+                lines.append("Previous sources: \(turn.sourceTitles.prefix(5).joined(separator: ", "))")
+            }
+            return lines.joined(separator: "\n")
+        }.joined(separator: "\n\n")
+
+        return """
+        \(resolvedQuery)
+
+        Ask session context for resolving pronouns and short follow-ups:
+        \(context)
+
+        Use the session context only to understand what "this", "that", or "more" refers to. Ground the answer in the user's notes and cite note or article sources.
+        """
+    }
+
+    private func scopePrefix(in query: String) -> String? {
+        let normalized = query.lowercased()
+        let prefixes = [
+            "Using only my notes from today,",
+            "Using only my notes from the last 7 days,",
+            "Using only my notes from the last 30 days,"
+        ]
+        return prefixes.first { normalized.hasPrefix($0.lowercased()) }
     }
 
     private func saveAsNote(question: String, answer: String) {

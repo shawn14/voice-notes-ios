@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EEON — Tune Drives Surfacing · Architecture Proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #F4F1EC;
+    --cream-deep: #EBE6DC;
+    --cream-shadow: #E0DACA;
+    --ink: #15110D;
+    --ink-soft: #4A4137;
+    --ink-mute: #8B8377;
+    --rule: #DCD5C7;
+    --paper: #FFFFFF;
+
+    --coral: #E85D4A;
+    --coral-soft: #F4DCD7;
+    --coral-deep: #B8412F;
+
+    --violet: #6B4A8C;
+    --violet-soft: #E5DCED;
+    --violet-deep: #4D3168;
+
+    --shadow-sm: 0 1px 2px rgba(21,17,13,0.04), 0 1px 1px rgba(21,17,13,0.03);
+    --shadow-md: 0 6px 16px -4px rgba(21,17,13,0.08), 0 2px 6px rgba(21,17,13,0.04);
+    --shadow-lg: 0 24px 48px -16px rgba(21,17,13,0.18), 0 4px 12px rgba(21,17,13,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(232,93,74,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 100%, rgba(107,74,140,0.04) 0%, transparent 50%),
+      var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ===== Frame ===== */
+  .frame {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 56px 48px 96px;
+  }
+
+  /* ===== Document header ===== */
+  .doc-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 32px;
+    align-items: end;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 80px;
+  }
+
+  .doc-mark {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 24px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+  .doc-mark::before {
+    content: '';
+    width: 24px;
+    height: 1px;
+    background: var(--coral);
+  }
+
+  .doc-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(48px, 6vw, 84px);
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+  .doc-title em { font-style: italic; }
+  .doc-title .one { color: var(--coral); }
+  .doc-title .other { color: var(--violet); }
+
+  .doc-meta {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-mute);
+    letter-spacing: 0.05em;
+    line-height: 1.8;
+  }
+  .doc-meta strong { color: var(--ink); font-weight: 500; }
+
+  /* ===== Lede ===== */
+  .lede {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 80px;
+    margin-bottom: 96px;
+    align-items: start;
+  }
+
+  .lede-kicker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 16px;
+  }
+
+  .lede-headline {
+    font-family: 'Instrument Serif', serif;
+    font-size: 38px;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    font-weight: 400;
+  }
+  .lede-headline em { font-style: italic; }
+  .lede-headline .accent-c { color: var(--coral); font-style: italic; }
+  .lede-headline .accent-v { color: var(--violet); font-style: italic; }
+
+  .lede-body p {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 16px;
+  }
+
+  .lede-body p:first-child::first-letter {
+    font-family: 'Instrument Serif', serif;
+    font-size: 56px;
+    line-height: 0.85;
+    float: left;
+    margin: 4px 8px -4px 0;
+    color: var(--ink);
+    font-style: italic;
+  }
+
+  /* ===== Diptych: two phones ===== */
+  .diptych {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    margin-bottom: 96px;
+    position: relative;
+  }
+
+  .diptych::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 80px;
+    bottom: 60px;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, var(--rule) 20%, var(--rule) 80%, transparent);
+    transform: translateX(-50%);
+    opacity: 0.6;
+  }
+
+  .persona-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0;
+    animation: rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .persona-col:nth-child(1) { animation-delay: 0.1s; }
+  .persona-col:nth-child(2) { animation-delay: 0.3s; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .persona-tag {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 28px;
+    width: 100%;
+    max-width: 380px;
+  }
+
+  .persona-tag-num {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 56px;
+    line-height: 0.9;
+    letter-spacing: -0.02em;
+  }
+  .persona-tag-num.coral { color: var(--coral); }
+  .persona-tag-num.violet { color: var(--violet); }
+
+  .persona-tag-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    line-height: 1.6;
+    flex: 1;
+  }
+
+  .persona-tag-label strong {
+    display: block;
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    text-transform: none;
+    font-family: 'DM Sans', sans-serif;
+    margin-top: 4px;
+  }
+
+  .persona-tag-label em {
+    display: block;
+    color: var(--ink-soft);
+    font-size: 13px;
+    font-style: italic;
+    font-family: 'Instrument Serif', serif;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-top: 4px;
+  }
+
+  /* ===== Phone frame ===== */
+  .phone {
+    width: 380px;
+    height: 740px;
+    border-radius: 40px;
+    background: #F8F7F5;
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .phone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 40px;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6);
+  }
+
+  .status-bar {
+    padding: 14px 20px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .dyn-island {
+    width: 100px;
+    height: 26px;
+    background: #1a1a1a;
+    border-radius: 16px;
+  }
+
+  .battery {
+    color: var(--ink-mute);
+  }
+
+  .screen {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px 16px 110px;
+  }
+  .screen::-webkit-scrollbar { display: none; }
+
+  .hello { padding: 8px 4px 4px; }
+  .hello-h {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+  }
+  .hello-d {
+    font-size: 12px;
+    color: var(--ink-mute);
+    margin-top: 2px;
+  }
+
+  /* Persona chip */
+  .persona-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px 6px 10px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 12px;
+    cursor: pointer;
+  }
+  .persona-chip .dot { width: 7px; height: 7px; border-radius: 4px; position: relative; }
+  .persona-chip .dot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 6px;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: 0; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.4); }
+  }
+  .persona-chip .chev { margin-left: 2px; font-size: 10px; opacity: 0.55; }
+
+  .persona-chip.coral {
+    background: var(--coral-soft);
+    color: var(--coral-deep);
+  }
+  .persona-chip.coral .dot, .persona-chip.coral .dot::after { background: var(--coral); }
+
+  .persona-chip.violet {
+    background: var(--violet-soft);
+    color: var(--violet-deep);
+  }
+  .persona-chip.violet .dot, .persona-chip.violet .dot::after { background: var(--violet); }
+
+  /* Section header */
+  .sec-h {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 22px 4px 10px;
+  }
+  .sec-h h3 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .sec-h .pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.1em;
+    background: rgba(21,17,13,0.06);
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* Today's 3 / accept-edit */
+  .ritual-card {
+    background: var(--paper);
+    border-radius: 14px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .ritual-circle {
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    border: 1.5px solid var(--coral);
+    flex-shrink: 0;
+  }
+  .ritual-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    flex: 1;
+  }
+  .ritual-suggestion {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--coral);
+    letter-spacing: 0.08em;
+    flex-shrink: 0;
+  }
+
+  /* Generic row card */
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    background: var(--paper);
+    padding: 11px 14px;
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 8px;
+  }
+  .row-icon {
+    width: 30px; height: 30px;
+    border-radius: 15px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+    color: white;
+    font-weight: 600;
+  }
+  .row-icon.project { background: var(--coral); }
+  .row-icon.decision { background: #BF5AF2; }
+  .row-icon.idea { background: #5B8DEF; }
+  .row-icon.thread { background: #9B7AB6; }
+  .row-icon.symbol { background: var(--violet); }
+  .row-icon.archetype { background: #856EAF; }
+  .row-icon.note { background: var(--ink-mute); }
+  .row-icon.ref { background: #4A6FA5; }
+
+  .row-body { flex: 1; min-width: 0; }
+  .row-title { font-size: 13.5px; font-weight: 700; color: var(--ink); letter-spacing: -0.005em; }
+  .row-sub {
+    font-size: 11px;
+    color: var(--ink-mute);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row-meta {
+    font-size: 10px;
+    color: var(--ink-mute);
+    flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Dream-specific surfaces */
+  .dream-card {
+    background: linear-gradient(180deg, var(--paper) 0%, #FAF7FB 100%);
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: var(--shadow-md);
+    margin-bottom: 10px;
+    border: 1px solid var(--violet-soft);
+  }
+  .dream-date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    color: var(--violet);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .dream-summary {
+    font-family: 'Instrument Serif', serif;
+    font-size: 17px;
+    line-height: 1.35;
+    color: var(--ink);
+    font-style: italic;
+    margin-bottom: 14px;
+  }
+  .dream-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .dream-tag {
+    font-size: 10px;
+    padding: 3px 9px;
+    background: var(--violet-soft);
+    color: var(--violet-deep);
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* Imagery cluster */
+  .img-cluster {
+    background: var(--paper);
+    border-radius: 14px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .img-cluster-symbol {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 22px;
+    color: var(--violet);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .img-cluster-body { flex: 1; }
+  .img-cluster-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .img-cluster-sub { font-size: 11px; color: var(--ink-mute); margin-top: 2px; }
+  .img-cluster-bar {
+    flex-shrink: 0;
+    width: 50px;
+    height: 4px;
+    background: var(--cream-deep);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .img-cluster-bar-fill {
+    height: 100%;
+    background: var(--violet);
+    border-radius: 2px;
+  }
+
+  /* Emotional arc */
+  .arc-card {
+    background: var(--paper);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 8px;
+  }
+  .arc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .arc-title { font-size: 12px; font-weight: 600; color: var(--ink); }
+  .arc-trend {
+    font-size: 10px;
+    color: var(--violet);
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .arc-spark { width: 100%; height: 36px; }
+  .arc-spark path {
+    fill: none;
+    stroke: var(--violet);
+    stroke-width: 1.5;
+  }
+  .arc-spark .arc-fill { fill: rgba(107,74,140,0.1); stroke: none; }
+  .arc-spark .arc-dot { fill: var(--violet); }
+
+  /* Bottom dock */
+  .dock {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 18px 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(transparent, #F8F7F5 36%);
+  }
+  .mic-btn {
+    width: 48px; height: 48px;
+    border-radius: 24px;
+    background: var(--coral);
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    box-shadow: 0 4px 16px rgba(232,93,74,0.3);
+  }
+  .mic-btn.violet {
+    background: var(--violet);
+    box-shadow: 0 4px 16px rgba(107,74,140,0.3);
+  }
+  .new-note-btn {
+    background: var(--coral);
+    color: white;
+    padding: 11px 22px;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .new-note-btn.violet { background: var(--violet); }
+
+  /* Universal-anchor markers between phones */
+  .anchor-marker {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--cream);
+    padding: 6px 14px;
+    border: 1px dashed var(--rule);
+    border-radius: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    color: var(--ink-mute);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    z-index: 2;
+  }
+  .anchor-marker.bottom { bottom: 38px; }
+  .anchor-marker.top { top: 540px; }
+
+  /* ===== Schema explainer ===== */
+  .schema-section {
+    margin-bottom: 96px;
+    padding-top: 72px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .schema-intro {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 80px;
+    margin-bottom: 56px;
+  }
+
+  .schema-intro h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 48px;
+    line-height: 1.02;
+    letter-spacing: -0.012em;
+    font-weight: 400;
+  }
+  .schema-intro h2 em { font-style: italic; }
+
+  .schema-intro p {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+
+  /* Side-by-side schema view */
+  .schema-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+
+  .schema-card {
+    background: var(--paper);
+    border-radius: 18px;
+    padding: 28px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--rule);
+  }
+  .schema-card.coral { border-top: 3px solid var(--coral); }
+  .schema-card.violet { border-top: 3px solid var(--violet); }
+
+  .schema-card-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .schema-card-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    font-style: italic;
+    line-height: 1;
+  }
+  .schema-card-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+
+  .schema-field {
+    margin-bottom: 18px;
+  }
+  .schema-field-key {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--ink-mute);
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .schema-field-key strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .schema-field-val {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .schema-field-val em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    color: var(--ink-soft);
+  }
+
+  .schema-field-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .schema-field-list span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: var(--cream-deep);
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .schema-card.coral .schema-field-list span.lifted {
+    background: var(--coral-soft); color: var(--coral-deep); font-weight: 600;
+  }
+  .schema-card.violet .schema-field-list span.lifted {
+    background: var(--violet-soft); color: var(--violet-deep); font-weight: 600;
+  }
+  .schema-field-list span.new {
+    background: transparent;
+    border: 1px dashed var(--ink-mute);
+    color: var(--ink-mute);
+  }
+
+  /* ===== Catalog growth ===== */
+  .catalog-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    margin-bottom: 96px;
+    padding-top: 72px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .catalog-col h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 12px;
+  }
+  .catalog-col h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 38px;
+    line-height: 1.05;
+    margin-bottom: 16px;
+    font-weight: 400;
+  }
+  .catalog-col h2 em { font-style: italic; }
+  .catalog-col h2 .now { color: var(--coral); }
+  .catalog-col h2 .grow { color: var(--violet); }
+
+  .catalog-col p {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 20px;
+  }
+
+  .catalog-list {
+    list-style: none;
+  }
+  .catalog-list li {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .catalog-list code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .catalog-list .desc {
+    font-size: 12.5px;
+    color: var(--ink-mute);
+    text-align: right;
+    line-height: 1.4;
+  }
+  .catalog-list li.new code { color: var(--violet-deep); }
+  .catalog-list li.new::before {
+    content: 'NEW';
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5px;
+    letter-spacing: 0.12em;
+    background: var(--violet-soft);
+    color: var(--violet-deep);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-right: 8px;
+    font-weight: 600;
+  }
+
+  /* ===== Universal anchor strip ===== */
+  .universal-strip {
+    background: linear-gradient(135deg, var(--ink) 0%, #1d1812 100%);
+    color: #F4F1EC;
+    border-radius: 24px;
+    padding: 56px 48px;
+    margin-bottom: 96px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .universal-strip::before {
+    content: '';
+    position: absolute;
+    top: -100px; right: -100px;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(232,93,74,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .universal-strip::after {
+    content: '';
+    position: absolute;
+    bottom: -100px; left: -100px;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(107,74,140,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .universal-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 64px;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .universal-grid h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 56px;
+    line-height: 0.98;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+  }
+  .universal-grid h2 em { font-style: italic; }
+
+  .universal-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px 32px;
+  }
+
+  .universal-list li {
+    border-top: 1px solid rgba(244,241,236,0.15);
+    padding-top: 16px;
+  }
+
+  .universal-list .key {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(244,241,236,0.5);
+    margin-bottom: 6px;
+  }
+
+  .universal-list .desc {
+    font-size: 15px;
+    line-height: 1.4;
+    color: rgba(244,241,236,0.92);
+  }
+
+  /* ===== Footer ===== */
+  .footer {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 80px;
+    padding-top: 48px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .footer-quote {
+    font-family: 'Instrument Serif', serif;
+    font-size: 28px;
+    line-height: 1.2;
+    font-style: italic;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .footer-quote::before {
+    content: '"';
+    font-size: 64px;
+    color: var(--coral);
+    line-height: 0.3;
+    margin-right: 4px;
+    vertical-align: -16px;
+  }
+  .footer-quote em { color: var(--violet); }
+
+  .footer-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-mute);
+    line-height: 1.8;
+  }
+  .footer-meta strong { color: var(--ink); font-weight: 500; }
+  .footer-meta code {
+    font-size: 10.5px;
+    color: var(--ink);
+    background: var(--cream-deep);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .diptych { grid-template-columns: 1fr; gap: 80px; justify-items: center; }
+    .diptych::before { display: none; }
+    .anchor-marker { display: none; }
+    .lede { grid-template-columns: 1fr; gap: 32px; }
+    .schema-intro { grid-template-columns: 1fr; gap: 32px; }
+    .schema-pair { grid-template-columns: 1fr; gap: 24px; }
+    .catalog-section { grid-template-columns: 1fr; gap: 32px; }
+    .universal-grid { grid-template-columns: 1fr; gap: 32px; }
+    .universal-list { grid-template-columns: 1fr; }
+    .footer { grid-template-columns: 1fr; gap: 24px; }
+  }
+
+  @media (max-width: 600px) {
+    .frame { padding: 32px 20px 64px; }
+    .doc-header { grid-template-columns: 1fr; }
+    .doc-meta { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+
+  <!-- Document header -->
+  <header class="doc-header">
+    <div>
+      <div class="doc-mark">EEON · Architecture Proposal · Supersedes Adaptive-Layout v0.1</div>
+      <h1 class="doc-title"><span class="one">Two users.</span><br>One platform.<br><em>The tune compiles<br>the surface.</em></h1>
+    </div>
+    <div class="doc-meta">
+      v0.2 · 2026.05.07<br>
+      <strong>Tune-driven surfacing</strong><br>
+      No hardcoded rituals
+    </div>
+  </header>
+
+  <!-- Lede -->
+  <section class="lede">
+    <div>
+      <div class="lede-kicker">The reframe</div>
+      <h2 class="lede-headline">"Today's 3" was never universal — it was <span class="accent-c">your</span> ritual leaking into the platform. Other people don't run on it. Their tune should write its own ritual.</h2>
+    </div>
+    <div class="lede-body">
+      <p>The previous proposal tried to make EEON adapt by switching modes inside a fixed founder-shaped layout. That was the wrong correction. The honest correction is structural: <em>the home screen is not a layout, it's a function of the tune</em>. The Karpathy LLM doesn't just pick which sections appear — it picks <em>what rituals exist</em>. Today's 3 is one ritual. Last Night's Dream is another. Single Intention is another. None are universal; all are persona-derived.</p>
+      <p>Below: the same architecture rendering two completely different homes. One was tuned by a <span style="color:var(--coral);font-weight:600">founder/builder</span>; one was tuned by a <span style="color:var(--violet);font-weight:600">dream interpreter</span>. They share two things — the capture button at the bottom, and the raw notes feed they can fall back to. Everything else is up to the tune.</p>
+    </div>
+  </section>
+
+  <!-- Diptych: two phones -->
+  <section class="diptych">
+
+    <!-- Persona 1: Founder -->
+    <div class="persona-col">
+      <div class="persona-tag">
+        <span class="persona-tag-num coral">01</span>
+        <span class="persona-tag-label">
+          Tuned as
+          <strong>Founder · Builder</strong>
+          <em>"give me all my notes, find the threads, prioritize what to ship"</em>
+        </span>
+      </div>
+      <div class="phone">
+        <div class="status-bar">
+          <span>3:13</span>
+          <div class="dyn-island"></div>
+          <span class="battery">98</span>
+        </div>
+        <div class="screen">
+          <div class="hello">
+            <div class="hello-h">Good afternoon</div>
+            <div class="hello-d">Tuesday, May 12</div>
+            <div class="persona-chip coral">
+              <span class="dot"></span>
+              Founder · Builder
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Today's 3</h3>
+            <span class="pill">RITUAL · TUNE-PICKED</span>
+          </div>
+          <div class="ritual-card">
+            <div class="ritual-circle"></div>
+            <div class="ritual-text">Ship Mac Catalyst 3.4.0 to TestFlight</div>
+            <div class="ritual-suggestion">AI</div>
+          </div>
+          <div class="ritual-card">
+            <div class="ritual-circle"></div>
+            <div class="ritual-text">Reply to Patrick about streaming data</div>
+            <div class="ritual-suggestion">AI</div>
+          </div>
+          <div class="ritual-card">
+            <div class="ritual-circle"></div>
+            <div class="ritual-text">Decide on payments provider</div>
+            <div class="ritual-suggestion">AI</div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Active Build</h3>
+            <span class="pill">priorityProjects</span>
+          </div>
+          <div class="row">
+            <div class="row-icon project">⚡</div>
+            <div class="row-body">
+              <div class="row-title">EEON · Tune Coverage v2</div>
+              <div class="row-sub">11 commits · momentum rising</div>
+            </div>
+            <div class="row-meta">live</div>
+          </div>
+          <div class="row">
+            <div class="row-icon project">⚡</div>
+            <div class="row-body">
+              <div class="row-title">StockAlarm · streaming pipeline</div>
+              <div class="row-sub">3 decisions pending</div>
+            </div>
+            <div class="row-meta">2d</div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Open Decisions</h3>
+            <span class="pill">openDecisions</span>
+          </div>
+          <div class="row">
+            <div class="row-icon decision">✓</div>
+            <div class="row-body">
+              <div class="row-title">Ship adaptive layout v0.1?</div>
+              <div class="row-sub">2 days open · blocking roadmap</div>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Loose Ends</h3>
+            <span class="pill">openThreads</span>
+          </div>
+          <div class="row">
+            <div class="row-icon thread">↻</div>
+            <div class="row-body">
+              <div class="row-title">Send Jeff the spec</div>
+              <div class="row-sub">promised yesterday</div>
+            </div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="mic-btn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </div>
+          <div class="new-note-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            New Note
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Persona 2: Dream Interpreter -->
+    <div class="persona-col">
+      <div class="persona-tag">
+        <span class="persona-tag-num violet">02</span>
+        <span class="persona-tag-label">
+          Tuned as
+          <strong>Dream Interpreter</strong>
+          <em>"I record my dreams here. Read them through Jung."</em>
+        </span>
+      </div>
+      <div class="phone">
+        <div class="status-bar">
+          <span>7:24</span>
+          <div class="dyn-island"></div>
+          <span class="battery">82</span>
+        </div>
+        <div class="screen">
+          <div class="hello">
+            <div class="hello-h">Morning, Sage</div>
+            <div class="hello-d">Tuesday, May 12</div>
+            <div class="persona-chip violet">
+              <span class="dot"></span>
+              Dream Interpreter
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Last Night</h3>
+            <span class="pill">lastNightsDream · NEW KIND</span>
+          </div>
+          <div class="dream-card">
+            <div class="dream-date">Recorded · 4:12 AM</div>
+            <div class="dream-summary">"You were running through a flooded corridor. Stairs kept appearing where doors had been. The water rose, and you weren't afraid."</div>
+            <div class="dream-tags">
+              <span class="dream-tag">water</span>
+              <span class="dream-tag">stairs</span>
+              <span class="dream-tag">pursuit</span>
+              <span class="dream-tag">acceptance</span>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Recurring Imagery</h3>
+            <span class="pill">recurringImagery · NEW KIND</span>
+          </div>
+          <div class="img-cluster">
+            <div class="img-cluster-symbol">~</div>
+            <div class="img-cluster-body">
+              <div class="img-cluster-title">Water</div>
+              <div class="img-cluster-sub">surfaced 6× in the last 2 weeks</div>
+            </div>
+            <div class="img-cluster-bar"><div class="img-cluster-bar-fill" style="width:88%"></div></div>
+          </div>
+          <div class="img-cluster">
+            <div class="img-cluster-symbol">⏚</div>
+            <div class="img-cluster-body">
+              <div class="img-cluster-title">Stairs / thresholds</div>
+              <div class="img-cluster-sub">surfaced 4× this week</div>
+            </div>
+            <div class="img-cluster-bar"><div class="img-cluster-bar-fill" style="width:64%"></div></div>
+          </div>
+          <div class="img-cluster">
+            <div class="img-cluster-symbol">↻</div>
+            <div class="img-cluster-body">
+              <div class="img-cluster-title">Pursuit</div>
+              <div class="img-cluster-sub">surfaced 3× this week</div>
+            </div>
+            <div class="img-cluster-bar"><div class="img-cluster-bar-fill" style="width:48%"></div></div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Emotional Arc</h3>
+            <span class="pill">emotionalToneArc</span>
+          </div>
+          <div class="arc-card">
+            <div class="arc-row">
+              <div class="arc-title">Last 14 dreams</div>
+              <div class="arc-trend">anxious → accepting</div>
+            </div>
+            <svg class="arc-spark" viewBox="0 0 280 36" preserveAspectRatio="none">
+              <path class="arc-fill" d="M0,28 L20,30 L40,26 L60,32 L80,24 L100,22 L120,26 L140,18 L160,20 L180,14 L200,16 L220,10 L240,8 L260,6 L280,8 L280,36 L0,36 Z"/>
+              <path d="M0,28 L20,30 L40,26 L60,32 L80,24 L100,22 L120,26 L140,18 L160,20 L180,14 L200,16 L220,10 L240,8 L260,6 L280,8"/>
+              <circle class="arc-dot" cx="280" cy="8" r="2.5"/>
+            </svg>
+          </div>
+
+          <div class="sec-h">
+            <h3>From Jung</h3>
+            <span class="pill">referenceResonance</span>
+          </div>
+          <div class="row">
+            <div class="row-icon ref">📖</div>
+            <div class="row-body">
+              <div class="row-title">Memories, Dreams, Reflections · ch. VI</div>
+              <div class="row-sub">water as the unconscious</div>
+            </div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="mic-btn violet">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </div>
+          <div class="new-note-btn violet">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            Record Dream
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- Schema explainer -->
+  <section class="schema-section">
+    <div class="schema-intro">
+      <h2>The same compile, two <em>different</em> blueprints.</h2>
+      <div>
+        <p>Both phones above are rendered by the same code. The difference is what the LLM compiled at <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--cream-deep);padding:2px 6px;border-radius:4px">.purpose</code> tune time. The <em>schema</em> below is the actual blueprint — section list, daily-ritual choice, momentum metric, vocabulary. The app reads it and renders.</p>
+        <p>Re-tuning regenerates the schema. The platform is one set of code paths; the schema is per-user.</p>
+      </div>
+    </div>
+
+    <div class="schema-pair">
+      <!-- Founder schema -->
+      <div class="schema-card coral">
+        <div class="schema-card-header">
+          <div class="schema-card-title">Founder schema</div>
+          <div class="schema-card-tag">.purpose article</div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>dailyRitual</strong></div>
+          <div class="schema-field-val"><em>Today's 3</em> · pick top 3 from extracted decisions × commitments × yesterday's incomplete</div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>sections</strong> · ordered</div>
+          <div class="schema-field-list">
+            <span class="lifted">todayThree</span>
+            <span class="lifted">priorityProjects</span>
+            <span class="lifted">openDecisions</span>
+            <span>ideaInbox</span>
+            <span>openThreads</span>
+            <span>recentNotes</span>
+          </div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>momentum</strong></div>
+          <div class="schema-field-val">notes/wk × decision-density × action-progress</div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>vocabulary</strong></div>
+          <div class="schema-field-val"><em>project · decision · commitment · blocker · follow-up · idea</em></div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>voiceAndTone</strong></div>
+          <div class="schema-field-val"><em>"Direct, decision-oriented, terse. Imperative verbs. Short sentences."</em></div>
+        </div>
+      </div>
+
+      <!-- Dream schema -->
+      <div class="schema-card violet">
+        <div class="schema-card-header">
+          <div class="schema-card-title">Dream interpreter schema</div>
+          <div class="schema-card-tag">.purpose article</div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>dailyRitual</strong></div>
+          <div class="schema-field-val"><em>Last Night's Dream</em> · open on the most recent dream, AI-summarized</div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>sections</strong> · ordered</div>
+          <div class="schema-field-list">
+            <span class="lifted new">lastNightsDream</span>
+            <span class="lifted new">recurringImagery</span>
+            <span class="lifted">emotionalToneArc</span>
+            <span>referenceResonance</span>
+            <span>recentNotes</span>
+          </div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>momentum</strong></div>
+          <div class="schema-field-val">symbol-recurrence × emotional-weight × time-since-mention</div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>vocabulary</strong></div>
+          <div class="schema-field-val"><em>dream · symbol · archetype · emotion · dreamer-state</em></div>
+        </div>
+        <div class="schema-field">
+          <div class="schema-field-key"><strong>voiceAndTone</strong></div>
+          <div class="schema-field-val"><em>"Mythic, image-rich, lyrical. Speak in archetypes and elemental metaphors."</em></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Catalog growth -->
+  <section class="catalog-section">
+    <div class="catalog-col">
+      <h3>What's already in the catalog</h3>
+      <h2>Today's <span class="now">17</span> kinds — mostly founder-shaped.</h2>
+      <p>Today's section catalog (<code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--cream-deep);padding:2px 6px;border-radius:4px">HomeLayout.swift:18</code>) was authored when the only user was a founder. The vocabulary leaks: <em>priorityProjects</em>, <em>openDecisions</em>, <em>silentProjects</em>. Some kinds happen to fit other personas (<em>emotionalToneArc</em>, <em>recurringPatterns</em>) but the assumption baked into <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--cream-deep);padding:2px 6px;border-radius:4px">A4</code> — "always include todayThree" — turns founder ritual into platform law.</p>
+      <ul class="catalog-list">
+        <li><code>todayThree</code><span class="desc">founder ritual · forced default</span></li>
+        <li><code>priorityProjects</code><span class="desc">founder · ranks by momentum</span></li>
+        <li><code>openDecisions</code><span class="desc">founder · unresolved >2 days</span></li>
+        <li><code>recurringPatterns</code><span class="desc">generic · cross-article repeats</span></li>
+        <li><code>emotionalToneArc</code><span class="desc">generic · dream-friendly</span></li>
+        <li><code>referenceResonance</code><span class="desc">generic · canon matching</span></li>
+      </ul>
+    </div>
+    <div class="catalog-col">
+      <h3>What needs to grow</h3>
+      <h2>New ritual <span class="grow">primitives</span> for the next personas.</h2>
+      <p>For every new persona EEON serves well, the catalog gains 1-3 ritual kinds. The dream user needs <em>lastNightsDream</em> as their daily ritual and <em>recurringImagery</em> as their momentum surface. A meditator would need <em>singleIntention</em>. A researcher, <em>currentInquiry</em>. The catalog stays engineering-controlled (no generative UI), but it stops pretending the founder ritual is universal.</p>
+      <ul class="catalog-list">
+        <li class="new"><code>lastNightsDream</code><span class="desc">dream user · daily ritual surface</span></li>
+        <li class="new"><code>recurringImagery</code><span class="desc">dream user · symbol clusters</span></li>
+        <li class="new"><code>singleIntention</code><span class="desc">meditator · today's one thing</span></li>
+        <li class="new"><code>currentInquiry</code><span class="desc">researcher · the question you're sitting with</span></li>
+        <li class="new"><code>morningPrompt</code><span class="desc">journaler · question to answer</span></li>
+        <li class="new"><code>gratitudeLog</code><span class="desc">journaler · what stayed with you</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Universal anchor strip -->
+  <section class="universal-strip">
+    <div class="universal-grid">
+      <h2>Two things stay <em>universal.</em></h2>
+      <ul class="universal-list">
+        <li>
+          <div class="key">capture button</div>
+          <div class="desc">Mic + new note, anchored to the bottom dock. Every user captures the same way; that surface never changes.</div>
+        </li>
+        <li>
+          <div class="key">recent notes feed</div>
+          <div class="desc">Always available as the fallback surface. The user can always see what they actually captured, in chronological order.</div>
+        </li>
+        <li>
+          <div class="key">knowledge layer</div>
+          <div class="desc">Articles compile, RAG retrieves, embeddings cluster, the wiki index assembles. Same code, every persona.</div>
+        </li>
+        <li>
+          <div class="key">extraction baseline</div>
+          <div class="desc">Decisions, actions, commitments, people, topics still get extracted from every note — even when the persona doesn't surface them.</div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-quote">
+      A platform with persona-defined surfaces, not a founder app with extension points. The Karpathy LLM is the <em>interpreter that turns a person's words about themselves into the app they want.</em>
+    </div>
+    <div class="footer-meta">
+      <strong>What changes in code</strong><br>
+      Remove "ALWAYS include todayThree" from compile prompt<br>
+      Make A4 prepend conditional on persona<br>
+      <br>
+      <strong>What gets added</strong><br>
+      <code>dailyRitualKind</code> on .purpose schema<br>
+      <code>momentumDefinitionJSON</code> on .purpose schema<br>
+      Catalog kinds: <code>lastNightsDream</code>, <code>recurringImagery</code>, <code>singleIntention</code>, <code>currentInquiry</code><br>
+      <br>
+      <strong>What this kills</strong><br>
+      Adaptive-layout v0.1 (FocusVector mode-switching)<br>
+      Hardcoded "Today's 3" auto-fill rule
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  // Subtle interactive: tap chip → highlight the matching schema card
+  document.querySelectorAll('.persona-chip').forEach((chip, i) => {
+    chip.addEventListener('click', () => {
+      chip.style.transform = 'scale(0.97)';
+      setTimeout(() => { chip.style.transform = ''; }, 120);
+      const targetCard = document.querySelectorAll('.schema-card')[i];
+      if (targetCard) {
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetCard.style.transform = 'scale(1.02)';
+        targetCard.style.transition = 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+        setTimeout(() => { targetCard.style.transform = ''; }, 800);
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

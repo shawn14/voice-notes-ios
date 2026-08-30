@@ -110,12 +110,13 @@ final class BackgroundCaptureService {
     @MainActor
     private func updateActivityPauseState(paused: Bool) async {
         guard let activity else { return }
+        let sourceRecorder = activityRecorder ?? recorder
         // Re-baseline the timer on resume so it shows recorded time,
         // not wall-clock time across the pause.
         let state = RecordingActivityAttributes.ContentState(
-            startedAt: Date().addingTimeInterval(-(activityRecorder ?? recorder).recordingTime),
+            startedAt: Date().addingTimeInterval(-sourceRecorder.recordingTime),
             isPaused: paused,
-            pausedReason: paused ? "Paused — audio in use (call?) · auto-resumes" : nil
+            pausedReason: paused ? sourceRecorder.recordingStatusText : nil
         )
         await activity.update(ActivityContent(state: state, staleDate: nil))
     }
@@ -260,7 +261,7 @@ final class BackgroundCaptureService {
                 note.title = title
             }
 
-            let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+            let projects = libraryVisibleProjects((try? context.fetch(FetchDescriptor<Project>())) ?? [])
             let tags = (try? context.fetch(FetchDescriptor<Tag>())) ?? []
             await IntelligenceService.shared.processNoteSave(
                 note: note,

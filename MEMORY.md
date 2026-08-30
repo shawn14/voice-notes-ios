@@ -14,6 +14,8 @@ The entire app UI centers on a single record button. `IntentClassifier` analyzes
 
 This was a deliberate decision to eliminate cognitive overhead. Voice apps fail when they make users think about categories, folders, or modes before speaking.
 
+2026-08-29 refinement: keep Record as the single primary action, but allow a small header `Ask` button as the keyboard/accessibility path into the same RAG system. It is not a second capture mode and should not grow into a dashboard.
+
 ## Ghost Text Coaching System
 
 Subtle placeholder text guides users on what to say, appearing in three contexts:
@@ -64,8 +66,15 @@ Key positioning: EEON is not a transcription app. It's an AI memory. The competi
 
 ## Key Technical Decisions
 
+- **Apple-centric privacy stays locked**: EEON should prefer Apple-owned and user-controlled surfaces: Sign in with Apple, CloudKit/iCloud Drive, Files folder access, Calendar read context, Reminders sync, Share Extension ingest, and local Mac MCP over a user-owned exported vault. Do not chase HeyPocket parity by adding a hosted remote MCP/API, account-wide cloud vault, OAuth fan-out, or third-party write-back by default; those need an explicit product/security decision because they change the privacy promise.
 - **Cloud embeddings (OpenAI API), not on-device**: On-device embedding models are too large and too slow for real-time use on older iPhones. Cloud embeddings via OpenAI are fast, high-quality, and the marginal API cost per note is negligible.
 - **Accelerate framework for vector search**: Apple's Accelerate framework provides SIMD-optimized vector math for cosine similarity. Fast enough for thousands of notes without needing a dedicated vector database. Keeps the architecture simple — embeddings stored as Data blobs in SwiftData, search runs locally.
 - **SwiftData over Core Data**: Continued from v1. SwiftData's Swift-native API and CloudKit integration make it the right choice for a modern SwiftUI app despite some rough edges.
 - **No dedicated vector database**: At the scale of personal voice notes (hundreds to low thousands), brute-force cosine similarity via Accelerate is fast enough. Adding SQLite-vec or similar would add complexity without meaningful performance gain.
-- **GPT-4o-mini for all AI tasks**: Cost-effective, fast, and good enough for extraction, enhancement, intent classification, and RAG synthesis. No need for full GPT-4o at this stage.
+- **GPT-4o-mini for extraction/enhancement by default**: Cost-effective, fast, and good enough for the always-on note pipeline. Ask EEON now has a Settings preference: Fast uses `gpt-4o-mini`, Balanced and Thorough use `gpt-4o`, with Thorough giving synthesis-heavy questions more answer budget.
+
+## Hey Pocket Gap Pass — 2026-08-28
+
+The first 7-gap parity pass is built as native EEON primitives, not new dashboards: MCP reads the folder-exported markdown vault; speaker labels are editable per note; Knowledge Overview has a Memory Map; Tasks can be shared/exported through the system share sheet for third-party task apps; folder export writes `eeon-vault.html` for desktop/browser reading; Ask EEON has Fast/Balanced/Thorough answer modes; Note Detail can regenerate from a selected transcript excerpt for noisy recordings.
+
+Release gate: `speakerLabelsJSON` is a new optional `Note` field. The app seed key is `cloudKitSchemaSeedDidRun_v6`; run a DEBUG build so Development registers `CD_speakerLabelsJSON`, then deploy CloudKit schema changes before any App Store build.

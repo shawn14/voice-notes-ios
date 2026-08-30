@@ -28,6 +28,7 @@ struct TasksView: View {
 
     @State private var showingCompleted = false
     @State private var showingAddTask = false
+    @State private var showingCompleteVisibleConfirm = false
     @State private var newTaskText = ""
     @State private var navigateToNote: Note?
 
@@ -41,6 +42,28 @@ struct TasksView: View {
 
     private var visibleActions: [ExtractedAction] {
         actions.filter { showingCompleted ? true : !$0.isCompleted }
+    }
+
+    private var hasOpenVisibleActions: Bool {
+        visibleActions.contains { !$0.isCompleted }
+    }
+
+    private var hasCompletedVisibleActions: Bool {
+        visibleActions.contains { $0.isCompleted }
+    }
+
+    private var visibleTasksShareText: String {
+        guard !visibleActions.isEmpty else { return "EEON Tasks" }
+
+        var lines: [String] = ["EEON Tasks"]
+        for (day, dayActions) in grouped {
+            lines.append("")
+            lines.append(day)
+            for action in dayActions {
+                lines.append(taskExportLine(for: action))
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     private var grouped: [(String, [ExtractedAction])] {
@@ -119,6 +142,27 @@ struct TasksView: View {
                         .foregroundStyle(Color.eeonAccent)
                         .frame(minHeight: EEONLayout.minTarget)
                 }
+
+                if !visibleActions.isEmpty {
+                    ShareLink(item: visibleTasksShareText) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.eeonAccent)
+                            .frame(minHeight: EEONLayout.minTarget)
+                    }
+                }
+
+                if hasOpenVisibleActions {
+                    Button {
+                        showingCompleteVisibleConfirm = true
+                    } label: {
+                        Label("Complete visible", systemImage: "checkmark.circle")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.eeonAccent)
+                            .frame(minHeight: EEONLayout.minTarget)
+                    }
+                }
+
                 Spacer()
                 Button(showingCompleted ? "Hide completed" : "Show completed") {
                     withAnimation { showingCompleted.toggle() }
@@ -134,6 +178,14 @@ struct TasksView: View {
             TextField("What needs doing?", text: $newTaskText)
             Button("Cancel", role: .cancel) { newTaskText = "" }
             Button("Add") { addTask() }
+        }
+        .confirmationDialog("Complete Visible Tasks?", isPresented: $showingCompleteVisibleConfirm, titleVisibility: .visible) {
+            Button("Complete Visible Tasks") {
+                markVisibleComplete()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This marks the tasks currently shown as complete and updates any matching Apple Reminders.")
         }
     }
 
@@ -165,7 +217,13 @@ struct TasksView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    ShareLink(item: visibleTasksShareText) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .disabled(visibleActions.isEmpty)
+                    .accessibilityLabel("Share tasks")
+
                     Button {
                         showingCompleted.toggle()
                     } label: {
@@ -174,6 +232,26 @@ struct TasksView: View {
                               : "line.3.horizontal.decrease.circle")
                     }
                     .accessibilityLabel(showingCompleted ? "Hide completed" : "Show completed")
+
+                    Menu {
+                        Button {
+                            showingCompleteVisibleConfirm = true
+                        } label: {
+                            Label("Mark Visible Complete", systemImage: "checkmark.circle")
+                        }
+                        .disabled(!hasOpenVisibleActions)
+
+                        Button {
+                            reopenVisible()
+                        } label: {
+                            Label("Reopen Visible", systemImage: "arrow.uturn.backward.circle")
+                        }
+                        .disabled(!hasCompletedVisibleActions)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .disabled(visibleActions.isEmpty)
+                    .accessibilityLabel("Task actions")
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -186,6 +264,14 @@ struct TasksView: View {
                 TextField("What needs doing?", text: $newTaskText)
                 Button("Cancel", role: .cancel) { newTaskText = "" }
                 Button("Add") { addTask() }
+            }
+            .confirmationDialog("Complete Visible Tasks?", isPresented: $showingCompleteVisibleConfirm, titleVisibility: .visible) {
+                Button("Complete Visible Tasks") {
+                    markVisibleComplete()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This marks the tasks currently shown as complete and updates any matching Apple Reminders.")
             }
         }
     }
@@ -306,12 +392,56 @@ struct TasksView: View {
         return notes.first { $0.id == id }
     }
 
+    private func taskExportLine(for action: ExtractedAction) -> String {
+        let checkbox = action.isCompleted ? "x" : " "
+        var detail: [String] = []
+        if !action.owner.isEmpty && action.owner.lowercased() != "me" {
+            detail.append(action.owner)
+        }
+        if action.deadline != "TBD" && !action.deadline.isEmpty {
+            detail.append(action.deadline)
+        }
+        if action.priority != "Normal" && !action.priority.isEmpty {
+            detail.append(action.priority)
+        }
+        let suffix = detail.isEmpty ? "" : " — " + detail.joined(separator: " · ")
+        return "- [\(checkbox)] \(action.content)\(suffix)"
+    }
+
     private func toggle(_ action: ExtractedAction) {
         withAnimation(.easeInOut(duration: 0.2)) {
             action.isCompleted.toggle()
             action.completedAt = action.isCompleted ? Date() : nil
             try? modelContext.save()
         }
+        persistTaskChanges([action])
+    }
+
+    private func markVisibleComplete() {
+        var changed: [ExtractedAction] = []
+        withAnimation(.easeInOut(duration: 0.2)) {
+            let now = Date()
+            for action in visibleActions where !action.isCompleted {
+                action.isCompleted = true
+                action.completedAt = now
+                changed.append(action)
+            }
+            try? modelContext.save()
+        }
+        persistTaskChanges(changed)
+    }
+
+    private func reopenVisible() {
+        var changed: [ExtractedAction] = []
+        withAnimation(.easeInOut(duration: 0.2)) {
+            for action in visibleActions where action.isCompleted {
+                action.isCompleted = false
+                action.completedAt = nil
+                changed.append(action)
+            }
+            try? modelContext.save()
+        }
+        persistTaskChanges(changed)
     }
 
     private func addTask() {
@@ -322,5 +452,22 @@ struct TasksView: View {
         modelContext.insert(action)
         try? modelContext.save()
         Task { await EventKitSyncService.shared.sync(actions: [action]) }
+    }
+
+    private func persistTaskChanges(_ changed: [ExtractedAction]) {
+        guard !changed.isEmpty else { return }
+
+        var exportedNoteIds = Set<UUID>()
+        for action in changed {
+            if let note = sourceNote(for: action), exportedNoteIds.insert(note.id).inserted {
+                DocumentExportService.shared.export(note: note, context: modelContext)
+            }
+        }
+
+        Task {
+            for action in changed {
+                await EventKitSyncService.shared.updateCompletion(for: action)
+            }
+        }
     }
 }

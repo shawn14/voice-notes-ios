@@ -113,6 +113,31 @@ final class EventKitSyncService {
         }
     }
 
+    /// Mirror completion changes from EEON back into the reminder created for
+    /// an extracted action. Best effort: no-op if Reminders sync is off, access
+    /// is missing, or the action was never pushed to Reminders.
+    func updateCompletion(for action: ExtractedAction) async {
+        guard isEnabled else { return }
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return }
+
+        var map = reminderMap()
+        guard let identifier = map[action.id.uuidString] else { return }
+        guard let reminder = store.calendarItem(withIdentifier: identifier) as? EKReminder else {
+            map.removeValue(forKey: action.id.uuidString)
+            saveReminderMap(map)
+            return
+        }
+
+        reminder.isCompleted = action.isCompleted
+        reminder.completionDate = action.isCompleted ? (action.completedAt ?? Date()) : nil
+
+        do {
+            try store.save(reminder, commit: true)
+        } catch {
+            print("[EventKitSync] reminder completion update failed: \(error)")
+        }
+    }
+
     /// Find or create the "EEON" list in Reminders.
     private func eeonRemindersList() throws -> EKCalendar {
         if let existing = store.calendars(for: .reminder).first(where: { $0.title == "EEON" }) {

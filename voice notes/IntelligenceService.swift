@@ -108,7 +108,7 @@ final class IntelligenceService {
                 // Auto-match project (all source types)
                 if let inferredName = result.inferredProject, !inferredName.isEmpty {
                     let textToMatch = "\(inferredName) \(note.content)"
-                    if let match = ProjectMatcher.findMatch(for: textToMatch, in: projects) {
+                    if let match = ProjectMatcher.findMatch(for: textToMatch, in: libraryVisibleProjects(projects)) {
                         note.projectId = match.project.id
 
                         // Update project activity
@@ -195,7 +195,7 @@ final class IntelligenceService {
                 // Auto-export the finished note as markdown to the user's
                 // chosen folder (Drive/OneDrive/Obsidian via Files). No-op
                 // unless enabled in Settings.
-                DocumentExportService.shared.export(note: note)
+                DocumentExportService.shared.export(note: note, context: context)
 
                 // Persist unresolved items only for voice notes
                 if note.sourceType == .voice {
@@ -216,10 +216,10 @@ final class IntelligenceService {
         // Runs outside the MainActor block because it makes an API call.
         if PersonaPresetStore.autoSummarizeEnabled,
            SubscriptionManager.shared.isSubscribed,
-           await !note.enhancedNoteEdited,
+           !note.enhancedNoteEdited,
            let raw = PersonaPresetStore.defaultTransformRaw,
            let transform = AITransformType(rawValue: raw) {
-            let source = await (note.enhancedNoteText ?? transcript)
+            let source = note.enhancedNoteText ?? transcript
             let template = RewriteTemplate(
                 id: "auto-" + transform.rawValue,
                 name: transform.rawValue,
@@ -231,7 +231,11 @@ final class IntelligenceService {
             if let styled = try? await RewriteService.rewrite(
                 transcript: source, template: template
             ), !styled.isEmpty {
-                await MainActor.run { note.enhancedNoteText = styled }
+                await MainActor.run {
+                    note.enhancedNoteText = styled
+                    note.updatedAt = Date()
+                    DocumentExportService.shared.export(note: note, context: context)
+                }
             }
         }
         } catch {
@@ -579,7 +583,10 @@ final class IntelligenceService {
         // Fetch all existing people
         let descriptor = FetchDescriptor<MentionedPerson>()
         let existingPeople = (try? context.fetch(descriptor)) ?? []
-        let existingByNormalized = Dictionary(uniqueKeysWithValues: existingPeople.map { ($0.normalizedName, $0) })
+        var existingByNormalized: [String: MentionedPerson] = [:]
+        for person in existingPeople where existingByNormalized[person.normalizedName] == nil {
+            existingByNormalized[person.normalizedName] = person
+        }
 
         await MainActor.run {
             for name in peopleNames {
@@ -640,11 +647,18 @@ final class IntelligenceService {
         commitments: [ExtractedCommitment],
         unresolved: [UnresolvedItem]
     ) async {
+        let visibleNotes = librarySearchableNotes(notes)
+        let visibleProjects = libraryVisibleProjects(projects)
+        let visibleItems = items.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
+        let visibleActions = actions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
+        let visibleCommitments = commitments.filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
+        let visibleUnresolved = unresolved.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
+
         // Check if we have a valid cached brief
         if let cached = sessionBrief, !cached.isStale {
             let needsRefresh = UserDefaults.standard.bool(forKey: Keys.sessionNeedsRefresh)
             let lastNoteCount = UserDefaults.standard.integer(forKey: Keys.lastBriefNoteCount)
-            let noteCountChanged = notes.count != lastNoteCount
+            let noteCountChanged = visibleNotes.count != lastNoteCount
 
             // Skip refresh if cache is fresh AND note count unchanged AND not explicitly marked stale
             if !needsRefresh && !cached.isSoftExpired && !noteCountChanged {
@@ -657,32 +671,32 @@ final class IntelligenceService {
 
         // Build new session brief (all local computation)
         let newBrief = SessionBriefBuilder.build(
-            notes: notes,
-            projects: projects,
-            items: items,
+            notes: visibleNotes,
+            projects: visibleProjects,
+            items: visibleItems,
             movements: movements,
-            actions: actions,
-            commitments: commitments,
-            unresolved: unresolved
+            actions: visibleActions,
+            commitments: visibleCommitments,
+            unresolved: visibleUnresolved
         )
 
         await MainActor.run {
             sessionBrief = newBrief
             newBrief.saveToCache()
             UserDefaults.standard.set(false, forKey: Keys.sessionNeedsRefresh)
-            UserDefaults.standard.set(notes.count, forKey: Keys.lastBriefNoteCount)
+            UserDefaults.standard.set(visibleNotes.count, forKey: Keys.lastBriefNoteCount)
             isRefreshingSession = false
         }
 
         // Also update status counters
         StatusCounters.shared.recompute(
-            notes: notes,
-            actions: actions,
-            commitments: commitments,
-            items: items,
-            unresolved: unresolved
+            notes: visibleNotes,
+            actions: visibleActions,
+            commitments: visibleCommitments,
+            items: visibleItems,
+            unresolved: visibleUnresolved
         )
-        StatusCounters.shared.updateActiveProjects(count: projects.filter { !$0.isArchived }.count)
+        StatusCounters.shared.updateActiveProjects(count: visibleProjects.count)
     }
 
     // MARK: - Tier 3: Daily (on day rollover)
@@ -721,17 +735,23 @@ final class IntelligenceService {
         guard !isRefreshingDaily else { return }
         isRefreshingDaily = true
         dailyBriefError = nil
+        let visibleNotes = librarySearchableNotes(notes)
+        let visibleProjects = libraryVisibleProjects(projects)
+        let visibleItems = items.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
+        let visibleActions = actions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
+        let visibleCommitments = commitments.filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
+        let visibleUnresolved = unresolved.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
 
         // Generate daily brief with AI
         do {
             let brief = try await generateDailyBrief(
-                notes: notes,
-                projects: projects,
-                items: items,
+                notes: visibleNotes,
+                projects: visibleProjects,
+                items: visibleItems,
                 movements: movements,
-                actions: actions,
-                commitments: commitments,
-                unresolved: unresolved
+                actions: visibleActions,
+                commitments: visibleCommitments,
+                unresolved: visibleUnresolved
             )
 
             // Tier 3: Lint knowledge articles
@@ -794,16 +814,22 @@ final class IntelligenceService {
         guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
             throw DailyBriefError.noAPIKey
         }
+        let visibleNotes = librarySearchableNotes(notes)
+        let visibleProjects = libraryVisibleProjects(projects)
+        let visibleItems = items.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
+        let visibleActions = actions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
+        let visibleCommitments = commitments.filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
+        let visibleUnresolved = unresolved.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
 
         // Build context string
         let contextString = buildBriefContext(
-            notes: notes,
-            projects: projects,
-            items: items,
+            notes: visibleNotes,
+            projects: visibleProjects,
+            items: visibleItems,
             movements: movements,
-            actions: actions,
-            commitments: commitments,
-            unresolved: unresolved
+            actions: visibleActions,
+            commitments: visibleCommitments,
+            unresolved: visibleUnresolved
         )
 
         // Call AI
@@ -841,10 +867,10 @@ final class IntelligenceService {
         }
 
         // Snapshot metrics
-        brief.openItemCount = items.filter { $0.kanbanColumn != .done }.count
-        brief.stalledItemCount = HealthScoreService.detectDroppedBalls(items: items).count
-        brief.momentumDirection = MomentumService.calculateMomentum(movements: movements, items: items).direction.rawValue
-        brief.activeProjectCount = projects.filter { !$0.isArchived }.count
+        brief.openItemCount = visibleItems.filter { $0.kanbanColumn != .done }.count
+        brief.stalledItemCount = HealthScoreService.detectDroppedBalls(items: visibleItems).count
+        brief.momentumDirection = MomentumService.calculateMomentum(movements: movements, items: visibleItems).direction.rawValue
+        brief.activeProjectCount = visibleProjects.count
 
         let calendar = Calendar.current
         let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()
@@ -852,10 +878,10 @@ final class IntelligenceService {
         let startOfToday = calendar.startOfDay(for: Date())
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()
 
-        brief.notesYesterday = notes.filter {
+        brief.notesYesterday = visibleNotes.filter {
             $0.createdAt >= startOfYesterday && $0.createdAt < startOfToday
         }.count
-        brief.notesThisWeek = notes.filter { $0.createdAt >= startOfWeek }.count
+        brief.notesThisWeek = visibleNotes.filter { $0.createdAt >= startOfWeek }.count
 
         return brief
     }
@@ -870,12 +896,16 @@ final class IntelligenceService {
         unresolved: [UnresolvedItem]
     ) -> String {
         var context = ""
+        let visibleNotes = librarySearchableNotes(notes)
+        let visibleProjects = libraryVisibleProjects(projects)
+        let visibleItems = items.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
+        let visibleCommitments = commitments.filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
 
         // Build project lookup dictionary for O(1) access
-        let projectLookup = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0.name) })
+        let projectLookup = Dictionary(uniqueKeysWithValues: visibleProjects.map { ($0.id, $0.name) })
 
         // Recent notes (last 15)
-        let recentNotes = notes.sorted { $0.createdAt > $1.createdAt }.prefix(15)
+        let recentNotes = visibleNotes.sorted { $0.createdAt > $1.createdAt }.prefix(15)
         if !recentNotes.isEmpty {
             context += "RECENT NOTES:\n"
             for note in recentNotes {
@@ -887,7 +917,7 @@ final class IntelligenceService {
         }
 
         // Active items by column
-        let activeItems = items.filter { $0.kanbanColumn != .done }
+        let activeItems = visibleItems.filter { $0.kanbanColumn != .done }
         let columns: [KanbanColumn] = [.thinking, .decided, .doing, .waiting]
         for column in columns {
             let columnItems = activeItems.filter { $0.kanbanColumn == column }
@@ -901,7 +931,7 @@ final class IntelligenceService {
         }
 
         // Dropped balls
-        let droppedBalls = HealthScoreService.detectDroppedBalls(items: items)
+        let droppedBalls = HealthScoreService.detectDroppedBalls(items: visibleItems)
         if !droppedBalls.isEmpty {
             context += "NEEDS ATTENTION (\(droppedBalls.count) items):\n"
             for ball in droppedBalls.prefix(5) {
@@ -911,7 +941,7 @@ final class IntelligenceService {
         }
 
         // Open commitments
-        let openCommitments = commitments.filter { !$0.isCompleted }
+        let openCommitments = visibleCommitments.filter { !$0.isCompleted }
         if !openCommitments.isEmpty {
             context += "OPEN COMMITMENTS (\(openCommitments.count)):\n"
             for commitment in openCommitments.prefix(5) {
@@ -921,7 +951,7 @@ final class IntelligenceService {
         }
 
         // Momentum
-        let momentum = MomentumService.calculateMomentum(movements: movements, items: items)
+        let momentum = MomentumService.calculateMomentum(movements: movements, items: visibleItems)
         context += "MOMENTUM: \(momentum.direction.rawValue) (this week: \(momentum.movementsThisWeek), last week: \(momentum.movementsLastWeek))\n"
         context += "Completed this week: \(momentum.completedThisWeek)\n"
 

@@ -16,16 +16,21 @@ enum AITabBuilder {
         decisions: [ExtractedDecision],
         people: [MentionedPerson]
     ) -> AITabData {
+        let visibleNotes = libraryVisibleNotes(notes)
+        let visibleActions = actions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
+        let visibleCommitments = commitments.filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
+        let visibleDecisions = decisions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.affects) }
+        let visiblePeople = libraryVisiblePeople(people)
         let now = Date()
         let calendar = Calendar.current
-        let noteLookup = Dictionary(uniqueKeysWithValues: notes.map { ($0.id, $0) })
+        let noteLookup = Dictionary(uniqueKeysWithValues: visibleNotes.map { ($0.id, $0) })
 
         return AITabData(
-            attentionItems: buildAIAttentionItems(notes: notes, actions: actions, commitments: commitments, noteLookup: noteLookup, now: now, calendar: calendar),
-            activeThreads: buildActiveThreads(notes: notes, now: now, calendar: calendar),
-            peopleSummaries: buildPeopleSummaries(people: people, commitments: commitments),
-            recentDecisions: buildRecentDecisions(decisions: decisions, noteLookup: noteLookup, now: now, calendar: calendar),
-            staleItems: buildStaleItems(notes: notes, actions: actions, noteLookup: noteLookup, now: now, calendar: calendar)
+            attentionItems: buildAIAttentionItems(notes: visibleNotes, actions: visibleActions, commitments: visibleCommitments, noteLookup: noteLookup, now: now, calendar: calendar),
+            activeThreads: buildActiveThreads(notes: visibleNotes, now: now, calendar: calendar),
+            peopleSummaries: buildPeopleSummaries(people: visiblePeople, commitments: visibleCommitments),
+            recentDecisions: buildRecentDecisions(decisions: visibleDecisions, noteLookup: noteLookup, now: now, calendar: calendar),
+            staleItems: buildStaleItems(notes: visibleNotes, actions: visibleActions, noteLookup: noteLookup, now: now, calendar: calendar)
         )
     }
 

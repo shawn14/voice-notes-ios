@@ -55,7 +55,7 @@ final class KnowledgeCompiler {
             markDirty(article: article, noteId: note.id)
         default:
             // People mentioned in this note
-            for personName in note.mentionedPeople {
+            for personName in note.mentionedPeople where !libraryIsSchemaSeedName(personName) {
                 let article = findOrCreate(
                     name: personName,
                     type: .person,
@@ -67,7 +67,7 @@ final class KnowledgeCompiler {
 
             // Topics extracted from this note — .document source upgrades topic → reference
             let topicType: KnowledgeArticleType = (note.sourceType == .document) ? .reference : .topic
-            for topic in note.topics {
+            for topic in note.topics where !libraryIsSchemaSeedName(topic) {
                 let article = findOrCreate(
                     name: topic,
                     type: topicType,
@@ -78,7 +78,9 @@ final class KnowledgeCompiler {
             }
 
             // Inferred project
-            if let projectName = note.inferredProjectName, !projectName.isEmpty {
+            if let projectName = note.inferredProjectName,
+               !projectName.isEmpty,
+               !libraryIsSchemaSeedName(projectName) {
                 let article = findOrCreate(
                     name: projectName,
                     type: .project,
@@ -91,7 +93,7 @@ final class KnowledgeCompiler {
 
         // Log ingest event
         let affectedNames = (note.mentionedPeople + note.topics + [note.inferredProjectName].compactMap { $0 })
-            .filter { !$0.isEmpty }
+            .filter { !$0.isEmpty && !libraryIsSchemaSeedName($0) }
         let ingestTitle: String
         switch note.sourceType {
         case .voice: ingestTitle = "Recorded voice note"
@@ -200,12 +202,20 @@ final class KnowledgeCompiler {
             predicate: #Predicate { $0.isDirty == true },
             sortBy: [SortDescriptor(\.lastMentionedAt, order: .reverse)]
         )
-        descriptor.fetchLimit = 5
+        descriptor.fetchLimit = 20
 
-        guard let dirtyArticles = try? context.fetch(descriptor), !dirtyArticles.isEmpty else {
+        guard let fetchedDirtyArticles = try? context.fetch(descriptor), !fetchedDirtyArticles.isEmpty else {
             await MainActor.run {
                 isCompiling = false
                 // Even with nothing to compile, make sure downstream consumers see the latest cached state
+                ContextAssembler.shared.refresh(from: context)
+            }
+            return
+        }
+        let dirtyArticles = Array(fetchedDirtyArticles.filter { !libraryIsSchemaSeedName($0.name) }.prefix(5))
+        guard !dirtyArticles.isEmpty else {
+            await MainActor.run {
+                isCompiling = false
                 ContextAssembler.shared.refresh(from: context)
             }
             return
@@ -319,6 +329,7 @@ final class KnowledgeCompiler {
                     context.insert(compileEvent)
 
                     try? context.save()
+                    DocumentExportService.shared.export(article: article)
                 }
             } catch {
                 print("[KnowledgeCompiler] Failed to compile article '\(article.name)': \(error)")
@@ -352,7 +363,7 @@ final class KnowledgeCompiler {
         // Match recompileDirtyArticles' pattern: read SwiftData on the main actor,
         // then do API work off-actor, then mutate back on the main actor.
         let allArticles = (try? context.fetch(FetchDescriptor<KnowledgeArticle>())) ?? []
-        let nonIndexArticles = allArticles.filter { $0.articleType != .index }
+        let nonIndexArticles = libraryVisibleArticles(allArticles).filter { $0.articleType != .index }
         guard !nonIndexArticles.isEmpty else { return }
 
         // Find or create the singleton index article. Avoid returning the @Model across
@@ -423,6 +434,7 @@ final class KnowledgeCompiler {
                 )
                 context.insert(event)
                 try? context.save()
+                DocumentExportService.shared.export(article: indexArticle)
 
                 UserDefaults.standard.set(now, forKey: Keys.lastIndexCompileDate)
             }
@@ -437,7 +449,7 @@ final class KnowledgeCompiler {
     func lintArticles(context: ModelContext) async -> [KnowledgeLintResult] {
         guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else { return [] }
 
-        let allArticles = (try? context.fetch(FetchDescriptor<KnowledgeArticle>())) ?? []
+        let allArticles = libraryVisibleArticles((try? context.fetch(FetchDescriptor<KnowledgeArticle>())) ?? [])
         guard !allArticles.isEmpty else { return [] }
 
         let summaries = allArticles.map { article -> (name: String, type: String, summary: String, openThreadCount: Int, daysSinceLastMention: Int) in

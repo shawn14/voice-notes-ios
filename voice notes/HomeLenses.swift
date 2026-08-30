@@ -15,7 +15,7 @@
 import SwiftUI
 
 enum HomeLens: String, CaseIterable, Identifiable {
-    case notes = "Notes"
+    case notes = "Library"
     case calendar = "Calendar"
 
     var id: String { rawValue }

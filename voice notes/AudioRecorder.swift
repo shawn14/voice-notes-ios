@@ -45,6 +45,7 @@ final class AudioRecorder: NSObject {
     var currentFileName: String?
 
     var isPaused = false
+    private(set) var isManuallyPaused = false
     /// Fired on pause/resume so an owner (BackgroundCaptureService) can
     /// mirror the state into a Live Activity.
     var onPauseStateChange: ((Bool) -> Void)?
@@ -96,6 +97,7 @@ final class AudioRecorder: NSObject {
 
         isRecording = true
         AudioRecorder.isAnyRecording = true
+        isManuallyPaused = false
         currentFileName = fileName
         InFlightRecordingMarker.set(fileName: fileName)
         installInterruptionObservers()
@@ -121,6 +123,7 @@ final class AudioRecorder: NSObject {
         resumeRetryTask?.cancel()
         resumeRetryTask = nil
         isPaused = false
+        isManuallyPaused = false
         isRecording = false
         AudioRecorder.isAnyRecording = false
 
@@ -196,13 +199,34 @@ final class AudioRecorder: NSObject {
         case .began:
             markPaused()
         case .ended:
-            attemptResume()
+            if !isManuallyPaused {
+                attemptResume()
+            }
         @unknown default:
             break
         }
     }
 
+    func pauseRecording() {
+        guard isRecording, !isPaused else { return }
+        resumeRetryTask?.cancel()
+        resumeRetryTask = nil
+        isManuallyPaused = true
+        pauseRecorder()
+    }
+
+    func resumeRecording() {
+        guard isRecording, isPaused else { return }
+        isManuallyPaused = false
+        attemptResume()
+    }
+
     private func markPaused() {
+        guard isRecording, !isPaused else { return }
+        pauseRecorder()
+    }
+
+    private func pauseRecorder() {
         audioRecorder?.pause()
         timer?.invalidate()
         timer = nil
@@ -213,7 +237,7 @@ final class AudioRecorder: NSObject {
     private func attemptResume() {
         resumeRetryTask?.cancel()
         resumeRetryTask = Task { @MainActor [weak self] in
-            while let self, self.isPaused, self.isRecording, !Task.isCancelled {
+            while let self, self.isPaused, self.isRecording, !self.isManuallyPaused, !Task.isCancelled {
                 do {
                     try AVAudioSession.sharedInstance().setActive(true)
                     if self.audioRecorder?.record() == true {
@@ -338,6 +362,13 @@ final class AudioRecorder: NSObject {
     var currentRecordingURL: URL? {
         guard let fileName = currentFileName else { return nil }
         return getDocumentsDirectory().appendingPathComponent(fileName)
+    }
+
+    var recordingStatusText: String {
+        if isPaused {
+            return isManuallyPaused ? "Paused" : "Paused · auto-resumes"
+        }
+        return "Recording"
     }
 
     var formattedTime: String {

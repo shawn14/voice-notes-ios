@@ -33,17 +33,18 @@ struct ProjectMatcher {
     /// Find the best matching project for given text
     /// Returns nil if no confident match found (goes to inbox)
     static func findMatch(for text: String, in projects: [Project]) -> ProjectMatch? {
-        guard !projects.isEmpty else { return nil }
+        let visibleProjects = libraryVisibleProjects(projects)
+        guard !visibleProjects.isEmpty else { return nil }
 
         let normalizedText = normalize(text)
 
         // Layer 1: Exact alias match (highest confidence)
-        if let aliasMatch = matchByAlias(text: normalizedText, projects: projects) {
+        if let aliasMatch = matchByAlias(text: normalizedText, projects: visibleProjects) {
             return aliasMatch
         }
 
         // Layer 2: Fuzzy match (medium confidence)
-        if let fuzzyMatch = matchByFuzzy(text: normalizedText, projects: projects) {
+        if let fuzzyMatch = matchByFuzzy(text: normalizedText, projects: visibleProjects) {
             return fuzzyMatch
         }
 

@@ -150,7 +150,7 @@ actor CloudKitShareService {
 
 extension SharedNote {
     /// App Store URL
-    static let appStoreURL = URL(string: "https://apps.apple.com/app/id6758273499")!
+    static let appStoreURL = URL(string: "https://apps.apple.com/us/app/voice-notes-knowledge-wiki/id6758273499")!
 
     /// Universal Link — opens in-app if installed, falls back to eeon.com in browser
     var shareableURL: URL {

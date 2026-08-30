@@ -215,7 +215,7 @@ struct TuneConversationView: View {
                 }
             }
 
-            Text("Pick one and EEON tunes itself — what it pulls from your notes, how it writes them, how they're filed.")
+            Text("Pick one and EEON adapts what it pulls from your notes, how it writes them, and how they're filed.")
                 .font(.caption)
                 .foregroundStyle(.eeonTextSecondary)
 
@@ -269,7 +269,7 @@ struct TuneConversationView: View {
             appliedPresetId = preset.id
             isSaving = false
             withAnimation(.easeInOut(duration: 0.3)) {
-                savedConfirmation = "EEON is tuned for " + preset.name.lowercased() + " work"
+                savedConfirmation = "Personalization set for " + preset.name.lowercased() + " work"
             }
         }
 
@@ -290,7 +290,7 @@ struct TuneConversationView: View {
                     .frame(width: 32, height: 32)
             }
             Spacer()
-            Text("Tune EEON")
+            Text("Personalization")
                 .font(.headline)
                 .foregroundStyle(.eeonTextPrimary)
                 .lineLimit(1)
@@ -991,7 +991,7 @@ struct TuneConversationView: View {
 
         let sourceType: NoteSourceType = (field == .profile) ? .profileSeed : .purposeSeed
         let title = (field == .profile) ? "Your Profile" : "Your Purpose"
-        let toast = (field == .profile) ? "EEON learned that" : "EEON is tuning itself to you"
+        let toast = (field == .profile) ? "EEON learned that" : "Personalization updated"
 
         await MainActor.run { isSaving = true }
 

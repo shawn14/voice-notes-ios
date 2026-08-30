@@ -78,7 +78,25 @@ class AuthService {
     }
 
     var displayName: String {
-        userName ?? userEmail ?? "User"
+        cleaned(userName) ?? cleaned(userEmail) ?? "Apple Account"
+    }
+
+    var firstNameForGreeting: String? {
+        guard let fullName = cleaned(userName) else { return nil }
+        let firstName = String(fullName.split(separator: " ").first ?? Substring(fullName))
+        let trimmed = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let isValidName = trimmed.count >= 2
+            && trimmed.first?.isUppercase == true
+            && trimmed.allSatisfy { $0.isLetter }
+            && !["Test", "User", "Name", "None", "Null", "Admin", "Default"].contains(trimmed)
+
+        return isValidName ? trimmed : nil
+    }
+
+    private func cleaned(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     // MARK: - Sign In
@@ -90,11 +108,9 @@ class AuthService {
                 // Store user ID (always provided)
                 setUserId(appleIDCredential.user)
 
-                // Email and name are only provided on first sign-in
-                if let email = appleIDCredential.email {
-                    setUserEmail(email)
-                }
+                storeEmailIfAvailable(from: appleIDCredential)
 
+                // Name is only provided on first sign-in
                 if let fullName = appleIDCredential.fullName {
                     let name = [fullName.givenName, fullName.familyName]
                         .compactMap { $0 }
@@ -122,6 +138,44 @@ class AuthService {
     private func setUserEmail(_ value: String?) {
         userEmail = value
         UserDefaults.standard.set(value, forKey: userEmailKey)
+    }
+
+    private func storeEmailIfAvailable(from credential: ASAuthorizationAppleIDCredential) {
+        if let email = cleaned(credential.email) {
+            setUserEmail(email)
+            return
+        }
+
+        if let email = emailFromIdentityToken(credential.identityToken) {
+            setUserEmail(email)
+        }
+    }
+
+    private func emailFromIdentityToken(_ tokenData: Data?) -> String? {
+        guard let tokenData,
+              let token = String(data: tokenData, encoding: .utf8) else {
+            return nil
+        }
+
+        let segments = token.split(separator: ".")
+        guard segments.count >= 2 else { return nil }
+
+        var payload = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+
+        let padding = payload.count % 4
+        if padding > 0 {
+            payload += String(repeating: "=", count: 4 - padding)
+        }
+
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let email = json["email"] as? String else {
+            return nil
+        }
+
+        return cleaned(email)
     }
 
     // MARK: - Sign Out
@@ -318,7 +372,7 @@ struct SignInView: View {
                                 showingError = true
                             }
                         }
-                        .signInWithAppleButtonStyle(.white)
+                        .signInWithAppleButtonStyle(.black)
                         .frame(height: 54)
                         .cornerRadius(14)
 

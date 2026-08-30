@@ -50,6 +50,7 @@ struct AIHomeView: View {
     private var authService = AuthService.shared
     private var intelligenceService = IntelligenceService.shared
     private var backgroundCapture = BackgroundCaptureService.shared
+    private let recordingRed = Color(red: 1.0, green: 0.23, blue: 0.27)
 
     init(shouldStartRecording: Binding<Bool>) {
         self._shouldStartRecording = shouldStartRecording
@@ -62,7 +63,6 @@ struct AIHomeView: View {
     @State private var showingIdentity = false
     @State private var showingWhyThisHome = false
     @State private var showPaywall = false
-    @State private var showSignIn = false
     @State private var driftStatus: DriftStatus = .fresh
     @AppStorage("tuneBannerDismissedAt") private var tuneBannerDismissedRaw: Double = 0
 
@@ -82,7 +82,6 @@ struct AIHomeView: View {
 
     // Type note
     @State private var showingTypeNote = false
-    @State private var showingAskInput = false
 
     // Navigation state
     @State private var navigateToNote: Note?
@@ -104,14 +103,22 @@ struct AIHomeView: View {
     @State private var selectedTagFilter: Tag?
     @State private var showingTagManagement = false
     @State private var showingTagFilter = false
-    /// What the feed shows under the dropdown header. Notes is the default;
-    /// Tasks and Highlights render inline in the same place (2026-08-25) —
-    /// you never leave the main screen.
-    enum FeedMode { case notes, tasks, highlights }
-    @State private var feedMode: FeedMode = .notes
+    /// What the feed shows under the Library header. Library is the default;
+    /// Tasks and Highlights render inline in the same place.
+    enum FeedMode: String, CaseIterable, Identifiable, Hashable {
+        case library = "Library"
+        case tasks = "Tasks"
+        case highlights = "Highlights"
+
+        var id: String { rawValue }
+    }
+    @State private var feedMode: FeedMode = .library
     @State private var selectedCategory: String?
     @State private var showingDatePicker = false
     @State private var showingFullRecorder = false
+    #if DEBUG
+    @State private var didStartRecorderDemo = false
+    #endif
     @State private var selectedDay: Date?
     @State private var selectedIntents: Set<NoteIntent> = []
 
@@ -127,11 +134,11 @@ struct AIHomeView: View {
     /// Computed AI tab data (only built when AI tab is selected)
     private var aiTabData: AITabData {
         AITabBuilder.build(
-            notes: notes,
-            actions: extractedActions,
-            commitments: extractedCommitments,
-            decisions: extractedDecisions,
-            people: mentionedPeople
+            notes: visibleLibraryNotes,
+            actions: visibleExtractedActions,
+            commitments: visibleExtractedCommitments,
+            decisions: visibleExtractedDecisions,
+            people: visibleMentionedPeople
         )
     }
 
@@ -150,7 +157,7 @@ struct AIHomeView: View {
         // Always exclude Tune EEON seed notes — they're configuration, not memory.
         // They live inside Tune EEON; showing them in the feed would inflate counts,
         // pollute search, and let users accidentally delete their own config.
-        let visible = notes.filter { $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed }
+        let visible = librarySearchableNotes(notes)
         switch selectedTab {
         case .all:
             base = visible.filter { !$0.isArchived }
@@ -202,10 +209,50 @@ struct AIHomeView: View {
     /// excluding only the Tune EEON seed notes — which are configuration, not
     /// memory, and must never appear in the feed or search (see `filteredNotes`).
     private var searchResults: [Note] {
-        let visible = notes.filter {
-            $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed
-        }
-        return NoteKeywordSearch.match(query: activeSearchQuery, in: visible)
+        NoteKeywordSearch.match(query: activeSearchQuery, in: librarySearchableNotes(notes))
+    }
+
+    private var visibleLibraryNotes: [Note] {
+        libraryVisibleNotes(notes)
+    }
+
+    private var visibleProjects: [Project] {
+        libraryVisibleProjects(projects)
+    }
+
+    private var visibleKnowledgeArticles: [KnowledgeArticle] {
+        libraryVisibleArticles(knowledgeArticles)
+    }
+
+    private var visibleMentionedPeople: [MentionedPerson] {
+        libraryVisiblePeople(mentionedPeople)
+    }
+
+    private var visibleExtractedActions: [ExtractedAction] {
+        extractedActions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
+    }
+
+    private var visibleExtractedCommitments: [ExtractedCommitment] {
+        extractedCommitments.filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
+    }
+
+    private var visibleExtractedDecisions: [ExtractedDecision] {
+        extractedDecisions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.affects) }
+    }
+
+    private var libraryPreviewNotes: [Note] {
+        Array(visibleLibraryNotes.prefix(8))
+    }
+
+    private var librarySummaries: [LibraryCollectionSummary] {
+        libraryCollectionSummaries(
+            notes: notes,
+            projects: visibleProjects
+        )
+    }
+
+    private var libraryHomeCollections: [LibraryCollectionSummary] {
+        librarySummaries.filter { $0.kind != .recent }
     }
 
     /// Group notes by month for section headers
@@ -320,11 +367,9 @@ struct AIHomeView: View {
     private var regularBody: some View {
         NavigationSplitView {
             RecentNotesSidebar(
-                notes: notes.filter {
-                    $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed && !$0.isArchived
-                }
+                notes: libraryVisibleNotes(notes)
             )
-            .navigationTitle("Recent")
+            .navigationTitle("Library")
         } detail: {
             compactBody
         }
@@ -453,6 +498,14 @@ struct AIHomeView: View {
                         pendingReminder = ReminderCommandParser.parse("Remind me to send Lena the pricing deck on Friday at 5pm")
                     }
                 }
+                if ProcessInfo.processInfo.arguments.contains("-StartRecorderDemo"), !didStartRecorderDemo {
+                    didStartRecorderDemo = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        if !isRecording && !isTranscribing {
+                            toggleRecording()
+                        }
+                    }
+                }
                 #endif
             }
             .sheet(item: $pendingReminder) { command in
@@ -461,24 +514,8 @@ struct AIHomeView: View {
             .sheet(item: $pendingAnswerQuery) { item in
                 AnswerSheet(initialQuery: item.query)
             }
-            .sheet(isPresented: $showingAskInput) {
-                AskInputSheet(
-                    onSubmit: { query in
-                        showingAskInput = false
-                        // Small delay so the input sheet has time to dismiss
-                        // before AnswerSheet is presented over the same root.
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            pendingAnswerQuery = AnswerQuery(query: query)
-                        }
-                    },
-                    onCancel: { showingAskInput = false }
-                )
-            }
             .sheet(isPresented: $showPaywall) {
                 PaywallView(onDismiss: { showPaywall = false })
-            }
-            .sheet(isPresented: $showSignIn) {
-                SignInView()
             }
             .sheet(isPresented: $showingTypeNote) {
                 TypeNoteSheet(onSave: { text in
@@ -590,14 +627,14 @@ struct AIHomeView: View {
             .onAppear {
                 trackSession()
                 // Sync free note counter with actual database count
-                let actualCount = notes.filter { !$0.isArchived }.count
+                let actualCount = visibleLibraryNotes.count
                 UsageService.shared.syncNoteCount(actualCount: actualCount)
                 // Run drift check (local-only, throttled inside the service)
                 driftStatus = DriftDetector.shared.check(in: modelContext)
 
                 // Check for pending share extension ingests
                 Task {
-                    let projects = (try? modelContext.fetch(FetchDescriptor<Project>())) ?? []
+                    let projects = libraryVisibleProjects((try? modelContext.fetch(FetchDescriptor<Project>())) ?? [])
                     let tags = (try? modelContext.fetch(FetchDescriptor<Tag>())) ?? []
                     await IntelligenceService.shared.processPendingIngests(
                         context: modelContext,
@@ -624,8 +661,7 @@ struct AIHomeView: View {
     private var notesByDayCount: [Date: Int] {
         var out: [Date: Int] = [:]
         let calendar = Calendar.current
-        for note in notes where !note.isArchived
-            && note.sourceType != .profileSeed && note.sourceType != .purposeSeed {
+        for note in visibleLibraryNotes {
             let day = calendar.startOfDay(for: note.createdAt)
             out[day, default: 0] += 1
         }
@@ -698,9 +734,9 @@ struct AIHomeView: View {
     /// auto-filing rule as notebooks: matched project name, else first topic.
     private var topCategories: [(String, Int)] {
         var counts: [String: Int] = [:]
-        for note in notes where !note.isArchived
-            && note.sourceType != .profileSeed && note.sourceType != .purposeSeed {
-            let name = note.topics.first?.capitalized ?? "Unfiled"
+        for note in visibleLibraryNotes {
+            let topic = note.topics.first { !libraryIsSchemaSeedName($0) }
+            let name = topic?.capitalized ?? "Unfiled"
             counts[name, default: 0] += 1
         }
         return counts.sorted { $0.value > $1.value }.prefix(8).map { ($0.key, $0.value) }
@@ -803,26 +839,22 @@ struct AIHomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// The feed header IS the category filter (2026-08-21).
-    ///
-    /// Categories were a whole-screen lens you switched to in order to perform
-    /// a filter, then switched back from. Moving them into the filter sheet
-    /// fixed the takeover but still buried a one-tap choice behind a sheet.
-    /// A dropdown on the title is the shortest path: the label always states
-    /// what you are looking at, and picking a category re-filters the feed
-    /// underneath without leaving it.
-    ///
-    /// A Menu is the right control here, unlike the note-format switcher that
-    /// had to become visible chips: this label names the CURRENT VIEW ("All
-    /// notes" / "AI"), which is self-explanatory, and filtering is a thing
-    /// users already go looking for. The format switcher hid the fact that
-    /// transforming was possible at all.
-    /// The dropdown's label names the CURRENT view.
     private var feedTitle: String {
         switch feedMode {
+        case .library: return "Library"
         case .tasks: return "Tasks"
         case .highlights: return "Highlights"
-        case .notes: return selectedCategory ?? "All notes"
+        }
+    }
+
+    private var feedSubtitle: String {
+        switch feedMode {
+        case .library:
+            return libraryNoteCountLabel(visibleLibraryNotes.count)
+        case .tasks:
+            return openTaskCount == 1 ? "1 open task" : "\(openTaskCount) open tasks"
+        case .highlights:
+            return "Today"
         }
     }
 
@@ -831,85 +863,38 @@ struct AIHomeView: View {
     }
 
     private var conversationsHeader: some View {
-        HStack(spacing: EEONLayout.tight) {
-            Menu {
-                Button {
-                    withAnimation { feedMode = .notes; selectedCategory = nil }
-                } label: {
-                    if feedMode == .notes && selectedCategory == nil {
-                        Label("All notes", systemImage: "checkmark")
-                    } else {
-                        Text("All notes")
-                    }
+        VStack(alignment: .leading, spacing: EEONLayout.snug) {
+            Picker("View", selection: $feedMode) {
+                ForEach(FeedMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
                 }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
 
-                Button {
-                    withAnimation { feedMode = .tasks }
-                } label: {
-                    let title = openTaskCount > 0 ? "Tasks  (\(openTaskCount))" : "Tasks"
-                    if feedMode == .tasks {
-                        Label(title, systemImage: "checkmark")
-                    } else {
-                        Text(title)
-                    }
-                }
-
-                Button {
-                    withAnimation { feedMode = .highlights }
-                } label: {
-                    if feedMode == .highlights {
-                        Label("Highlights", systemImage: "checkmark")
-                    } else {
-                        Text("Highlights")
-                    }
-                }
-
-                if !topCategories.isEmpty {
-                    Divider()
-                    ForEach(topCategories, id: \.0) { name, count in
-                        Button {
-                            withAnimation { feedMode = .notes; selectedCategory = name }
-                        } label: {
-                            if feedMode == .notes && selectedCategory == name {
-                                Label("\(name)  (\(count))", systemImage: "checkmark")
-                            } else {
-                                Text("\(name)  (\(count))")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: EEONLayout.tight) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(feedTitle)
                         .font(.headline)
                         .foregroundStyle(.eeonTextPrimary)
-                        .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(.caption2.weight(.bold))
+                    Text(feedSubtitle)
+                        .font(EEONType.meta)
                         .foregroundStyle(.eeonTextSecondary)
                 }
-                .frame(minHeight: EEONLayout.minTarget)
-                .contentShape(Rectangle())
-            }
 
-            Spacer(minLength: EEONLayout.tight)
+                Spacer(minLength: EEONLayout.tight)
 
-            if feedMode == .notes {
-                dateFilterMenu
-            }
-
-            if feedMode == .notes && (selectedCategory != nil || selectedDay != nil) {
-                Button {
-                    withAnimation { selectedCategory = nil; selectedDay = nil }
-                } label: {
-                    Text("Clear")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.eeonAccent)
-                        .frame(minHeight: EEONLayout.minTarget)
+                if feedMode == .library {
+                    NavigationLink(destination: LibraryView()) {
+                        Label("See All", systemImage: "rectangle.stack")
+                            .font(EEONType.control)
+                            .foregroundStyle(.eeonAccent)
+                            .frame(minHeight: EEONLayout.minTarget)
+                    }
                 }
             }
+            .padding(.horizontal)
         }
-        .padding(.horizontal)
     }
 
     private var greetingBar: some View {
@@ -931,10 +916,19 @@ struct AIHomeView: View {
 
             Spacer(minLength: 8)
 
-            // Tag filter button removed 2026-08-19 — just the notes.
-
-            // Tasks and the funnel filter left this row 2026-08-25: both are
-            // choices in the feed dropdown now (conversationsHeader).
+            // Optional keyboard path into the same RAG system voice questions use.
+            // Record remains the primary control; Ask is not a capture mode.
+            NavigationLink(destination: AnswerSheet(navigationTitle: "Ask Library")) {
+                Label("Ask", systemImage: "sparkle.magnifyingglass")
+                    .font(EEONType.control)
+                    .foregroundStyle(.eeonAccentAI)
+                    .padding(.horizontal, 12)
+                    .frame(height: 36)
+                    .background(Color.eeonCard)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ask EEON")
 
             // Settings / avatar
             Button {
@@ -961,7 +955,7 @@ struct AIHomeView: View {
             HStack(spacing: 6) {
                 Image(systemName: "scope")
                     .font(.system(size: 11, weight: .semibold))
-                Text("Tuned for you")
+                Text("Personalized")
                     .font(.caption.weight(.semibold))
                 Image(systemName: "chevron.right")
                     .font(.system(size: 9, weight: .bold))
@@ -988,24 +982,8 @@ struct AIHomeView: View {
         } else {
             timeGreeting = "Good evening"
         }
-        // Add first name if signed in and name looks real
-        if authService.isSignedIn, let fullName = authService.userName {
-            let firstName = String(fullName.split(separator: " ").first ?? Substring(fullName))
-            let trimmed = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Only show name if it looks like a real name:
-            // - 2+ characters
-            // - starts with uppercase letter
-            // - only letters (no numbers, special chars)
-            // - not generic placeholders
-            let isValidName = trimmed.count >= 2
-                && trimmed.first?.isUppercase == true
-                && trimmed.allSatisfy({ $0.isLetter })
-                && !["Test", "User", "Name", "None", "Null", "Admin", "Default"].contains(trimmed)
-
-            if isValidName {
-                return "\(timeGreeting), \(trimmed)"
-            }
+        if authService.isSignedIn, let firstName = authService.firstNameForGreeting {
+            return "\(timeGreeting), \(firstName)"
         }
         return timeGreeting
     }
@@ -1056,7 +1034,7 @@ struct AIHomeView: View {
 
                 NavigationLink(destination: KnowledgeOverviewView()) {
                     HStack(spacing: 4) {
-                        Text("\(knowledgeArticles.count) articles")
+                        Text("\(visibleKnowledgeArticles.count) articles")
                             .font(.caption)
                         Image(systemName: "chevron.right")
                             .font(.caption2)
@@ -1068,7 +1046,7 @@ struct AIHomeView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(knowledgeArticles.prefix(10)) { article in
+                    ForEach(visibleKnowledgeArticles.prefix(10)) { article in
                         NavigationLink(destination: KnowledgeArticleDetailView(article: article)) {
                             KnowledgeCardView(article: article)
                         }
@@ -1088,11 +1066,11 @@ struct AIHomeView: View {
         } label: {
             HStack(spacing: EEONLayout.snug) {
                 Circle()
-                    .fill(Color.eeonAccent)
+                    .fill(recordingRed)
                     .frame(width: 9, height: 9)
                     .opacity(audioRecorder.isPaused ? 0.4 : 1)
 
-                Text(audioRecorder.isPaused ? "Paused — auto-resumes" : "Recording")
+                Text(audioRecorder.recordingStatusText)
                     .font(EEONType.control)
                     .foregroundStyle(.eeonTextPrimary)
 
@@ -1161,7 +1139,7 @@ struct AIHomeView: View {
                 .padding(.horizontal, EEONLayout.loose)
                 .frame(minHeight: 56)
                 .frame(maxWidth: .infinity)
-                .background(Color.eeonAccent)
+                .background(isRecording ? recordingRed : Color.eeonAccent)
                 .clipShape(Capsule())
             }
             .disabled(isTranscribing)
@@ -1204,7 +1182,7 @@ struct AIHomeView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(.eeonTextSecondary)
 
-            TextField("Search notes", text: $searchQuery)
+            TextField("Search Library", text: $searchQuery)
                 .font(.subheadline)
                 .foregroundStyle(.eeonTextPrimary)
                 .autocorrectionDisabled()
@@ -1317,10 +1295,8 @@ struct AIHomeView: View {
             // chronological feed entirely. Unresolved items still surface
             // via the AI tab and proactive alerts.
 
-            // The dropdown header — All notes / Tasks / Highlights / categories
-            // on the left, dates on the right. Defined 2026-08-21 and never
-            // rendered until 2026-08-25 (b987fe2 described wiring that was not
-            // in its diff). A green build proves nothing draws.
+            // Library / Tasks / Highlights mode switch. Library is a summary
+            // surface; the full chronological archive lives behind See All.
             conversationsHeader
                 .padding(.bottom, 8)
 
@@ -1334,8 +1310,8 @@ struct AIHomeView: View {
                 )
             } else if selectedTab == .ai {
                 // AI-organized view
-                AITabView(data: aiTabData, noteCount: notes.filter { !$0.isArchived }.count)
-            } else if filteredNotes.isEmpty {
+                AITabView(data: aiTabData, noteCount: visibleLibraryNotes.count)
+            } else if librarySearchableNotes(notes).isEmpty {
                 // Empty state
                 VStack(spacing: 12) {
                     Image(systemName: emptyStateIcon)
@@ -1349,82 +1325,149 @@ struct AIHomeView: View {
                     Text(emptyStateSubtitle)
                         .font(.subheadline)
                         .foregroundStyle(.eeonTextTertiary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity)
+                .padding(.horizontal, EEONLayout.screenMargin)
                 .padding(.vertical, 40)
             } else {
-                // Chronological feed grouped by day — or by notebook on the
-                // Notebooks tab (auto-filed: project match, else first topic).
-                LazyVStack(spacing: 0, pinnedViews: []) {
-                    ForEach(selectedTab == .notebooks ? notesByNotebook : notesByDay, id: \.0) { day, dayNotes in
-                        Section {
-                            // Single-column, notepad-style list (2026-08-19 simplification)
-                            let columns = [GridItem(.flexible())]
-                            LazyVGrid(columns: columns, spacing: 10) {
-                                ForEach(dayNotes) { note in
-                                    NavigationLink(destination: NoteDetailView(note: note)) {
-                                        HStack(spacing: 0) {
-                                            if viewMode == .mood {
-                                                Rectangle()
-                                                    .fill(MoodTimelineHelpers.moodColor(for: note.emotionalTone))
-                                                    .frame(width: 4)
-                                                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                                            }
-                                            NoteFeedCard(note: note)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-                                    .contextMenu {
-                                        Button {
-                                            note.isFavorite.toggle()
-                                            try? modelContext.save()
-                                        } label: {
-                                            Label(
-                                                note.isFavorite ? "Unfavorite" : "Favorite",
-                                                systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
-                                            )
-                                        }
-
-                                        Button {
-                                            withAnimation {
-                                                note.isArchived.toggle()
-                                                try? modelContext.save()
-                                            }
-                                        } label: {
-                                            Label(
-                                                note.isArchived ? "Unarchive" : "Archive",
-                                                systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 16)
-                        } header: {
-                            HStack {
-                                Text(day)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.eeonTextSecondary)
-                                    .textCase(.uppercase)
-                                Spacer()
-                                Text("\(dayNotes.count)")
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(.eeonTextTertiary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                            .padding(.vertical, 8)
-                        }
-                    }
-                }
+                libraryHome
             }
         }
     }
 
-    // MARK: - Tune EEON Hero Card
+    private var libraryHome: some View {
+        VStack(alignment: .leading, spacing: EEONLayout.snug) {
+            askLibraryCard
+                .padding(.horizontal)
 
-    /// Show the Tune EEON hero card when the user hasn't set up their purpose yet.
+            if !libraryHomeCollections.isEmpty {
+                libraryCollectionsSection
+            }
+
+            if !visibleLibraryNotes.isEmpty {
+                recentLibrarySection
+            }
+        }
+        .padding(.bottom, EEONLayout.standard)
+    }
+
+    private var askLibraryCard: some View {
+        NavigationLink(destination: AnswerSheet(navigationTitle: "Ask Library")) {
+            HStack(spacing: EEONLayout.standard) {
+                Image(systemName: "sparkle.magnifyingglass")
+                    .font(EEONType.body)
+                    .foregroundStyle(.eeonAccentAI)
+                    .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
+                    .background(Circle().fill(Color.eeonAccentAI.opacity(0.14)))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ask Library")
+                        .font(EEONType.body)
+                        .foregroundStyle(.eeonTextPrimary)
+                    Text("Notes, topics, and people")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.right")
+                    .font(EEONType.badge)
+                    .foregroundStyle(.eeonTextTertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.eeonCard)
+            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var libraryCollectionsSection: some View {
+        VStack(alignment: .leading, spacing: EEONLayout.snug) {
+            HomeSectionHeader("Collections", subtitle: "Auto-organized")
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: EEONLayout.snug) {
+                    ForEach(libraryHomeCollections) { summary in
+                        NavigationLink(destination: LibraryCollectionView(kind: summary.kind)) {
+                            LibraryCollectionCompactCard(summary: summary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    private var recentLibrarySection: some View {
+        VStack(alignment: .leading, spacing: EEONLayout.snug) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Recent")
+                        .font(.headline)
+                        .foregroundStyle(.eeonTextPrimary)
+                    Text("Latest \(libraryPreviewNotes.count) of \(visibleLibraryNotes.count)")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+
+                Spacer()
+
+                NavigationLink(destination: LibraryCollectionView(kind: .recent)) {
+                    Text("See All")
+                        .font(EEONType.control)
+                        .foregroundStyle(.eeonAccent)
+                        .frame(minHeight: EEONLayout.minTarget)
+                }
+            }
+            .padding(.horizontal)
+
+            LazyVStack(spacing: EEONLayout.snug) {
+                ForEach(libraryPreviewNotes) { note in
+                    noteFeedLink(note)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private func noteFeedLink(_ note: Note) -> some View {
+        NavigationLink(destination: NoteDetailView(note: note)) {
+            NoteFeedCard(note: note)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                note.isFavorite.toggle()
+                try? modelContext.save()
+            } label: {
+                Label(
+                    note.isFavorite ? "Unfavorite" : "Favorite",
+                    systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
+                )
+            }
+
+            Button {
+                withAnimation {
+                    note.isArchived.toggle()
+                    try? modelContext.save()
+                }
+            } label: {
+                Label(
+                    note.isArchived ? "Unarchive" : "Archive",
+                    systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
+                )
+            }
+        }
+    }
+
+    // MARK: - Personalization Hero Card
+
+    /// Show the personalization hero card when the user hasn't set up their purpose yet.
     /// Once the purpose is compiled (article has non-empty directive), the card disappears.
     /// User can also dismiss manually; dismissals re-show after 14 days if still empty.
     private var showTuneHeroCard: Bool {
@@ -1450,7 +1493,7 @@ struct AIHomeView: View {
                         .foregroundStyle(Color("EEONAccent"))
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Tune EEON to you")
+                    Text("Personalize EEON")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.eeonTextPrimary)
                     Text("Tell it who you are, what it's for, and what to remember for you.")
@@ -1509,7 +1552,7 @@ struct AIHomeView: View {
             Button {
                 showingIdentity = true
             } label: {
-                Text("Re-tune")
+                Text("Update")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
@@ -1574,7 +1617,7 @@ struct AIHomeView: View {
                 .foregroundStyle(.red)
                 .symbolEffect(.pulse, isActive: !backgroundCapture.recorder.isPaused)
             Text(backgroundCapture.recorder.isPaused
-                 ? "Paused — auto-resumes"
+                 ? backgroundCapture.recorder.recordingStatusText
                  : "Recording · \(backgroundCapture.recorder.formattedTime)")
                 .font(.subheadline.weight(.medium))
             Spacer()
@@ -1608,42 +1651,42 @@ struct AIHomeView: View {
         let t = section.effectiveTitle
         switch kind {
         case .priorityProjects:
-            PriorityProjectsSection(projects: projects, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+            PriorityProjectsSection(projects: visibleProjects, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .silentProjects:
-            SilentProjectsSection(projects: projects, title: t, rationale: section.rationale, staleDays: section.staleDaysThreshold ?? 9)
+            SilentProjectsSection(projects: visibleProjects, title: t, rationale: section.rationale, staleDays: section.staleDaysThreshold ?? 9)
         case .openDecisions:
-            OpenDecisionsSection(decisions: extractedDecisions, notes: notes, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+            OpenDecisionsSection(decisions: visibleExtractedDecisions, notes: visibleLibraryNotes, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .ideaInbox:
-            IdeaInboxSection(notes: notes, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+            IdeaInboxSection(notes: visibleLibraryNotes, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .clientRoster:
-            ClientRosterSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 8)
+            ClientRosterSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 8)
         case .followUpsPerClient:
-            FollowUpsPerClientSection(commitments: extractedCommitments, notes: notes, title: t, rationale: section.rationale, limit: section.limit ?? 6)
+            FollowUpsPerClientSection(commitments: visibleExtractedCommitments, notes: visibleLibraryNotes, title: t, rationale: section.rationale, limit: section.limit ?? 6)
         case .recurringPatterns:
-            RecurringPatternsSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 8)
+            RecurringPatternsSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 8)
         case .referenceResonance:
-            ReferenceResonanceSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+            ReferenceResonanceSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .knowledgeCarousel:
-            if !knowledgeArticles.isEmpty { knowledgeCardsSection }
+            if !visibleKnowledgeArticles.isEmpty { knowledgeCardsSection }
         case .recentNotes:
             noteFeed
         case .todayThree:
             EmptyView() // Today's 3 removed from home 2026-08-19
         case .openThreads:
-            OpenThreadsSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+            OpenThreadsSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .momentumPicture:
             MomentumPictureSection(
                 title: t,
                 rationale: section.rationale,
                 focusItems: purposeArticles.first?.focusItems ?? [],
-                notes: notes
+                notes: visibleLibraryNotes
             )
         case .emotionalToneArc:
-            EmotionalToneArcSection(notes: notes, title: t, rationale: section.rationale, limit: section.limit ?? 14)
+            EmotionalToneArcSection(notes: visibleLibraryNotes, title: t, rationale: section.rationale, limit: section.limit ?? 14)
         case .activeInquiries:
-            ActiveInquiriesSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+            ActiveInquiriesSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         case .relationshipArcs:
-            RelationshipArcsSection(articles: knowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
+            RelationshipArcsSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
         // Still stubs — captureHero is always rendered elsewhere; dailyBrief needs a DailyBrief model display;
         // contradictionLedger needs persisted lint results (deferred, see plan).
         case .captureHero, .contradictionLedger, .dailyBrief:
@@ -1732,27 +1775,24 @@ struct AIHomeView: View {
 
                 // Sign in CTA
                 VStack(spacing: 16) {
-                    Button {
-                        showSignIn = true
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "apple.logo")
-                                .font(.system(size: 18))
-                            Text("Sign In to Get Started")
-                                .font(.headline)
+                    SignInWithAppleButton(.signIn) { request in
+                        request.requestedScopes = [.fullName, .email]
+                    } onCompletion: { result in
+                        switch result {
+                        case .success(let authorization):
+                            authService.handleSignInResult(.success(authorization))
+                        case .failure(let error):
+                            if let authorizationError = error as? ASAuthorizationError,
+                               authorizationError.code == .canceled {
+                                return
+                            }
+                            errorMessage = error.localizedDescription
+                            showingError = true
                         }
-                        .foregroundStyle(.eeonTextPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(Color.eeonCard)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(Color.eeonDivider, lineWidth: 1)
-                                )
-                        )
                     }
+                    .signInWithAppleButtonStyle(.black)
+                    .frame(height: 54)
+                    .cornerRadius(14)
                     .padding(.horizontal, 20)
 
                     Text("5 free notes \u{00B7} No credit card required")
@@ -2384,6 +2424,40 @@ struct WelcomeFeatureRow: View {
 
 // MARK: - Note Feed Card (compact for 2-column grid)
 
+private struct LibraryCollectionCompactCard: View {
+    let summary: LibraryCollectionSummary
+
+    var body: some View {
+        HStack(spacing: EEONLayout.tight) {
+            Image(systemName: summary.kind.icon)
+                .font(EEONType.control)
+                .foregroundStyle(summary.kind.tint)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(summary.kind.tint.opacity(0.14)))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(summary.title)
+                    .font(EEONType.control)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+
+                Text(summary.subtitle)
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+        }
+        .frame(width: 148, alignment: .leading)
+        .frame(minHeight: EEONLayout.minTarget)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.eeonCard)
+        .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
+    }
+}
+
 struct NoteFeedCard: View {
     /// "1h 24m" / "8m" / "42s" — matches how a capture stream reads a length.
     static func durationText(_ seconds: Double) -> String {
@@ -2502,9 +2576,15 @@ fileprivate struct RecentNotesSidebar: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(notes.prefix(50)) { note in
+                ForEach(Array(notes.prefix(8))) { note in
                     NavigationLink(destination: NoteDetailView(note: note)) {
                         RecentNotesSidebarRow(note: note)
+                    }
+                }
+
+                if notes.count > 8 {
+                    NavigationLink(destination: LibraryCollectionView(kind: .recent)) {
+                        Label("All Recent", systemImage: "clock")
                     }
                 }
             }

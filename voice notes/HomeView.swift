@@ -2,7 +2,7 @@
 //  HomeView.swift
 //  voice notes
 //
-//  All Notes home page with filter tabs
+//  Library home page with filter tabs
 //  Clean Wave-style design
 //
 
@@ -12,11 +12,12 @@ import UIKit
 import AVFoundation
 import PhotosUI
 import CloudKit
+import AuthenticationServices
 
 // MARK: - Filter Options
 
 enum NoteFilter: String, CaseIterable {
-    case all = "All Notes"
+    case all = "Library"
     case projects = "Projects"
     case favorites = "Favorites"
     case recent = "Recent"
@@ -166,12 +167,12 @@ struct HomeView: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    if authService.isSignedIn, let firstName = authService.displayName.components(separatedBy: " ").first, !firstName.isEmpty {
+                    if authService.isSignedIn, let firstName = authService.firstNameForGreeting {
                         Text("Hi, \(firstName)")
                             .font(.largeTitle.weight(.bold))
                             .foregroundStyle(Color("EEONTextPrimary"))
                     } else {
-                        Text("All Notes")
+                        Text("Library")
                             .font(.largeTitle.weight(.bold))
                             .foregroundStyle(Color("EEONTextPrimary"))
                     }
@@ -310,7 +311,7 @@ struct HomeView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(Color("EEONTextSecondary"))
                                 Button(action: { showSignIn = true }) {
-                                    Text("Sign In")
+                                    Text("Sign in with Apple")
                                         .font(.headline)
                                         .foregroundStyle(Color("EEONTextPrimary"))
                                         .padding(.horizontal, 32)
@@ -318,6 +319,7 @@ struct HomeView: View {
                                         .background(Color.blue)
                                         .cornerRadius(10)
                                 }
+                                .accessibilityLabel("Sign in with Apple")
                                 .padding(.top, 8)
                             }
                         } else {
@@ -393,18 +395,16 @@ struct HomeView: View {
                         HStack {
                             Spacer()
                             Button(action: { showSignIn = true }) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "person.crop.circle.badge.plus")
-                                    Text("Sign In")
-                                }
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Color("EEONTextPrimary"))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.blue)
-                                .cornerRadius(20)
-                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                                Text("Sign in with Apple")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Color("EEONTextPrimary"))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color.blue)
+                                    .cornerRadius(20)
                             }
+                                .accessibilityLabel("Sign in with Apple")
+                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
                             .padding(.trailing, 20)
                             .padding(.bottom, 100)
                         }
@@ -1197,283 +1197,343 @@ struct HomeRecordingOverlay: View {
     let onStop: () -> Void
     let onCancel: () -> Void
     /// Dismiss the recorder while recording keeps running in the background.
-    /// Pocket does the same thing — their recording screen says "swipe down
-    /// to go home". Live transcription stops here; the capture does not.
+    /// Live transcription stops here; audio capture does not.
     var onMinimize: (() -> Void)?
     let audioRecorder: AudioRecorder
 
-    // Waveform bars driven by real audio metering — 8 bold bars
-    private let barCount = 8
-    @State private var barLevels: [CGFloat] = Array(repeating: 0.15, count: 8)
+    private let barCount = 28
+    @State private var barLevels: [CGFloat] = Array(repeating: 0.15, count: 28)
     @State private var meterTimer: Timer?
 
-    // Ring pulse animation
-    @State private var ringScales: [CGFloat] = [1.0, 1.0, 1.0]
-    @State private var ringOpacities: [Double] = [0.18, 0.12, 0.06]
-    @State private var ringAnimating = false
-
-    // Timer dot blink
     @State private var dotVisible = true
-
-    // Live transcription
+    @State private var dotTimer: Timer?
+    @State private var cursorVisible = true
+    @State private var cursorTimer: Timer?
     @State private var liveTranscription = LiveTranscriptionService()
 
-    // Blinking cursor
-    @State private var cursorVisible = true
-
-    private let usageService = UsageService.shared
-    private let accentRed = Color("EEONAccent")
+    private let accentRed = Color(red: 1.0, green: 0.23, blue: 0.27)
 
     var body: some View {
-        ZStack {
-            Color.black
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                recordingBackground
 
-            VStack(spacing: 0) {
-                // MARK: - Top bar: close button + timer pill
-                topBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
+                VStack(spacing: 20) {
+                    topBar
+                        .padding(.horizontal, 20)
+                        .padding(.top, max(CGFloat(16), geometry.safeAreaInsets.top + 8))
 
-                // MARK: - Waveform strip with ring pulses
-                waveformSection
-                    .padding(.top, 32)
+                    Spacer(minLength: 8)
 
-                // MARK: - Live transcript (hero)
-                transcriptSection
-                    .padding(.top, 24)
+                    recordingState
+                        .padding(.horizontal, 24)
 
-                Spacer()
+                    waveformSection
+                        .padding(.horizontal, 26)
 
-                minimizeHint
+                    transcriptSection(maxHeight: min(CGFloat(260), geometry.size.height * 0.30))
+                        .padding(.horizontal, 20)
 
-                // MARK: - Bottom: Pro upsell + controls
-                bottomControls
-                    .padding(.bottom, 40)
+                    Spacer(minLength: 10)
+
+                    bottomControls
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, max(CGFloat(18), geometry.safeAreaInsets.bottom + 12))
+                }
             }
         }
         .onAppear {
             startMetering()
             startDotBlink()
             startCursorBlink()
-            startRingPulse()
             startLiveTranscription()
+        }
+        .onChange(of: audioRecorder.isPaused) { _, isPaused in
+            if isPaused {
+                liveTranscription.stop()
+            } else {
+                startLiveTranscription()
+            }
         }
         .onDisappear {
             meterTimer?.invalidate()
             meterTimer = nil
+            dotTimer?.invalidate()
+            dotTimer = nil
+            cursorTimer?.invalidate()
+            cursorTimer = nil
             liveTranscription.stop()
         }
         .gesture(
             DragGesture().onEnded { value in
-                if value.translation.height > 80 {
+                if value.translation.height > 80, let onMinimize {
                     liveTranscription.stop()
-                    onMinimize?()
+                    onMinimize()
                 }
             }
         )
     }
 
-    // MARK: - Top Bar
-
-    private var minimizeHint: some View {
-        Button {
-            liveTranscription.stop()
-            onMinimize?()
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.bold))
-                Text("Swipe down — keeps recording")
-                    .font(.footnote.weight(.medium))
-            }
-            .foregroundStyle(.white.opacity(0.55))
-            .frame(minHeight: 44)
-        }
-        .buttonStyle(.plain)
+    private var recordingBackground: some View {
+        LinearGradient(
+            colors: [
+                Color.black,
+                Color(red: 0.02, green: 0.03, blue: 0.05)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
     }
 
     private var topBar: some View {
-        HStack {
-            Button(action: onCancel) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .frame(width: 36, height: 36)
-                    .background(Color.white.opacity(0.1), in: Circle())
-            }
-
-            Spacer()
-
-            // Timer pill — shows the paused state when a call/Siri takes the
-            // mic (recording auto-resumes; see AudioRecorder interruption
-            // handling).
-            HStack(spacing: 6) {
-                if audioRecorder.isPaused {
-                    Image(systemName: "pause.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.7))
-                    Text("Paused · auto-resumes")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                } else {
-                    Circle()
-                        .fill(accentRed)
-                        .frame(width: 8, height: 8)
-                        .opacity(dotVisible ? 1.0 : 0.3)
-
-                    Text(audioRecorder.formattedTime)
-                        .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color("EEONTextPrimary"))
+        ZStack {
+            HStack {
+                Button {
+                    liveTranscription.stop()
+                    onCancel()
+                } label: {
+                    Text("Discard")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(accentRed)
+                        .frame(minWidth: 78, alignment: .leading)
                 }
+                .accessibilityLabel("Discard recording")
+                .accessibilityHint("Stops recording and deletes this audio.")
+
+                Spacer()
+
+                Color.clear
+                    .frame(width: 78, height: 1)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(accentRed.opacity(0.15), in: Capsule())
 
-            Spacer()
+            Text("Recording")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(height: 44)
+    }
 
-            // Invisible spacer to balance the close button
-            Color.clear
-                .frame(width: 36, height: 36)
+    private var recordingState: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(audioRecorder.isPaused ? .yellow : accentRed)
+                    .frame(width: 10, height: 10)
+                    .opacity(audioRecorder.isPaused ? 1.0 : (dotVisible ? 1.0 : 0.35))
+
+                Text(audioRecorder.isPaused ? "Paused" : "Recording")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.78))
+            }
+
+            Text(audioRecorder.isPaused ? "Paused" : audioRecorder.formattedTime)
+                .font(.system(size: 56, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .minimumScaleFactor(0.72)
+                .foregroundStyle(.white)
+
+            Text(audioRecorder.isPaused ? "Tap Resume to continue." : "Tap Finish to save this note.")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.white.opacity(0.58))
         }
     }
 
-    // MARK: - Waveform Section with Ring Pulses
-
     private var waveformSection: some View {
-        ZStack {
-            // Expanding ring pulses behind the waveform
-            ForEach(0..<3, id: \.self) { i in
-                Circle()
-                    .stroke(accentRed.opacity(ringOpacities[i]), lineWidth: 1.5)
-                    .frame(width: 80, height: 80)
-                    .scaleEffect(ringScales[i])
-            }
-
-            // Bold waveform bars (8 thick capsules)
-            HStack(alignment: .center, spacing: 10) {
-                ForEach(0..<barCount, id: \.self) { index in
-                    Capsule()
-                        .fill(accentRed)
-                        .frame(width: 18, height: barHeight(for: index))
-                        .animation(
-                            .spring(response: 0.3, dampingFraction: 0.5)
-                                .delay(Double(index) * 0.02),
-                            value: barLevels[index]
-                        )
-                }
+        HStack(alignment: .center, spacing: 5) {
+            ForEach(0..<barCount, id: \.self) { index in
+                Capsule()
+                    .fill(audioRecorder.isPaused ? Color.white.opacity(0.35) : accentRed)
+                    .frame(width: 4, height: barHeight(for: index))
+                    .animation(
+                        .spring(response: 0.28, dampingFraction: 0.72)
+                            .delay(Double(index) * 0.006),
+                        value: barLevels[index]
+                    )
             }
         }
-        .frame(height: 120)
+        .frame(maxWidth: .infinity)
+        .frame(height: 96)
+        .padding(.horizontal, 18)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
     }
 
     private func barHeight(for index: Int) -> CGFloat {
         let level = barLevels[index]
-        let minHeight: CGFloat = 14
-        let maxHeight: CGFloat = 100
+        let minHeight: CGFloat = 8
+        let maxHeight: CGFloat = 76
         return minHeight + level * (maxHeight - minHeight)
     }
 
-    // MARK: - Live Transcript Section
+    private func transcriptSection(maxHeight: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Live transcript")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
 
-    private var transcriptSection: some View {
-        ScrollView {
-            ScrollViewReader { proxy in
-                VStack(alignment: .leading, spacing: 0) {
-                    let confirmedText = liveTranscription.liveTranscript
-                    let activeWord = liveTranscription.currentWord
+                Spacer()
 
-                    if confirmedText.isEmpty && activeWord.isEmpty {
-                        Text("Start speaking...")
-                            .font(.system(size: 22, weight: .regular))
-                            .foregroundStyle(.white.opacity(0.3))
-                    } else {
-                        // Build attributed text: confirmed words in white, current word in red
-                        (buildTranscriptText(confirmed: confirmedText, active: activeWord))
-                            .font(.system(size: 22, weight: .regular))
-                            .lineSpacing(6)
+                Text(audioRecorder.isPaused ? "Paused" : "Listening")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.56))
+            }
+
+            Divider()
+                .overlay(Color.white.opacity(0.12))
+
+            ScrollView {
+                ScrollViewReader { proxy in
+                    VStack(alignment: .leading, spacing: 0) {
+                        let confirmedText = liveTranscription.liveTranscript
+                        let activeWord = liveTranscription.currentWord
+
+                        if confirmedText.isEmpty && activeWord.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(audioRecorder.isPaused ? "Recording is paused." : "Start talking.")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.82))
+                                Text(audioRecorder.isPaused ? "Your note will continue when you resume." : "Words will appear here while EEON listens.")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(.white.opacity(0.50))
+                            }
+                        } else {
+                            buildTranscriptText(confirmed: confirmedText, active: activeWord)
+                                .font(.system(size: 20, weight: .regular))
+                                .lineSpacing(5)
+                        }
+
+                        Rectangle()
+                            .fill(.white.opacity(0.75))
+                            .frame(width: 2, height: 24)
+                            .opacity(audioRecorder.isPaused ? 0.0 : (cursorVisible ? 1.0 : 0.0))
+                            .padding(.top, 4)
+                            .id("cursor")
                     }
-
-                    // Blinking cursor
-                    Rectangle()
-                        .fill(accentRed)
-                        .frame(width: 2, height: 24)
-                        .opacity(cursorVisible ? 1.0 : 0.0)
-                        .padding(.top, 2)
-                        .id("cursor")
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .onChange(of: liveTranscription.liveTranscript) { _, _ in
-                    withAnimation {
-                        proxy.scrollTo("cursor", anchor: .bottom)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: liveTranscription.liveTranscript) { _, _ in
+                        withAnimation {
+                            proxy.scrollTo("cursor", anchor: .bottom)
+                        }
                     }
                 }
             }
         }
-        .padding(.horizontal, 24)
-        .frame(maxHeight: 300)
+        .padding(18)
+        .frame(maxHeight: maxHeight)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
     }
 
     private func buildTranscriptText(confirmed: String, active: String) -> Text {
-        let confirmedText = Text(confirmed).foregroundColor(.white)
+        var result = Text(confirmed).foregroundColor(.white)
 
-        guard !active.isEmpty else {
-            return confirmedText
+        if !active.isEmpty {
+            let separator = confirmed.isEmpty ? "" : " "
+            result = result
+                + Text(separator).foregroundColor(.white)
+                + Text(active).foregroundColor(accentRed).fontWeight(.bold)
         }
 
-        let separator = confirmed.isEmpty ? "" : " "
-        let activeText = Text(active)
-            .foregroundColor(accentRed)
-            .fontWeight(.bold)
-
-        return Text("\(confirmedText)\(separator)\(activeText)")
+        return result
     }
-
-    // MARK: - Bottom Controls
 
     private var bottomControls: some View {
-        // One button to record, one button to stop (2026-08-19 overhaul):
-        // the recording moment carries a single stop control. No upsell, no
-        // restart — the top-bar X covers abandoning a take.
-        VStack(spacing: 32) {
-            HStack {
-                Spacer()
-
-                Button {
+        HStack(alignment: .top, spacing: 10) {
+            if let onMinimize {
+                controlButton(
+                    icon: "chevron.down",
+                    title: "Minimize",
+                    iconColor: .white,
+                    background: Color.white.opacity(0.13),
+                    accessibilityHint: "Keeps recording in the background."
+                ) {
                     liveTranscription.stop()
-                    onStop()
-                } label: {
-                    ZStack {
-                        Circle()
-                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 3)
-                            .frame(width: 84, height: 84)
+                    onMinimize()
+                }
+            }
 
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(accentRed)
-                            .frame(width: 32, height: 32)
+            controlButton(
+                icon: audioRecorder.isPaused ? "play.fill" : "pause.fill",
+                title: audioRecorder.isPaused ? "Resume" : "Pause",
+                iconColor: .black,
+                background: Color.white.opacity(0.94),
+                accessibilityHint: audioRecorder.isPaused ? "Starts recording again." : "Pauses recording without saving yet."
+            ) {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    if audioRecorder.isPaused {
+                        audioRecorder.resumeRecording()
+                        startLiveTranscription()
+                    } else {
+                        liveTranscription.stop()
+                        audioRecorder.pauseRecording()
                     }
                 }
-
-                Spacer()
             }
-            .padding(.horizontal, 40)
+
+            controlButton(
+                icon: "stop.fill",
+                title: "Finish",
+                iconColor: .white,
+                background: accentRed,
+                accessibilityHint: "Stops recording and saves this note."
+            ) {
+                liveTranscription.stop()
+                onStop()
+            }
         }
+        .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Timers & Animation
+    private func controlButton(
+        icon: String,
+        title: String,
+        iconColor: Color,
+        background: Color,
+        titleColor: Color = .white,
+        accessibilityHint: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 64, height: 64)
+                    .background(background, in: Circle())
+
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(titleColor.opacity(0.82))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+            .frame(width: 88)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityHint(accessibilityHint)
+    }
 
     private func startMetering() {
+        meterTimer?.invalidate()
         meterTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
-            let level = audioRecorder.normalizedLevel
+            let level = audioRecorder.isPaused ? CGFloat(0.08) : max(CGFloat(0.12), audioRecorder.normalizedLevel)
 
-            // Each bar gets the current level with per-bar variation
-            // for a flowing, organic wave feel
             var newLevels = [CGFloat]()
             for i in 0..<barCount {
-                let phase = sin(Double(i) * 0.8 + Date().timeIntervalSinceReferenceDate * 4.0)
-                let variation = CGFloat(phase) * 0.15
-                let barLevel = max(0.05, min(1.0, level + variation + CGFloat.random(in: -0.06...0.06)))
+                let phase = sin(Double(i) * 0.48 + Date().timeIntervalSinceReferenceDate * 3.2)
+                let variation = audioRecorder.isPaused ? CGFloat(0.0) : CGFloat(phase) * 0.12
+                let randomness = audioRecorder.isPaused ? CGFloat(0.0) : CGFloat.random(in: -0.04...0.04)
+                let barLevel = max(0.05, min(1.0, level + variation + randomness))
                 newLevels.append(barLevel)
             }
             barLevels = newLevels
@@ -1481,8 +1541,8 @@ struct HomeRecordingOverlay: View {
     }
 
     private func startDotBlink() {
-        // Blink the recording dot every 0.8s
-        Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { _ in
+        dotTimer?.invalidate()
+        dotTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { _ in
             withAnimation(.easeInOut(duration: 0.3)) {
                 dotVisible.toggle()
             }
@@ -1490,29 +1550,21 @@ struct HomeRecordingOverlay: View {
     }
 
     private func startCursorBlink() {
-        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+        cursorTimer?.invalidate()
+        cursorTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
             withAnimation(.easeInOut(duration: 0.2)) {
                 cursorVisible.toggle()
             }
         }
     }
 
-    private func startRingPulse() {
-        // Animate 3 concentric rings expanding outward in sequence
-        func pulseRing(_ index: Int) {
-            withAnimation(.easeOut(duration: 2.0).repeatForever(autoreverses: false)) {
-                ringScales[index] = 3.5
-                ringOpacities[index] = 0.0
-            }
-        }
-
-        // Stagger the three rings
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.0) { pulseRing(0) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { pulseRing(1) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { pulseRing(2) }
-    }
-
     private func startLiveTranscription() {
+        guard !audioRecorder.isPaused else { return }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-SkipSpeechForScreenshot") {
+            return
+        }
+        #endif
         Task {
             let authorized = await liveTranscription.requestAuthorization()
             if authorized {
@@ -1525,33 +1577,170 @@ struct HomeRecordingOverlay: View {
 // MARK: - Transcribing Overlay
 
 struct HomeTranscribingOverlay: View {
+    @State private var activeStep = 0
+    @State private var stepTimer: Timer?
+
+    private let steps: [MemoryProcessingStep] = [
+        MemoryProcessingStep(icon: "waveform", title: "Transcribing", subtitle: "Turning speech into text"),
+        MemoryProcessingStep(icon: "sparkles", title: "Finding meaning", subtitle: "Pulling out decisions, people, and projects"),
+        MemoryProcessingStep(icon: "checklist", title: "Saving follow-ups", subtitle: "Preparing action items and reminders"),
+        MemoryProcessingStep(icon: "icloud", title: "Syncing memory", subtitle: "Making it available after iCloud sync")
+    ]
+
     var body: some View {
         ZStack {
-            Color.black.opacity(0.85)
-                .ignoresSafeArea()
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.94),
+                    Color(red: 0.03, green: 0.05, blue: 0.09).opacity(0.96),
+                    Color.black.opacity(0.94)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                // Animated sparkles icon
+            Circle()
+                .fill(Color("EEONAccent").opacity(0.24))
+                .frame(width: 260, height: 260)
+                .blur(radius: 90)
+                .offset(x: -140, y: -130)
+
+            VStack(spacing: 28) {
                 ZStack {
                     Circle()
-                        .fill(Color("EEONAccent").opacity(0.15))
-                        .frame(width: 100, height: 100)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 112, height: 112)
 
                     Image(systemName: "sparkles")
-                        .font(.system(size: 40))
+                        .font(.system(size: 42, weight: .semibold))
                         .foregroundStyle(Color("EEONAccent"))
                         .symbolEffect(.pulse)
                 }
 
-                Text("Understanding your note...")
-                    .font(.title2.weight(.medium))
-                    .foregroundStyle(Color("EEONTextPrimary"))
+                VStack(spacing: 8) {
+                    Text("Building your memory")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
 
-                Text("Transcribing and finding insights")
-                    .font(.subheadline)
-                    .foregroundStyle(Color("EEONTextSecondary"))
+                    Text("EEON is turning this recording into searchable context.")
+                        .font(.subheadline.weight(.medium))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.58))
+                        .padding(.horizontal, 32)
+                }
+
+                VStack(spacing: 0) {
+                    ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                        ProcessingStepRow(
+                            step: step,
+                            state: state(for: index)
+                        )
+
+                        if index < steps.count - 1 {
+                            Divider()
+                                .overlay(Color.white.opacity(0.08))
+                                .padding(.leading, 62)
+                        }
+                    }
+                }
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .stroke(Color.white.opacity(0.09), lineWidth: 1)
+                )
+                .padding(.horizontal, 26)
+
+                ProgressView(value: Double(activeStep + 1), total: Double(steps.count))
+                    .tint(Color("EEONAccent"))
+                    .padding(.horizontal, 54)
             }
         }
+        .onAppear {
+            startSteps()
+        }
+        .onDisappear {
+            stepTimer?.invalidate()
+            stepTimer = nil
+        }
+    }
+
+    private func state(for index: Int) -> ProcessingStepState {
+        if index < activeStep { return .complete }
+        if index == activeStep { return .active }
+        return .waiting
+    }
+
+    private func startSteps() {
+        stepTimer?.invalidate()
+        stepTimer = Timer.scheduledTimer(withTimeInterval: 1.15, repeats: true) { _ in
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                activeStep = (activeStep + 1) % steps.count
+            }
+        }
+    }
+}
+
+private struct MemoryProcessingStep: Identifiable {
+    let icon: String
+    let title: String
+    let subtitle: String
+
+    var id: String { title }
+}
+
+private enum ProcessingStepState {
+    case complete
+    case active
+    case waiting
+}
+
+private struct ProcessingStepRow: View {
+    let step: MemoryProcessingStep
+    let state: ProcessingStepState
+
+    private var iconColor: Color {
+        switch state {
+        case .complete: return .green
+        case .active: return Color("EEONAccent")
+        case .waiting: return .white.opacity(0.34)
+        }
+    }
+
+    private var iconName: String {
+        state == .complete ? "checkmark.circle.fill" : step.icon
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(state == .waiting ? 0.12 : 0.18))
+                    .frame(width: 42, height: 42)
+
+                Image(systemName: iconName)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .scaleEffect(state == .active ? 1.06 : 1.0)
+                    .animation(.easeInOut(duration: 0.4).repeatForever(autoreverses: true), value: state == .active)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(step.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(state == .waiting ? .white.opacity(0.42) : .white)
+
+                Text(step.subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(state == .waiting ? 0.28 : 0.56))
+                    .lineLimit(2)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
     }
 }
 
@@ -1592,18 +1781,17 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Project.sortOrder) private var projects: [Project]
     @Query private var notes: [Note]
+    @Query private var knowledgeArticles: [KnowledgeArticle]
     @Query private var dailyBriefs: [DailyBrief]
     @Query private var kanbanItems: [KanbanItem]
+    @Query(sort: \MentionedPerson.lastMentionedAt, order: .reverse) private var mentionedPeople: [MentionedPerson]
 
     // Observe AuthService for reactive updates
     private var authService = AuthService.shared
-
     @AppStorage(EventKitSyncService.enabledKey) private var remindersSyncEnabled = false
     @AppStorage(CalendarContextService.enabledKey) private var calendarContextEnabled = false
-    @AppStorage(DocumentExportService.enabledKey) private var documentExportEnabled = false
     @AppStorage(PersonaPresetStore.autoSummarizeKey) private var autoSummarizeEnabled = false
-    @State private var showingExportFolderPicker = false
-    @State private var exportAllResult: String?
+    @AppStorage(AskModelPreference.storageKey) private var askModelPreferenceRaw = AskModelPreference.balanced.rawValue
     @State private var showingAddProject = false
     @State private var newProjectName = ""
     @State private var showingShareSheet = false
@@ -1613,7 +1801,8 @@ struct SettingsView: View {
     @State private var showingDeleteAllDataConfirm = false
     @State private var showingEditName = false
     @State private var editedName = ""
-    @State private var showSignIn = false
+    @State private var signInError: String?
+    @State private var documentExportConfirmation: String?
 
     // Export state
     @State private var isExporting = false
@@ -1644,37 +1833,47 @@ struct SettingsView: View {
     // MARK: - Connections (extracted — keeps the body type-checkable)
 
     private var connectionsSection: some View {
-        Section {
-            remindersSyncRow
-            calendarContextRow
-            documentExportRow
-            if documentExportEnabled && DocumentExportService.shared.hasFolder {
+        Group {
+            Section {
                 Button {
-                    showingExportFolderPicker = true
+                    documentExportConfirmation = aiAccessHelpText
                 } label: {
-                    Text("Change folder…")
-                        .font(.subheadline)
+                    EEONSettingsRow(
+                        icon: "icloud",
+                        title: "Private iCloud Sync",
+                        subtitle: aiAccessSubtitle
+                    ) {
+                        Text(aiAccessStatusBadge)
+                            .font(.subheadline)
+                            .foregroundStyle(iCloudStatus == .available ? Color.secondary : Color.orange)
+                    }
                 }
-                Button {
-                    let count = DocumentExportService.shared.exportAll(notes: notes)
-                    exportAllResult = "Exported \(count) notes"
-                } label: {
-                    Text(exportAllResult ?? "Export all notes now")
-                        .font(.subheadline)
-                }
+                .buttonStyle(.plain)
+            } header: {
+                Text("iCloud")
+            } footer: {
+                Text("EEON keeps notes in your private iCloud account. AI tools can read them only after that tool signs in with Apple through the EEON connector.")
             }
-        } footer: {
-            Text("Action items appear in an \"EEON\" list in Apple Reminders. Calendar context reads the event a recording overlapped — Apple, Google, or Outlook calendars, whatever the phone already has — so the note gets its title and who was there; EEON never writes to your calendar. Exported notes are markdown files in the folder you choose — pick a Google Drive, OneDrive, or Obsidian folder in Files and they sync everywhere those apps do.")
+
+            Section {
+                remindersSyncRow
+            } footer: {
+                Text("Action items EEON hears in recordings appear in an EEON list in Apple Reminders.")
+            }
+
+            Section {
+                calendarContextRow
+            } footer: {
+                Text("EEON reads the event title and attendees for recordings made during meetings. It never writes to your calendar.")
+            }
         }
-        .fileImporter(
-            isPresented: $showingExportFolderPicker,
-            allowedContentTypes: [.folder]
-        ) { result in
-            if case .success(let url) = result {
-                DocumentExportService.shared.setFolder(url)
-            } else if !DocumentExportService.shared.hasFolder {
-                documentExportEnabled = false
-            }
+        .alert("Private iCloud Sync", isPresented: Binding(
+            get: { documentExportConfirmation != nil },
+            set: { if !$0 { documentExportConfirmation = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(documentExportConfirmation ?? "")
         }
     }
 
@@ -1716,29 +1915,32 @@ struct SettingsView: View {
         }
     }
 
-    private var documentExportRow: some View {
-        Toggle(isOn: $documentExportEnabled) {
-            HStack(spacing: 16) {
-                Image(systemName: "folder")
-                    .font(.title3)
-                    .foregroundStyle(.eeonAccentAI)
-                    .frame(width: EEONLayout.minTarget)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Auto-export notes to a folder")
-                        .font(.body)
-                    if let name = DocumentExportService.shared.folderName {
-                        Text("→ \(name)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+    private var aiAccessSubtitle: String {
+        switch iCloudStatus {
+        case .available:
+            return "Notes sync through your Apple account"
+        case .noAccount:
+            return "Sign in to iCloud to sync notes"
+        case .restricted:
+            return "Restricted by device policy"
+        case .temporarilyUnavailable:
+            return "iCloud is temporarily unavailable"
+        case .couldNotDetermine:
+            return "Checking iCloud"
+        @unknown default:
+            return "Check iCloud status"
         }
-        .onChange(of: documentExportEnabled) { _, isOn in
-            if isOn && !DocumentExportService.shared.hasFolder {
-                showingExportFolderPicker = true
-            }
+    }
+
+    private var aiAccessStatusBadge: String {
+        iCloudStatus == .available ? "On" : "Off"
+    }
+
+    private var aiAccessHelpText: String {
+        if iCloudStatus == .available {
+            return "EEON syncs notes through your private iCloud database. This does not automatically give AI tools access. On each AI workspace, add the EEON CloudKit connector and sign in with Apple. There is no folder picker."
         }
+        return "EEON needs iCloud to sync notes. Sign in to iCloud in the Settings app, then return to EEON."
     }
 
     /// Auto-format every new note in the style the user's profession preset
@@ -1766,46 +1968,9 @@ struct SettingsView: View {
     private var autoSummarizeSubtitle: String {
         guard SubscriptionManager.shared.isSubscribed else { return "Pro feature" }
         if let raw = PersonaPresetStore.defaultTransformRaw {
-            return "Written as \(raw) — set by your profession in Tune EEON"
+            return "Written as \(raw)"
         }
-        return "Pick what you do in Tune EEON first"
-    }
-
-    private var personalizationSection: some View {
-        Section {
-            NavigationLink {
-                TuneConversationView()
-            } label: {
-                HStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(Color("EEONAccent").opacity(0.15))
-                            .frame(width: 44, height: 44)
-                        Image(systemName: "scope")
-                            .foregroundStyle(Color("EEONAccent"))
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Tune EEON")
-                            .font(.body.weight(.medium))
-                        Text("Who you are, what it's for")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
-
-            // Knowledge Base row removed 2026-08-20 — compiled-article
-            // browsing isn't part of the simplified app.
-            // autoSummarizeRow moved to Capture 2026-08-20 — auto-formatting
-            // a note on save is a capture behaviour, not a persona setting.
-            // Filed here, nobody looking for study notes ever found it.
-        } header: {
-            Text("Personalization")
-        } footer: {
-            Text("Tell EEON who you are and what it's for. Auto-refines as you capture notes.")
-                .font(.caption)
-        }
+        return "Choose a default note format"
     }
 
     private var dataSection: some View {
@@ -1829,7 +1994,7 @@ struct SettingsView: View {
                         Text("Export My Data")
                             .font(.body.weight(.medium))
                             .foregroundStyle(.primary)
-                        Text("All notes + knowledge articles as markdown")
+                        Text("Library + knowledge articles as markdown")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -1850,156 +2015,42 @@ struct SettingsView: View {
         }
     }
 
-    private var accountSection: some View {
-        Section {
-            accountRow
-
-            Button {
-                if !usage.isPro { showingPaywall = true }
-            } label: {
-                HStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(usage.isPro ? Color("EEONAccentAI").opacity(0.15) : Color.orange.opacity(0.15))
-                            .frame(width: 44, height: 44)
-                        Image(systemName: usage.isPro ? "sparkles" : "star.fill")
-                            .foregroundStyle(usage.isPro ? Color("EEONAccentAI") : .orange)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Plan: \(usage.isPro ? "Pro" : "Free")")
-                            .font(.body.weight(.medium))
-                        if usage.isPro {
-                            Text("All features unlocked")
-                                .font(.caption)
-                                .foregroundStyle(.green)
-                        } else {
-                            Text("Upgrade for unlimited AI")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer()
-                    if !usage.isPro {
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-            .padding(.vertical, 4)
-
-            if !usage.isPro {
-                Button { showingPaywall = true } label: {
-                    HStack(spacing: 16) {
-                        Image(systemName: "sparkles").foregroundStyle(Color("EEONAccent")).frame(width: 44)
-                        Text("Upgrade to Pro").font(.body).foregroundStyle(.primary)
-                        Spacer()
-                        Text("$9.99/mo").font(.caption).foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                    }
-                }
-                .buttonStyle(.plain).padding(.vertical, 4)
-            }
-
-            HStack(spacing: 16) {
-                Image(systemName: "globe").foregroundStyle(Color("EEONAccentAI")).frame(width: 44)
-                Text(AppInfo.versionString).font(.body)
-                Spacer()
-            }
-            .padding(.vertical, 4)
-
-            Button { showingShareSheet = true } label: {
-                HStack(spacing: 16) {
-                    Image(systemName: "square.and.arrow.up").foregroundStyle(Color("EEONAccentAI")).frame(width: 44)
-                    Text("Share Voice Notes").font(.body).foregroundStyle(.primary)
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                }
-            }
-            .buttonStyle(.plain).padding(.vertical, 4)
-
-            if usage.isPro {
-                Button { showingResetConfirm = true } label: {
-                    HStack(spacing: 16) {
-                        Image(systemName: "arrow.uturn.backward.circle").foregroundStyle(.orange).frame(width: 44)
-                        Text("Downgrade to Free").font(.body).foregroundStyle(.primary)
-                        Spacer()
-                    }
-                }
-                .buttonStyle(.plain).padding(.vertical, 4)
-            }
-
-            if authService.isSignedIn {
-                Button { showingSignOutConfirm = true } label: {
-                    HStack(spacing: 16) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right").foregroundStyle(.primary).frame(width: 44)
-                        Text("Sign Out").font(.body)
-                        Spacer()
-                    }
-                }
-                .buttonStyle(.plain).padding(.vertical, 4)
-            } else {
-                Button { showSignIn = true } label: {
-                    HStack(spacing: 16) {
-                        Image(systemName: "person.crop.circle.badge.plus").foregroundStyle(Color("EEONAccent")).frame(width: 44)
-                        Text("Sign In").font(.body).foregroundStyle(Color("EEONAccent"))
-                        Spacer()
-                    }
-                }
-                .buttonStyle(.plain).padding(.vertical, 4)
-            }
-        }
-    }
-
-    private var accountRow: some View {
-        Button {
-            editedName = authService.userName ?? ""
-            showingEditName = true
-        } label: {
-            HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(Color("EEONAccentAI").opacity(0.15))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: authService.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle")
-                        .foregroundStyle(Color("EEONAccentAI"))
-                }
+    private var signedOutAccountPrompt: some View {
+        VStack(alignment: .leading, spacing: EEONLayout.snug) {
+            HStack(spacing: EEONLayout.standard) {
+                EEONSettingsIcon(systemName: "person.crop.circle.badge.plus")
 
                 VStack(alignment: .leading, spacing: 2) {
-                    if authService.isSignedIn {
-                        Text(authService.displayName)
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(.primary)
-                        if let email = authService.userEmail {
-                            Text(email)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Text("Signed in with Apple")
-                            .font(.caption2)
-                            .foregroundStyle(Color("EEONAccent"))
-                    } else {
-                        Text("Not signed in")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(.primary)
-                        Text("Local data only")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("Account")
+                        .font(EEONType.body)
+                        .foregroundStyle(.eeonTextPrimary)
+                    Text("Use Apple ID to restore account and Pro access")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
                 }
 
-                Spacer()
-
-                if authService.isSignedIn {
-                    Text("Edit")
-                        .font(.subheadline)
-                        .foregroundStyle(Color("EEONAccent"))
-                }
+                Spacer(minLength: EEONLayout.tight)
             }
+
+            SettingsAppleSignInButton(onCompletion: handleSettingsAppleSignIn)
         }
-        .buttonStyle(.plain)
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+    }
+
+    private func handleSettingsAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .success(let authorization):
+            authService.handleSignInResult(.success(authorization))
+            Task {
+                await SubscriptionManager.shared.updateSubscriptionStatus()
+            }
+        case .failure(let error):
+            if let authorizationError = error as? ASAuthorizationError,
+               authorizationError.code == .canceled {
+                return
+            }
+            signInError = error.localizedDescription
+        }
     }
 
     // MARK: - iCloud Sync Section
@@ -2269,23 +2320,17 @@ struct SettingsView: View {
     /// The one row that stands in for the whole account domain.
     private var accountSummaryRow: some View {
         HStack(spacing: EEONLayout.standard) {
-            ZStack {
-                Circle()
-                    .fill(Color("EEONAccentAI").opacity(0.15))
-                    .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
-                Text(initials)
-                    .font(EEONType.control)
-                    .foregroundStyle(Color("EEONAccentAI"))
-            }
+            Image(systemName: "person.crop.circle")
+                .font(.title2)
+                .foregroundStyle(Color("EEONAccentAI"))
+                .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(authService.userName?.isEmpty == false
-                     ? (authService.userName ?? "Account")
-                     : "Account")
+                Text(accountDisplayName)
                     .font(EEONType.body)
                     .foregroundStyle(.eeonTextPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(authService.isSignedIn ? "Signed in with Apple" : "Not signed in")
+                Text(accountSummarySubtitle)
                     .font(EEONType.meta)
                     .foregroundStyle(.eeonTextSecondary)
             }
@@ -2296,38 +2341,88 @@ struct SettingsView: View {
         .padding(.vertical, 4)
     }
 
-    private var initials: String {
-        let name = authService.userName ?? ""
-        let parts = name.split(separator: " ").prefix(2)
-        let letters = parts.compactMap { $0.first }.map(String.init).joined()
-        return letters.isEmpty ? "?" : letters.uppercased()
+    private var accountDisplayName: String {
+        cleaned(authService.userName)
+            ?? cleaned(authService.userEmail)
+            ?? "Apple Account"
+    }
+
+    private var accountSummarySubtitle: String {
+        authService.isSignedIn ? "Signed in with Apple" : "Not signed in"
+    }
+
+    private var accountEmailText: String {
+        cleaned(authService.userEmail) ?? "Not shared"
+    }
+
+    private var accountNameText: String {
+        cleaned(authService.userName) ?? "Add Name"
+    }
+
+    private func cleaned(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private var accountDetail: some View {
         List {
-            accountSection
+            if authService.isSignedIn {
+                Section {
+                    LabeledContent("Name") {
+                        Button {
+                            editedName = cleaned(authService.userName) ?? ""
+                            showingEditName = true
+                        } label: {
+                            Text(accountNameText)
+                                .foregroundStyle(cleaned(authService.userName) == nil ? Color("EEONAccentAI") : .secondary)
+                        }
+                    }
 
-            // Danger zone lives with the account it destroys, not as its own
-            // top-level section shouting at everyone who opens Settings.
-            Section {
-                Button {
-                    showingDeleteAllDataConfirm = true
-                } label: {
-                    HStack(spacing: EEONLayout.standard) {
-                        EEONSettingsIcon(systemName: "trash", destructive: true)
-                        Text("Delete Account & Data")
-                            .font(EEONType.body)
-                            .foregroundStyle(.red)
-                        Spacer()
+                    LabeledContent("Email", value: accountEmailText)
+
+                    LabeledContent("Sign in with Apple", value: "Connected")
+                } header: {
+                    Text("Apple Account")
+                } footer: {
+                    Text("Apple only shares your name and email the first time you authorize the app. If no name is stored, add one here.")
+                }
+
+                Section {
+                    LabeledContent("Plan", value: usage.isPro ? "EEON Pro" : "Free")
+
+                    if !usage.isPro {
+                        Button("Upgrade to Pro") {
+                            showingPaywall = true
+                        }
+                    } else {
+                        Button("Downgrade to Free", role: .destructive) {
+                            showingResetConfirm = true
+                        }
+                    }
+                } header: {
+                    Text("Subscription")
+                }
+
+                Section {
+                    Button("Sign Out", role: .destructive) {
+                        showingSignOutConfirm = true
                     }
                 }
-                .buttonStyle(.plain)
-                .padding(.vertical, 4)
-            } footer: {
-                Text("This will permanently delete your account, all notes, projects, and associated data from this device and iCloud. This action cannot be undone.")
-                    .font(EEONType.meta)
+
+                Section {
+                    Button("Delete Account & Data", role: .destructive) {
+                        showingDeleteAllDataConfirm = true
+                    }
+                } footer: {
+                    Text("This permanently deletes your account, notes, projects, and associated data from this device and iCloud. This action cannot be undone.")
+                }
+            } else {
+                Section {
+                    signedOutAccountPrompt
+                }
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -2376,6 +2471,25 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Capture")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var askDetail: some View {
+        List {
+            Section {
+                Picker("Answer style", selection: $askModelPreferenceRaw) {
+                    ForEach(AskModelPreference.allCases) { preference in
+                        Label(preference.title, systemImage: preference.systemImage)
+                            .tag(preference.rawValue)
+                    }
+                }
+                .pickerStyle(.inline)
+            } footer: {
+                Text("Fast keeps Ask lightweight. Balanced is the default. Thorough gives EEON more room when questions need synthesis across notes and articles.")
+                    .font(EEONType.meta)
+            }
+        }
+        .navigationTitle("Ask EEON")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -2494,6 +2608,253 @@ struct SettingsView: View {
     }
     #endif
 
+    private var planSettingsSection: some View {
+        Section {
+            LabeledContent("Plan", value: usage.isPro ? "EEON Pro" : "Free")
+            LabeledContent("Usage", value: usageStatusText)
+
+            if !usage.isPro {
+                Button {
+                    showingPaywall = true
+                } label: {
+                    EEONSettingsRow(
+                        icon: "star.fill",
+                        title: "Upgrade to Pro",
+                        subtitle: "$9.99/month"
+                    ) {
+                        EEONChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        } header: {
+            Text("Subscription")
+        }
+    }
+
+    private var usageStatusText: String {
+        if usage.isPro {
+            return "\(noteCount) notes recorded"
+        }
+        return "\(usage.freeNotesUsed) of \(UsageService.freeNoteLimit) free notes used"
+    }
+
+    private var noteCount: Int {
+        notes.filter {
+            $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed
+        }.count
+    }
+
+    private var personalizationSettingsRow: some View {
+        NavigationLink {
+            TuneConversationView()
+        } label: {
+            EEONSettingsRow(
+                icon: "person.crop.circle",
+                title: "Personalization",
+                subtitle: "Profile, focus, note style"
+            )
+        }
+    }
+
+    private var captureSettingsRow: some View {
+        NavigationLink {
+            captureDetail
+        } label: {
+            EEONSettingsRow(
+                icon: "waveform",
+                title: "Capture",
+                subtitle: "Language, vocabulary, formats"
+            )
+        }
+    }
+
+    private var askSettingsRow: some View {
+        NavigationLink {
+            askDetail
+        } label: {
+            EEONSettingsRow(
+                icon: "sparkle.magnifyingglass",
+                title: "Ask EEON",
+                subtitle: selectedAskModelPreference.subtitle
+            )
+        }
+    }
+
+    private var peopleSpeakersSettingsRow: some View {
+        NavigationLink {
+            PeopleSpeakersSettingsView()
+        } label: {
+            EEONSettingsRow(
+                icon: "person.2",
+                title: "People & Speakers",
+                subtitle: peopleSpeakersSummary
+            )
+        }
+    }
+
+    private var peopleSpeakersSummary: String {
+        let peopleCount = mentionedPeople.filter { !$0.isArchived }.count
+        let speakerCount = Set(notes.flatMap { note in
+            note.speakerLabels
+                .map(\.displayName)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && !$0.lowercased().hasPrefix("speaker ") }
+        }).count
+
+        if peopleCount == 0 && speakerCount == 0 {
+            return "Rename people and speakers across notes"
+        }
+        if speakerCount == 0 {
+            return "\(peopleCount) people"
+        }
+        return "\(peopleCount) people, \(speakerCount) named speakers"
+    }
+
+    private var connectionsSettingsRow: some View {
+        NavigationLink {
+            connectionsDetail
+        } label: {
+            EEONSettingsRow(
+                icon: "link",
+                title: "Connections",
+                subtitle: connectionsSummary
+            )
+        }
+    }
+
+    private var connectionsSummary: String {
+        var enabled: [String] = []
+        if remindersSyncEnabled {
+            enabled.append("Reminders")
+        }
+        if calendarContextEnabled {
+            enabled.append("Calendar")
+        }
+        let iCloudSummary = iCloudStatus == .available ? "iCloud notes on" : "iCloud needs attention"
+        return enabled.isEmpty ? iCloudSummary : "\(iCloudSummary); \(enabled.joined(separator: ", ")) connected"
+    }
+
+    private var selectedAskModelPreference: AskModelPreference {
+        AskModelPreference(rawValue: askModelPreferenceRaw) ?? .balanced
+    }
+
+    private var notificationsSettingsRow: some View {
+        NavigationLink {
+            notificationsDetail
+        } label: {
+            EEONSettingsRow(
+                icon: "bell",
+                title: "Notifications"
+            )
+        }
+    }
+
+    private var syncSettingsRow: some View {
+        NavigationLink {
+            syncDetail
+        } label: {
+            EEONSettingsRow(
+                icon: "icloud",
+                title: "iCloud & Sync"
+            )
+        }
+    }
+
+    private var exportSettingsRow: some View {
+        NavigationLink {
+            dataDetail
+        } label: {
+            EEONSettingsRow(
+                icon: "square.and.arrow.up",
+                title: "Export My Data"
+            )
+        }
+    }
+
+    private var helpSettingsRow: some View {
+        NavigationLink {
+            helpDetail
+        } label: {
+            EEONSettingsRow(
+                icon: "questionmark.circle",
+                title: "Help & About"
+            )
+        }
+    }
+
+    #if DEBUG
+    private var developerSettingsRow: some View {
+        NavigationLink {
+            developerDetail
+        } label: {
+            EEONSettingsRow(
+                icon: "hammer",
+                title: "Developer"
+            )
+        }
+    }
+    #endif
+
+    private var topLevelAccountSection: some View {
+        Section {
+            if authService.isSignedIn {
+                NavigationLink {
+                    accountDetail
+                } label: {
+                    accountSummaryRow
+                }
+            } else {
+                signedOutAccountPrompt
+            }
+        } header: {
+            Text("Account")
+        }
+    }
+
+    private var setupSettingsSection: some View {
+        Section {
+            personalizationSettingsRow
+            peopleSpeakersSettingsRow
+            captureSettingsRow
+            askSettingsRow
+            notificationsSettingsRow
+        } header: {
+            Text("Preferences")
+        }
+    }
+
+    private var connectionsSettingsSection: some View {
+        Section {
+            connectionsSettingsRow
+        } footer: {
+            Text("Manage private iCloud sync, Reminders, and Calendar.")
+        }
+    }
+
+    private var dataSettingsSection: some View {
+        Section {
+            syncSettingsRow
+            exportSettingsRow
+        } header: {
+            Text("Data")
+        }
+    }
+
+    private var helpSettingsSection: some View {
+        Section {
+            helpSettingsRow
+        }
+    }
+
+    #if DEBUG
+    private var developerSettingsSection: some View {
+        Section {
+            developerSettingsRow
+        }
+    }
+    #endif
+
     var body: some View {
         NavigationStack {
             // Settings is a table of contents, not a pile (2026-08-20).
@@ -2505,142 +2866,19 @@ struct SettingsView: View {
             // look, so a shipped feature read as missing. One row per
             // domain; details one tap deeper.
             List {
-                // MARK: - Your Plan
-                Section {
-                    UsageSectionContent(usage: usage, noteCount: notes.count)
-
-                    // The upgrade CTA stays at the top level. It used to live
-                    // inside the Account section; collapsing Account into a
-                    // drill-in would have buried the only paywall entry point
-                    // two taps deep, which is a monetisation regression, not a
-                    // tidy-up. UsageSectionContent only reports usage.
-                    if !usage.isPro {
-                        Button {
-                            showingPaywall = true
-                        } label: {
-                            HStack(spacing: EEONLayout.snug) {
-                                Text("Upgrade to Pro")
-                                    .font(EEONType.control)
-                                    .foregroundStyle(.white)
-                                Spacer()
-                                Text("$9.99/mo")
-                                    .font(EEONType.meta)
-                                    .foregroundStyle(.white.opacity(0.85))
-                            }
-                            .padding(.horizontal, EEONLayout.standard)
-                            .frame(maxWidth: .infinity, minHeight: EEONLayout.minTarget)
-                            .background(Color.eeonAccent)
-                            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.chipRadius))
-                        }
-                        .buttonStyle(.plain)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
-                    }
-                } header: {
-                    Text("Your Plan")
-                }
-
-                // MARK: - Account
-                Section {
-                    NavigationLink {
-                        accountDetail
-                    } label: {
-                        accountSummaryRow
-                    }
-                }
-
-                // MARK: - Setup
-                Section {
-                    NavigationLink {
-                        TuneConversationView()
-                    } label: {
-                        EEONSettingsRow(
-                            icon: "scope",
-                            title: "Tune EEON",
-                            subtitle: "Who you are, what it's for"
-                        )
-                    }
-
-                    NavigationLink {
-                        captureDetail
-                    } label: {
-                        EEONSettingsRow(
-                            icon: "waveform",
-                            title: "Capture",
-                            subtitle: "Language, auto-format"
-                        )
-                    }
-
-                    NavigationLink {
-                        connectionsDetail
-                    } label: {
-                        EEONSettingsRow(
-                            icon: "link",
-                            title: "Connections",
-                            subtitle: "Reminders, folder export"
-                        )
-                    }
-
-                    NavigationLink {
-                        notificationsDetail
-                    } label: {
-                        EEONSettingsRow(
-                            icon: "bell",
-                            title: "Notifications"
-                        )
-                    }
-                } header: {
-                    Text("Setup")
-                }
-
-                // MARK: - Data
-                Section {
-                    NavigationLink {
-                        syncDetail
-                    } label: {
-                        EEONSettingsRow(
-                            icon: "icloud",
-                            title: "iCloud & Sync"
-                        )
-                    }
-
-                    NavigationLink {
-                        dataDetail
-                    } label: {
-                        EEONSettingsRow(
-                            icon: "square.and.arrow.up",
-                            title: "Export My Data"
-                        )
-                    }
-                } header: {
-                    Text("Data")
-                }
-
-                // MARK: - Help
-                Section {
-                    NavigationLink {
-                        helpDetail
-                    } label: {
-                        EEONSettingsRow(
-                            icon: "questionmark.circle",
-                            title: "Help & About"
-                        )
-                    }
-                }
+                topLevelAccountSection
+                connectionsSettingsSection
+                planSettingsSection
+                setupSettingsSection
+                dataSettingsSection
+                helpSettingsSection
 
                 // MARK: - Developer Section (DEBUG only)
                 #if DEBUG
-                Section {
-                    NavigationLink {
-                        developerDetail
-                    } label: {
-                        EEONSettingsRow(
-                            icon: "hammer",
-                            title: "Developer"
-                        )
-                    }
-                }
+                developerSettingsSection
                 #endif
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
             .task {
@@ -2676,16 +2914,21 @@ struct SettingsView: View {
             } message: {
                 Text("This name will be shown in the app and used for your avatar initials.")
             }
+            .alert("Sign In Error", isPresented: Binding(
+                get: { signInError != nil },
+                set: { if !$0 { signInError = nil } }
+            )) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(signInError ?? "")
+            }
             .sheet(isPresented: $showingShareSheet) {
-                ShareSheet(items: [URL(string: "https://apps.apple.com/app/id6758273499")!])
+                ShareSheet(items: [URL(string: "https://apps.apple.com/us/app/voice-notes-knowledge-wiki/id6758273499")!])
             }
             .sheet(isPresented: $showingPaywall) {
                 PaywallView(onDismiss: {
                     showingPaywall = false
                 })
-            }
-            .sheet(isPresented: $showSignIn) {
-                SignInView()
             }
             .confirmationDialog("Downgrade to Free?", isPresented: $showingResetConfirm, titleVisibility: .visible) {
                 Button("Downgrade", role: .destructive) {
@@ -2696,7 +2939,7 @@ struct SettingsView: View {
                 Text("You will lose access to unlimited extractions and resolutions.")
             }
             .confirmationDialog("Sign Out?", isPresented: $showingSignOutConfirm, titleVisibility: .visible) {
-                Button("Sign Out") {
+                Button("Sign Out", role: .destructive) {
                     signOutOnly()
                 }
                 Button("Cancel", role: .cancel) { }
@@ -2747,12 +2990,8 @@ struct SettingsView: View {
     }
 
     private func signOutOnly() {
-        // Dismiss settings first, then sign out after sheet animation completes
-        // This avoids the sheet dismissal fighting the root view swap
+        AuthService.shared.signOut()
         dismiss()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            AuthService.shared.signOut()
-        }
     }
 
     /// Generate the markdown export, then immediately present the iOS share
@@ -2805,6 +3044,336 @@ struct SettingsView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             AuthService.shared.clearAllUserData()
         }
+    }
+}
+
+private struct PeopleSpeakersSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \MentionedPerson.lastMentionedAt, order: .reverse) private var people: [MentionedPerson]
+    @Query private var notes: [Note]
+    @Query private var actions: [ExtractedAction]
+    @Query private var commitments: [ExtractedCommitment]
+    @Query private var articles: [KnowledgeArticle]
+
+    private struct SpeakerNameRow: Identifiable {
+        let name: String
+        let count: Int
+        var id: String { name.lowercased() }
+    }
+
+    @State private var editingName: String?
+    @State private var editedName = ""
+
+    private var activePeople: [MentionedPerson] {
+        people.filter { !$0.isArchived }
+    }
+
+    private var namedSpeakers: [SpeakerNameRow] {
+        var counts: [String: Int] = [:]
+        for note in notes {
+            for label in note.speakerLabels {
+                let displayName = label.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !displayName.isEmpty, !displayName.lowercased().hasPrefix("speaker ") else { continue }
+                counts[displayName, default: 0] += 1
+            }
+        }
+        return counts
+            .map { SpeakerNameRow(name: $0.key, count: $0.value) }
+            .sorted { lhs, rhs in
+                if lhs.count == rhs.count { return lhs.name < rhs.name }
+                return lhs.count > rhs.count
+            }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                if activePeople.isEmpty {
+                    emptyRow("People named in notes will appear here.")
+                } else {
+                    ForEach(activePeople) { person in
+                        Button {
+                            beginRename(person.displayName)
+                        } label: {
+                            EEONSettingsRow(
+                                icon: "person",
+                                title: person.displayName,
+                                subtitle: "\(person.mentionCount) mentions"
+                            ) {
+                                EEONChevron()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } header: {
+                Text("People")
+            } footer: {
+                Text("Rename a person here to update extracted people, commitments, and transcript speaker labels that use the same name.")
+                    .font(EEONType.meta)
+            }
+
+            Section {
+                if namedSpeakers.isEmpty {
+                    emptyRow("Named transcript speakers will appear here.")
+                } else {
+                    ForEach(namedSpeakers) { speaker in
+                        Button {
+                            beginRename(speaker.name)
+                        } label: {
+                            EEONSettingsRow(
+                                icon: "person.2",
+                                title: speaker.name,
+                                subtitle: "\(speaker.count) speaker labels"
+                            ) {
+                                EEONChevron()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } header: {
+                Text("Named Speakers")
+            } footer: {
+                Text("EEON can rename saved speaker labels globally. Automatic voice-print identification still requires a dedicated diarization provider.")
+                    .font(EEONType.meta)
+            }
+        }
+        .navigationTitle("People & Speakers")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Rename", isPresented: Binding(
+            get: { editingName != nil },
+            set: { if !$0 { editingName = nil; editedName = "" } }
+        )) {
+            TextField("Name", text: $editedName)
+                .textInputAutocapitalization(.words)
+            Button("Cancel", role: .cancel) {
+                editingName = nil
+                editedName = ""
+            }
+            Button("Save") {
+                if let oldName = editingName {
+                    rename(oldName, to: editedName)
+                }
+                editingName = nil
+                editedName = ""
+            }
+        } message: {
+            Text("This updates matching people and speaker labels across your notes.")
+        }
+    }
+
+    private func emptyRow(_ text: String) -> some View {
+        Text(text)
+            .font(EEONType.meta)
+            .foregroundStyle(.eeonTextSecondary)
+            .padding(.vertical, 4)
+    }
+
+    private func beginRename(_ name: String) {
+        editingName = name
+        editedName = name
+    }
+
+    private func rename(_ oldName: String, to rawNewName: String) {
+        let newName = rawNewName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let oldNormalized = MentionedPerson.normalize(oldName)
+        let newNormalized = MentionedPerson.normalize(newName)
+        guard !newName.isEmpty, !oldNormalized.isEmpty, oldNormalized != newNormalized else { return }
+
+        mergePeople(oldNormalized: oldNormalized, newName: newName, newNormalized: newNormalized)
+        let changedArticles = renamePersonArticles(
+            oldName: oldName,
+            oldNormalized: oldNormalized,
+            newName: newName,
+            newNormalized: newNormalized
+        )
+        let changedActions = renameActions(oldNormalized: oldNormalized, newName: newName)
+        let changedCommitments = renameCommitments(oldNormalized: oldNormalized, newName: newName, newNormalized: newNormalized)
+
+        var changedNotes: [Note] = []
+        for note in notes {
+            var changed = false
+
+            let renamedPeople = note.mentionedPeople.map { name in
+                MentionedPerson.normalize(name) == oldNormalized ? newName : name
+            }
+            let dedupedPeople = dedupedNames(renamedPeople)
+            if dedupedPeople != note.mentionedPeople {
+                note.mentionedPeople = dedupedPeople
+                changed = true
+            }
+
+            var labels = note.speakerLabels
+            for index in labels.indices {
+                let labelName = labels[index].displayName
+                if MentionedPerson.normalize(labelName) == oldNormalized {
+                    labels[index].name = newName
+                    changed = true
+                }
+            }
+            if labels != note.speakerLabels {
+                note.speakerLabels = labels
+                changed = true
+            }
+
+            if changed {
+                note.updatedAt = Date()
+                changedNotes.append(note)
+            }
+        }
+        let changedNoteIds = Set(
+            changedNotes.map(\.id) +
+            changedActions.compactMap(\.sourceNoteId) +
+            changedCommitments.compactMap(\.sourceNoteId)
+        )
+
+        try? modelContext.save()
+
+        for note in notes where changedNoteIds.contains(note.id) {
+            DocumentExportService.shared.export(note: note, context: modelContext)
+        }
+        for article in changedArticles {
+            DocumentExportService.shared.removeExportedArticleFile(for: article, previousName: oldName)
+            DocumentExportService.shared.export(article: article)
+        }
+        if !changedActions.isEmpty {
+            Task {
+                for action in changedActions {
+                    await EventKitSyncService.shared.sync(actions: [action])
+                }
+            }
+        }
+        TranscriptionVocabulary.shared.refreshLearned(context: modelContext)
+    }
+
+    private func mergePeople(oldNormalized: String, newName: String, newNormalized: String) {
+        let target = people.first { $0.normalizedName == newNormalized }
+        for person in people where person.normalizedName == oldNormalized {
+            if let target, target.id != person.id {
+                target.mentionCount += person.mentionCount
+                target.firstMentionedAt = min(target.firstMentionedAt, person.firstMentionedAt)
+                target.lastMentionedAt = max(target.lastMentionedAt, person.lastMentionedAt)
+                target.openCommitmentCount += person.openCommitmentCount
+                modelContext.delete(person)
+            } else {
+                person.name = newName
+                person.normalizedName = newNormalized
+            }
+        }
+    }
+
+    private func renamePersonArticles(
+        oldName: String,
+        oldNormalized: String,
+        newName: String,
+        newNormalized: String
+    ) -> [KnowledgeArticle] {
+        let matching = articles.filter { article in
+            article.articleType == .person &&
+            (MentionedPerson.normalize(article.name) == oldNormalized ||
+             article.aliases.contains(oldNormalized))
+        }
+        let target = articles.first {
+            $0.articleType == .person && MentionedPerson.normalize($0.name) == newNormalized
+        }
+
+        var changed: [KnowledgeArticle] = []
+        for article in matching {
+            if let target, target.id != article.id {
+                target.mentionCount += article.mentionCount
+                target.lastMentionedAt = maxOptionalDate(target.lastMentionedAt, article.lastMentionedAt)
+                target.linkedNoteIds = dedupedUUIDs(target.linkedNoteIds + article.linkedNoteIds)
+                target.addAlias(oldName)
+                target.addAlias(article.name)
+                target.isDirty = true
+                target.updatedAt = Date()
+                DocumentExportService.shared.removeExportedArticleFile(for: article, previousName: article.name)
+                modelContext.delete(article)
+                changed.append(target)
+            } else {
+                article.addAlias(oldName)
+                article.name = newName
+                article.aliases = dedupedNames(article.aliases + [newNormalized, oldNormalized])
+                article.isDirty = true
+                article.updatedAt = Date()
+                changed.append(article)
+            }
+        }
+        return Array(Dictionary(grouping: changed, by: \.id).compactMap { $0.value.first })
+    }
+
+    private func renameActions(oldNormalized: String, newName: String) -> [ExtractedAction] {
+        var changed: [ExtractedAction] = []
+        for action in actions where MentionedPerson.normalize(action.owner) == oldNormalized {
+            action.owner = newName
+            changed.append(action)
+        }
+        return changed
+    }
+
+    private func renameCommitments(oldNormalized: String, newName: String, newNormalized: String) -> [ExtractedCommitment] {
+        var changed: [ExtractedCommitment] = []
+        for commitment in commitments {
+            var didChange = false
+            if let personName = commitment.personName, personName == oldNormalized {
+                commitment.personName = newNormalized
+                didChange = true
+            }
+            if MentionedPerson.normalize(commitment.who) == oldNormalized {
+                commitment.who = newName
+                didChange = true
+            }
+            if didChange {
+                changed.append(commitment)
+            }
+        }
+        return changed
+    }
+
+    private func maxOptionalDate(_ lhs: Date?, _ rhs: Date?) -> Date? {
+        switch (lhs, rhs) {
+        case (nil, nil): return nil
+        case (let lhs?, nil): return lhs
+        case (nil, let rhs?): return rhs
+        case (let lhs?, let rhs?): return max(lhs, rhs)
+        }
+    }
+
+    private func dedupedUUIDs(_ ids: [UUID]) -> [UUID] {
+        var seen = Set<UUID>()
+        var out: [UUID] = []
+        for id in ids where seen.insert(id).inserted {
+            out.append(id)
+        }
+        return out
+    }
+
+    private func dedupedNames(_ names: [String]) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for name in names {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = MentionedPerson.normalize(trimmed)
+            guard !trimmed.isEmpty, seen.insert(normalized).inserted else { continue }
+            out.append(trimmed)
+        }
+        return out
+    }
+}
+
+private struct SettingsAppleSignInButton: View {
+    let onCompletion: (Result<ASAuthorization, Error>) -> Void
+
+    var body: some View {
+        SignInWithAppleButton(.signIn) { request in
+            request.requestedScopes = [.fullName, .email]
+        } onCompletion: { result in
+            onCompletion(result)
+        }
+        .signInWithAppleButtonStyle(.black)
+        .frame(maxWidth: .infinity, minHeight: 54, maxHeight: 54)
+        .cornerRadius(EEONLayout.cardRadius)
     }
 }
 

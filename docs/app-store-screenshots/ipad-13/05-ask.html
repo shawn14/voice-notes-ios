@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:2064px; height:2752px;
+    background: radial-gradient(ellipse at 50% -10%, rgba(74,111,165,0.22) 0%, transparent 60%),
+                radial-gradient(ellipse at 0% 100%, rgba(232,93,74,0.10) 0%, transparent 60%),
+                linear-gradient(180deg,#0c0a08 0%, #15110D 100%);
+    color:#fff; font-family:'DM Sans',sans-serif; overflow:hidden;
+    display:grid; grid-template-columns: 1fr 1.1fr; gap:80px; padding:160px 140px;
+    -webkit-font-smoothing:antialiased; }
+  .left { padding-top:80px; }
+  .badge { font-size:30px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:#9DB6DD; margin-bottom:48px; display:flex; align-items:center; gap:18px; }
+  .badge::before { content:''; width:60px; height:1px; background:#9DB6DD; opacity:0.5; }
+  h1 { font-family:'Instrument Serif',serif; font-size:200px; line-height:0.92; font-weight:400; letter-spacing:-4px; }
+  h1 em { font-style:italic; color:#9DB6DD; }
+  .subhead { font-size:42px; font-weight:500; color:rgba(255,255,255,0.65); margin-top:48px; line-height:1.32; max-width:720px; }
+  .points { margin-top:90px; display:flex; flex-direction:column; gap:34px; }
+  .point { display:flex; gap:24px; align-items:flex-start; }
+  .point .num { font-family:'Instrument Serif',serif; font-style:italic; font-size:64px; color:#9DB6DD; line-height:0.9; flex-shrink:0; width:60px; }
+  .point .text { font-size:30px; line-height:1.45; color:rgba(255,255,255,0.85); }
+  .point .text strong { color:#fff; font-weight:600; }
+
+  .right { display:flex; align-items:center; justify-content:center; }
+  .phone { width:880px; height:1820px; background:#1a1a1a; border-radius:88px; padding:18px; box-shadow:0 80px 160px rgba(0,0,0,0.7), 0 0 0 2px rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.04); position:relative; overflow:hidden; }
+  .screen { width:100%; height:100%; background:#F4F1EC; border-radius:72px; overflow:hidden; position:relative; color:#15110D; display:flex; flex-direction:column; }
+  .island { position:absolute; top:30px; left:50%; transform:translateX(-50%); width:230px; height:54px; background:#1a1a1a; border-radius:30px; z-index:5; }
+  .status { padding:32px 50px 14px; display:flex; justify-content:space-between; align-items:center; font-size:25px; font-weight:700; color:#15110D; }
+  .body { flex:1; padding:30px 30px 36px; overflow:hidden; }
+  .nav-h { display:flex; align-items:baseline; gap:13px; margin-bottom:28px; }
+  .nav-h h2 { font-size:46px; font-weight:800; letter-spacing:-1px; }
+  .nav-h .pill { font-family:'JetBrains Mono',monospace; font-size:13px; letter-spacing:0.12em; padding:5px 13px; border-radius:7px; background:rgba(74,111,165,0.14); color:#4A6FA5; text-transform:uppercase; font-weight:600; align-self:center; }
+  .question { background:#15110D; color:white; padding:26px 28px; border-radius:22px 22px 22px 8px; font-size:26px; font-weight:600; line-height:1.3; margin-bottom:14px; max-width:84%; }
+  .question .ico { font-size:16px; color:#9DB6DD; letter-spacing:0.12em; text-transform:uppercase; font-family:'JetBrains Mono',monospace; font-weight:500; display:block; margin-bottom:8px; }
+  .answer { background:white; border:1px solid rgba(220,213,199,0.5); border-radius:22px 22px 8px 22px; padding:28px; margin-left:auto; max-width:96%; box-shadow:0 2px 6px rgba(21,17,13,0.04); }
+  .answer-head { display:flex; align-items:center; gap:11px; margin-bottom:14px; }
+  .answer-head .badge { width:42px; height:42px; border-radius:11px; background:#4A6FA5; display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:19px; margin:0; }
+  .answer-head h4 { font-size:20px; font-weight:800; letter-spacing:-0.2px; }
+  .answer-head .meta { font-family:'JetBrains Mono',monospace; font-size:13px; color:#8B8377; letter-spacing:0.06em; margin-left:auto; }
+  .answer-text { font-size:23px; line-height:1.5; color:#15110D; }
+  .answer-text em { font-family:'Instrument Serif',serif; font-style:italic; }
+  .citations { margin-top:22px; padding-top:20px; border-top:1px solid rgba(220,213,199,0.5); }
+  .citations-label { font-family:'JetBrains Mono',monospace; font-size:13px; letter-spacing:0.14em; text-transform:uppercase; color:#8B8377; margin-bottom:13px; }
+  .citation { display:flex; align-items:center; gap:13px; padding:13px 17px; background:#F4F1EC; border-radius:13px; margin-bottom:8px; }
+  .citation .ic { width:30px; height:30px; border-radius:8px; background:#4A6FA5; color:white; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; flex-shrink:0; }
+  .citation .title { flex:1; font-size:18px; font-weight:600; }
+  .citation .when { font-size:15px; color:#8B8377; font-family:'JetBrains Mono',monospace; }
+  .followup { margin-top:28px; }
+  .fu-h { font-family:'JetBrains Mono',monospace; font-size:13px; letter-spacing:0.14em; text-transform:uppercase; color:#8B8377; margin-bottom:13px; }
+  .fu-chip { display:inline-block; padding:13px 20px; background:white; border:1.5px solid rgba(74,111,165,0.3); color:#4A6FA5; border-radius:30px; font-size:20px; font-weight:600; margin-right:9px; margin-bottom:9px; }
+</style></head>
+<body>
+  <div class="left">
+    <div class="badge">EEON · ASK</div>
+    <h1>Ask your<br><em>memory</em>.<br>It answers.</h1>
+    <p class="subhead">Speak a question — EEON searches every note you've ever captured. RAG over your real captures, with citations back to the source.</p>
+    <div class="points">
+      <div class="point"><div class="num">01</div><div class="text"><strong>Voice or text.</strong> Speak the question. Or type it. EEON understands either way.</div></div>
+      <div class="point"><div class="num">02</div><div class="text"><strong>Citations included.</strong> Every answer comes with the source notes. Tap to read.</div></div>
+      <div class="point"><div class="num">03</div><div class="text"><strong>Scope by date or project.</strong> Last week, this quarter, just StockAlarm — narrow the search.</div></div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="phone">
+      <div class="island"></div>
+      <div class="screen">
+        <div class="status"><span>9:41</span><span></span><span>100</span></div>
+        <div class="body">
+          <div class="nav-h"><h2>Ask</h2><span class="pill">SCOPE: ALL TIME</span></div>
+          <div class="question"><span class="ico">YOU ASKED</span>What did I decide about StockAlarm pricing?</div>
+          <div class="answer">
+            <div class="answer-head">
+              <div class="badge">✦</div>
+              <h4>EEON</h4>
+              <span class="meta">23 NOTES</span>
+            </div>
+            <div class="answer-text">You decided to <em>ship a paid tier in Q3</em> — confirmed on April 22nd. After Patrick's feedback last week, you're leaning toward <em>$19/mo for power traders</em> with a $9/mo entry tier and an annual discount. The pricing tier finalization with Patrick is still listed as waiting.</div>
+            <div class="citations">
+              <div class="citations-label">✦ Based on these notes</div>
+              <div class="citation"><div class="ic">○</div><div class="title">Patrick — pricing tier feedback</div><div class="when">4h ago</div></div>
+              <div class="citation"><div class="ic">✓</div><div class="title">StockAlarm Q3 paid tier decision</div><div class="when">Apr 22</div></div>
+            </div>
+          </div>
+          <div class="followup">
+            <div class="fu-h">✦ Try asking</div>
+            <span class="fu-chip">What's stuck on StockAlarm?</span>
+            <span class="fu-chip">Themes from this week</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>

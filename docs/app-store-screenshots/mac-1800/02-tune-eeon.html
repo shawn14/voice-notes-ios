@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:2880px; height:1800px;
+    background: radial-gradient(ellipse at 50% -10%, rgba(74,111,165,0.20) 0%, transparent 60%),
+                radial-gradient(ellipse at 100% 100%, rgba(232,93,74,0.12) 0%, transparent 60%),
+                linear-gradient(135deg,#0c0a08 0%, #15110D 100%);
+    color:#fff; font-family:'DM Sans',sans-serif; overflow:hidden;
+    display:grid; grid-template-columns: 1fr 1.45fr; gap:80px; padding:140px 140px;
+    -webkit-font-smoothing:antialiased; }
+  .left { padding-top:60px; }
+  .badge { font-size:30px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:#9DB6DD; margin-bottom:48px; display:flex; align-items:center; gap:18px; }
+  .badge::before { content:''; width:60px; height:1px; background:#9DB6DD; opacity:0.5; }
+  h1 { font-family:'Instrument Serif',serif; font-size:200px; line-height:0.92; font-weight:400; letter-spacing:-4px; }
+  h1 em { font-style:italic; color:#9DB6DD; }
+  .subhead { font-size:42px; font-weight:500; color:rgba(255,255,255,0.65); margin-top:48px; line-height:1.32; max-width:900px; }
+  .points { margin-top:80px; display:flex; flex-direction:column; gap:30px; }
+  .point { display:flex; gap:24px; align-items:flex-start; }
+  .point .num { font-family:'Instrument Serif',serif; font-style:italic; font-size:58px; color:#9DB6DD; line-height:0.9; flex-shrink:0; width:60px; }
+  .point .text { font-size:28px; line-height:1.45; color:rgba(255,255,255,0.85); }
+  .point .text strong { color:#fff; font-weight:600; }
+
+  .right { display:flex; align-items:center; justify-content:center; }
+  .window { width:1500px; height:1100px; background:#F4F1EC; border-radius:18px; overflow:hidden; box-shadow:0 80px 160px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08); position:relative; color:#15110D; }
+  .titlebar { height:50px; background:#EBE6DC; border-bottom:1px solid rgba(0,0,0,0.08); display:flex; align-items:center; padding:0 18px; gap:9px; }
+  .traffic { display:flex; gap:8px; }
+  .light { width:14px; height:14px; border-radius:7px; }
+  .light.r { background:#FF5F57; } .light.y { background:#FFBD2E; } .light.g { background:#28CA41; }
+  .titlebar .title { flex:1; text-align:center; font-size:14px; font-weight:600; color:#4A4137; margin-left:-78px; }
+
+  .sheet-overlay {
+    height: calc(100% - 50px);
+    background: rgba(21,17,13,0.18);
+    display:flex; align-items:flex-end; justify-content:center;
+    overflow:hidden;
+  }
+  .sheet {
+    width:760px; height:88%;
+    background:#F4F1EC;
+    border-radius:24px 24px 0 0;
+    overflow:hidden;
+    box-shadow:0 -10px 40px rgba(0,0,0,0.18);
+    display:flex; flex-direction:column;
+  }
+  .sheet-handle { width:40px; height:4px; background:#DCD5C7; border-radius:2px; margin:14px auto 0; }
+  .sheet-nav { padding:18px 28px; display:flex; align-items:center; justify-content:center; position:relative; border-bottom:1px solid rgba(0,0,0,0.06); }
+  .sheet-nav .x { position:absolute; left:24px; width:36px; height:36px; border-radius:18px; background:rgba(21,17,13,0.06); display:flex; align-items:center; justify-content:center; font-size:20px; color:#4A4137; font-weight:600; }
+  .sheet-nav h2 { font-size:22px; font-weight:800; letter-spacing:-0.3px; }
+  .sheet-body { flex:1; padding:18px 24px 24px; overflow:hidden; }
+
+  .card { background:#fff; border-radius:18px; padding:18px; box-shadow:0 1px 3px rgba(21,17,13,0.05); margin-bottom:14px; border:1px solid rgba(220,213,199,0.5); }
+  .card.collapsed { padding:14px 18px; }
+  .card-h { display:flex; align-items:flex-start; gap:12px; margin-bottom:10px; }
+  .card-icon { width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+  .card-icon.profile { background:rgba(232,93,74,0.14); color:#E85D4A; }
+  .card-icon.focus { background:rgba(232,93,74,0.14); color:#E85D4A; }
+  .card-icon.purpose { background:rgba(74,111,165,0.14); color:#4A6FA5; }
+  .card-title-box { flex:1; padding-top:8px; }
+  .card h4 { font-size:21px; font-weight:800; letter-spacing:-0.3px; line-height:1.15; }
+  .card-edit { background:rgba(232,93,74,0.14); color:#B8412F; font-size:14px; font-weight:700; padding:6px 14px; border-radius:9px; align-self:flex-start; margin-top:5px; }
+  .card-content { font-size:15px; line-height:1.45; color:#4A4137; }
+
+  .focus-list { display:flex; flex-direction:column; gap:9px; margin-top:4px; }
+  .focus-row { display:flex; align-items:center; gap:11px; padding:12px 14px; background:#F4F1EC; border-radius:13px; border:1px solid rgba(220,213,199,0.5); }
+  .drag { color:#8B8377; font-size:15px; line-height:1; }
+  .focus-content-title { font-size:16px; font-weight:700; }
+  .focus-note { font-family:'Instrument Serif',serif; font-style:italic; font-size:12px; color:#8B8377; margin-top:2px; }
+  .weight-chip { font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.12em; text-transform:uppercase; padding:4px 9px; border-radius:6px; font-weight:600; }
+  .weight-chip.primary { background:#E85D4A; color:white; }
+  .weight-chip.secondary { background:#F4DCD7; color:#B8412F; }
+  .weight-chip.tertiary { background:#DCD5C7; color:#8B8377; }
+  .focus-add { padding:11px 14px; border:1.5px dashed rgba(232,93,74,0.4); border-radius:13px; color:#E85D4A; font-size:14px; font-weight:700; text-align:center; }
+
+  .compiled { margin-top:13px; padding-top:13px; border-top:1px solid rgba(0,0,0,0.06); }
+  .compiled-label { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:#8B8377; margin-bottom:7px; }
+  .compiled-text { font-family:'Instrument Serif',serif; font-style:italic; font-size:15px; color:#4A4137; line-height:1.4; }
+</style></head>
+<body>
+  <div class="left">
+    <div class="badge">EEON · TUNE</div>
+    <h1>Tune EEON.<br>Make it<br><em>yours.</em></h1>
+    <p class="subhead">Founder, journalist, dream interpreter, coach — declare who you are once. Every surface adapts.</p>
+    <div class="points">
+      <div class="point"><div class="num">01</div><div class="text"><strong>About You.</strong> Free-text who you are.</div></div>
+      <div class="point"><div class="num">02</div><div class="text"><strong>Your Focus.</strong> Drag-to-reorder priorities. Voice in.</div></div>
+      <div class="point"><div class="num">03</div><div class="text"><strong>What EEON Is For You.</strong> The compiled directive — your AI's standing instruction.</div></div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="window">
+      <div class="titlebar">
+        <div class="traffic"><div class="light r"></div><div class="light y"></div><div class="light g"></div></div>
+        <div class="title">EEON — Tune</div>
+      </div>
+      <div class="sheet-overlay">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-nav"><div class="x">×</div><h2>Tune EEON</h2></div>
+          <div class="sheet-body">
+            <div class="card collapsed">
+              <div class="card-h">
+                <div class="card-icon profile">●</div>
+                <div class="card-title-box"><h4>About You</h4></div>
+                <div class="card-edit">Edit</div>
+              </div>
+              <div class="card-content">Founder running multiple AI-first companies. Verbal thinker. I capture meetings, ideas, half-baked product specs as voice notes.</div>
+            </div>
+            <div class="card">
+              <div class="card-h">
+                <div class="card-icon focus">⊙</div>
+                <div class="card-title-box"><h4>Your Focus Right Now</h4></div>
+                <div class="card-edit">Edit</div>
+              </div>
+              <div class="focus-list">
+                <div class="focus-row"><span class="drag">⋮⋮</span><div style="flex:1"><div class="focus-content-title">StockAlarm</div><div class="focus-note">where I want to spend most of my time</div></div><span class="weight-chip primary">Primary</span></div>
+                <div class="focus-row"><span class="drag">⋮⋮</span><div style="flex:1"><div class="focus-content-title">EEON</div><div class="focus-note">memory app — tune coverage v2 in flight</div></div><span class="weight-chip secondary">Secondary</span></div>
+                <div class="focus-row"><span class="drag">⋮⋮</span><div style="flex:1"><div class="focus-content-title">Flash AI Cards</div></div><span class="weight-chip tertiary">Tertiary</span></div>
+                <div class="focus-add">+ Add focus</div>
+              </div>
+            </div>
+            <div class="card collapsed">
+              <div class="card-h">
+                <div class="card-icon purpose">◎</div>
+                <div class="card-title-box"><h4>What EEON Is For You</h4></div>
+                <div class="card-edit">Edit</div>
+              </div>
+              <div class="card-content">I want EEON to organize my notes across all my businesses, surface threads, and call me out when I'm drifting from what I said matters most.</div>
+              <div class="compiled">
+                <div class="compiled-label">✦ What EEON now understands</div>
+                <div class="compiled-text">"You ship voice-first AI products. Frame responses to prioritize execution readiness. Surface drift between stated focus and observed capture density."</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>

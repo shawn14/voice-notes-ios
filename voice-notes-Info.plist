@@ -14,6 +14,18 @@
 	<false/>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Voice Notes uses speech recognition to show a live preview of your words as you speak.</string>
+	<key>NSUbiquitousContainers</key>
+	<dict>
+		<key>iCloud.aivoiceeeon</key>
+		<dict>
+			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
+			<true/>
+			<key>NSUbiquitousContainerName</key>
+			<string>EEON</string>
+			<key>NSUbiquitousContainerSupportedFolderLevels</key>
+			<string>Any</string>
+		</dict>
+	</dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.eeon.proactiveAlerts</string>

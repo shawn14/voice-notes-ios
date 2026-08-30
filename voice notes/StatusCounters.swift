@@ -52,31 +52,36 @@ final class StatusCounters {
         items: [KanbanItem],
         unresolved: [UnresolvedItem]
     ) {
+        let visibleNotes = librarySearchableNotes(notes)
+        let visibleActions = actions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
+        let visibleCommitments = commitments.filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
+        let visibleItems = items.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
+        let visibleUnresolved = unresolved.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
         let calendar = Calendar.current
         let now = Date()
         let startOfToday = calendar.startOfDay(for: now)
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) ?? now
 
         // Count notes today and this week
-        notesToday = notes.filter { $0.createdAt >= startOfToday }.count
-        notesThisWeek = notes.filter { $0.createdAt >= startOfWeek }.count
+        notesToday = visibleNotes.filter { $0.createdAt >= startOfToday }.count
+        notesThisWeek = visibleNotes.filter { $0.createdAt >= startOfWeek }.count
 
         // Count open actions (not completed)
-        openTodoCount = actions.filter { !$0.isCompleted }.count
+        openTodoCount = visibleActions.filter { !$0.isCompleted }.count
 
         // Count open commitments (not completed)
-        let openCommitments = commitments.filter { !$0.isCompleted }.count
+        let openCommitments = visibleCommitments.filter { !$0.isCompleted }.count
 
         // Count unresolved items
-        unresolvedCount = unresolved.count
+        unresolvedCount = visibleUnresolved.count
 
         // Count items needing attention (stalled or at-risk from HealthScoreService)
-        let activeItems = items.filter { $0.kanbanColumn != .done }
+        let activeItems = visibleItems.filter { $0.kanbanColumn != .done }
         var atRiskCount = 0
         var stalledCount = 0
 
         for item in activeItems {
-            let status = HealthScoreService.healthStatus(for: item, allItems: items)
+            let status = HealthScoreService.healthStatus(for: item, allItems: visibleItems)
             switch status {
             case .atRisk: atRiskCount += 1
             case .stalled: stalledCount += 1

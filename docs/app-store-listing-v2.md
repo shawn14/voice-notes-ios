@@ -4,67 +4,78 @@
 EEON — AI Voice Memory
 
 ## Subtitle (30 chars)
-Talk. Your AI remembers.
+Personal AI assistant
 
 ## Description
 
-Your voice is the most natural way to capture ideas, decisions, and commitments. EEON turns every word you say into searchable, organized intelligence — without you lifting a finger.
+Your personal AI assistant for iPhone.
 
-Just talk. EEON listens, transcribes, and understands. It extracts the decisions you made, the actions you committed to, the people you mentioned, and the emotional tone of your thoughts. Then it rewrites your stream-of-consciousness into clean, enhanced notes you'll actually want to read later.
+EEON turns the iPhone you already carry into private memory for ideas, decisions, meetings, reminders, project context, and AI agents. No extra recorder. No pairing. No folder setup. Press record, talk naturally, and EEON turns your voice into clean notes, tracked actions, and searchable memory you can ask later.
 
-ASK ANYTHING ABOUT YOUR LIFE
+SAY IT ONCE
 
-EEON is the first voice journal with true AI memory. Ask natural questions and get instant, synthesized answers drawn from everything you've ever recorded:
+"Remind me to send Lena the pricing deck by Friday at five. Marco said the onboarding copy is done. We decided blue, not coral, for the icon."
 
-- "What did I decide about the marketing budget?"
-- "What commitments have I made to Sarah?"
-- "What was I stressed about last month?"
-- "What are my open action items?"
-- "When did I last talk about the product launch?"
-- "What decisions have I been putting off?"
-- "Who have I mentioned most this week?"
-- "What themes keep coming up in my notes?"
-- "What did I say about switching jobs?"
-- "Summarize my week."
+EEON can turn that into a clean note, a decision filed under the right context, and "Send Lena the pricing deck" in Apple Reminders.
 
-YOUR THOUGHTS, ENHANCED
+BUILT FOR THE APPLE SYSTEM
 
-Stop worrying about being articulate. Ramble, think out loud, talk in circles — EEON's AI cleans up your words and expands your half-formed thoughts into clear, readable notes. Your original recording and transcription are always preserved.
+- Record from the Action Button, Control Center, Lock Screen, Siri, or the app
+- Sync notes through your Apple account with private iCloud and CloudKit
+- Use Apple Calendar context so meeting notes can get the event title and attendees
+- Send action items to Apple Reminders when you say "remind me"
+- Use widgets and shortcuts so capture is always close
+- Start free; no extra hardware, Bluetooth pairing, or third-party recorder account required
 
-INTELLIGENT EXTRACTION
+NOT JUST TRANSCRIPTION
 
-Every note is automatically analyzed to extract:
-- Decisions you've made
-- Action items and next steps
-- Commitments and promises
-- People mentioned
-- Topics and themes
-- Emotional tone
+Most voice note tools stop at a transcript or summary. EEON builds working memory from what you said, so compatible AI workspaces can search the context you captured after you authorize access:
 
-PROACTIVE INTELLIGENCE
+- Decisions
+- Action items
+- Commitments
+- People
+- Projects
+- Topics
+- Questions and follow-ups
 
-EEON doesn't just wait for you to ask. It notices when commitments are going stale, when action items are piling up, and when you might need a nudge — and alerts you before things slip through the cracks.
+Your notes become a memory you can search in plain language:
 
-ONE BUTTON. ZERO FRICTION.
+- "What did I decide about pricing?"
+- "What follow-ups do I owe Lena?"
+- "What came up in last week's product meetings?"
+- "What bugs did I mention while walking?"
+- "Summarize what I said about the launch."
 
-No menus, no categories, no folders to manage. Press the button and talk. EEON's intent classifier automatically knows whether you're capturing a thought or asking a question, and routes your voice to the right place.
+MADE FOR PEOPLE WHO THINK OUT LOUD
+
+Use EEON for:
+
+- Quick thoughts while walking or driving
+- Meeting notes and standups
+- Product decisions and launch context
+- Customer calls and follow-ups
+- Journal entries and personal reflection
+- Tasks you do not want to forget
 
 BUILT FOR YOUR PRIVACY
 
-Your notes sync securely via iCloud with CloudKit. Your data stays in your Apple ecosystem.
+Your notes are stored on your device and sync through your private iCloud account. EEON uses Sign in with Apple and the Apple services you already trust. Compatible AI workspaces, including MCP clients, can read your EEON memory only after you authorize an EEON connector; your phone remains the capture point and your Apple account remains the sync layer.
+
+Audio and text may be sent to AI services for transcription and note enhancement. EEON does not use your notes to train models.
 
 PRICING
 
-Start free with 10 voice notes. Unlock unlimited notes, unlimited AI queries, enhanced notes, and proactive alerts with EEON Pro:
+Record and transcribe for free. EEON Pro unlocks unlimited AI notes, formats, and the full memory:
 - Monthly: $9.99/mo
 - Annual: $79.99/yr (save 33%)
 
 ---
 
-Download EEON and never lose a thought again. Just talk — your AI remembers everything.
+Download EEON and never lose a thought again. Say it once. EEON remembers.
 
 ## Keywords (100 chars max)
-voice journal,AI memory,voice notes,decision tracker,commitment tracker,voice diary,audio journal
+personal assistant,AI notes,voice notes,voice memo,transcribe,meeting notes,reminders,AI memory,MCP
 
 ## What's New (v2.0 Release Notes)
 

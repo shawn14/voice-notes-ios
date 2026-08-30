@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EEON - Recording</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1290px;
+    height: 2796px;
+    background: #1C1C1E;
+    font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .headline {
+    margin-top: 120px;
+    text-align: center;
+  }
+  .headline h1 {
+    font-size: 104px;
+    font-weight: 800;
+    color: #FFFFFF;
+    line-height: 1.05;
+    letter-spacing: -3px;
+  }
+  .headline p {
+    font-size: 46px;
+    font-weight: 500;
+    color: #FF6B5A;
+    margin-top: 28px;
+    letter-spacing: -0.5px;
+  }
+  .phone-frame {
+    margin-top: 60px;
+    display: flex;
+    justify-content: center;
+  }
+  .phone-bezel {
+    width: 1000px;
+    height: 2140px;
+    background: #000000;
+    border-radius: 80px;
+    padding: 18px;
+    box-shadow:
+      0 40px 100px rgba(0,0,0,0.6),
+      0 0 0 2px rgba(255,255,255,0.08),
+      inset 0 0 0 1px rgba(255,255,255,0.05);
+    position: relative;
+    overflow: hidden;
+  }
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    border-radius: 64px;
+    overflow: hidden;
+    background: #1C1C1E;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Mock recording screen */
+  .status-bar {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 40px;
+    padding-top: 20px;
+  }
+  .status-bar .time {
+    font-size: 32px;
+    font-weight: 600;
+    color: white;
+  }
+  .dynamic-island {
+    width: 180px;
+    height: 48px;
+    background: #000;
+    border-radius: 28px;
+    margin: 0 auto;
+  }
+  .recording-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 40px;
+  }
+  .recording-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .recording-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,107,90,0.15);
+    padding: 10px 20px;
+    border-radius: 20px;
+  }
+  .rec-dot {
+    width: 14px;
+    height: 14px;
+    background: #FF3B30;
+    border-radius: 50%;
+  }
+  .rec-text {
+    font-size: 28px;
+    font-weight: 600;
+    color: #FF6B5A;
+  }
+  .rec-timer {
+    font-size: 28px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.5);
+  }
+  .waveform {
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 30px 0;
+  }
+  .wave-bar {
+    width: 6px;
+    background: #FF6B5A;
+    border-radius: 3px;
+    opacity: 0.7;
+  }
+  .transcript-area {
+    flex: 1;
+    padding: 30px 0;
+  }
+  .transcript-label {
+    font-size: 24px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 24px;
+  }
+  .transcript-text {
+    font-size: 38px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.95);
+    line-height: 1.5;
+  }
+  .transcript-text .live {
+    color: rgba(255,255,255,0.4);
+  }
+  .transcript-cursor {
+    display: inline-block;
+    width: 3px;
+    height: 38px;
+    background: #FF6B5A;
+    margin-left: 4px;
+    vertical-align: text-bottom;
+  }
+  .bottom-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 0 60px;
+    gap: 40px;
+  }
+  .record-btn {
+    width: 140px;
+    height: 140px;
+    background: linear-gradient(135deg, #FF6B5A, #FF3B30);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 40px rgba(255,59,48,0.4);
+  }
+  .record-btn .stop-icon {
+    width: 44px;
+    height: 44px;
+    background: white;
+    border-radius: 8px;
+  }
+  .side-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+  }
+</style>
+</head>
+<body>
+  <div class="headline">
+    <h1>Your words,<br>appearing live</h1>
+    <p>Real-time transcription as you speak</p>
+  </div>
+  <div class="phone-frame">
+    <div class="phone-bezel">
+      <div class="phone-screen">
+        <div class="status-bar">
+          <div class="dynamic-island"></div>
+        </div>
+        <div class="recording-content">
+          <div class="recording-header">
+            <div class="recording-badge">
+              <div class="rec-dot"></div>
+              <span class="rec-text">Recording</span>
+            </div>
+            <span class="rec-timer">0:34</span>
+          </div>
+          <div class="waveform">
+            <div class="wave-bar" style="height:20px"></div>
+            <div class="wave-bar" style="height:45px"></div>
+            <div class="wave-bar" style="height:70px"></div>
+            <div class="wave-bar" style="height:35px"></div>
+            <div class="wave-bar" style="height:90px"></div>
+            <div class="wave-bar" style="height:60px"></div>
+            <div class="wave-bar" style="height:110px"></div>
+            <div class="wave-bar" style="height:80px"></div>
+            <div class="wave-bar" style="height:50px"></div>
+            <div class="wave-bar" style="height:95px"></div>
+            <div class="wave-bar" style="height:70px"></div>
+            <div class="wave-bar" style="height:40px"></div>
+            <div class="wave-bar" style="height:85px"></div>
+            <div class="wave-bar" style="height:55px"></div>
+            <div class="wave-bar" style="height:100px"></div>
+            <div class="wave-bar" style="height:65px"></div>
+            <div class="wave-bar" style="height:30px"></div>
+            <div class="wave-bar" style="height:75px"></div>
+            <div class="wave-bar" style="height:50px"></div>
+            <div class="wave-bar" style="height:90px"></div>
+            <div class="wave-bar" style="height:60px"></div>
+            <div class="wave-bar" style="height:35px"></div>
+            <div class="wave-bar" style="height:80px"></div>
+            <div class="wave-bar" style="height:45px"></div>
+            <div class="wave-bar" style="height:70px"></div>
+            <div class="wave-bar" style="height:55px"></div>
+            <div class="wave-bar" style="height:95px"></div>
+            <div class="wave-bar" style="height:40px"></div>
+            <div class="wave-bar" style="height:65px"></div>
+            <div class="wave-bar" style="height:85px"></div>
+          </div>
+          <div class="transcript-area">
+            <div class="transcript-label">Live Transcript</div>
+            <div class="transcript-text">
+              We need to follow up with the design team about the new onboarding flow. Sarah mentioned she wants the animations done by <span class="live">Friday and I promised to review</span><span class="transcript-cursor"></span>
+            </div>
+          </div>
+          <div class="bottom-controls">
+            <div class="side-btn"></div>
+            <div class="record-btn">
+              <div class="stop-icon"></div>
+            </div>
+            <div class="side-btn"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

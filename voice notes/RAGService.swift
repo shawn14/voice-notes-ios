@@ -24,6 +24,75 @@ struct RAGResponse {
     let route: QuestionRoute
 }
 
+enum AskModelPreference: Int, CaseIterable, Identifiable {
+    case fast = 0
+    case balanced = 1
+    case thorough = 2
+
+    static let storageKey = "askModelPreference"
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .fast: return "Fast"
+        case .balanced: return "Balanced"
+        case .thorough: return "Thorough"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .fast: return "Quick answers for simple lookups"
+        case .balanced: return "Best default for daily questions"
+        case .thorough: return "More room for synthesis and follow-ups"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .fast: return "bolt"
+        case .balanced: return "circle.lefthalf.filled"
+        case .thorough: return "brain"
+        }
+    }
+
+    var modelIdentifier: String {
+        switch self {
+        case .fast:
+            return "gpt-4o-mini"
+        case .balanced, .thorough:
+            return "gpt-4o"
+        }
+    }
+
+    func adjustedMaxTokens(_ requested: Int) -> Int {
+        switch self {
+        case .fast:
+            return min(requested, 900)
+        case .balanced:
+            return requested
+        case .thorough:
+            return max(requested, min(Int(Double(requested) * 1.4), 2800))
+        }
+    }
+
+    var temperatureOffset: Double {
+        switch self {
+        case .fast: return -0.1
+        case .balanced: return 0
+        case .thorough: return -0.05
+        }
+    }
+
+    static var current: AskModelPreference {
+        guard UserDefaults.standard.object(forKey: storageKey) != nil else {
+            return .balanced
+        }
+        return AskModelPreference(rawValue: UserDefaults.standard.integer(forKey: storageKey)) ?? .balanced
+    }
+}
+
 @Observable
 class RAGService {
     static let shared = RAGService()
@@ -57,26 +126,35 @@ class RAGService {
         projects: [Project] = [],
         dailyBriefs: [DailyBrief] = []
     ) async throws -> RAGResponse {
-        let articleNames = articles.flatMap { [$0.name] + $0.aliases }
+        let visibleNotes = librarySearchableNotes(allNotes)
+        let visibleArticles = libraryVisibleArticles(articles)
+        let visibleProjects = libraryVisibleProjects(projects)
+        let routingQuery = Self.routingQuestion(from: query)
+        let articleNames = visibleArticles.flatMap { [$0.name] + $0.aliases }
         let route = try await IntentClassifier.shared.classifyQuestionRoute(
-            query: query,
+            query: routingQuery,
             articleNames: articleNames
         )
 
         switch route {
         case .ranking:
-            return try await answerRanking(query: query, projects: projects, articles: articles)
+            return try await answerRanking(query: query, projects: visibleProjects, articles: visibleArticles)
         case .trends:
-            return try await answerTrends(query: query, dailyBriefs: dailyBriefs, articles: articles)
+            return try await answerTrends(query: query, dailyBriefs: dailyBriefs, articles: visibleArticles)
         case .timeRange(let interval):
             return try await answerTimeRange(query: query, interval: interval,
-                                             allNotes: allNotes, dailyBriefs: dailyBriefs)
+                                             allNotes: visibleNotes, dailyBriefs: dailyBriefs)
         case .entity(let name):
             return try await answerEntity(query: query, articleName: name,
-                                          articles: articles, allNotes: allNotes)
+                                          articles: visibleArticles, allNotes: visibleNotes)
         case .semantic:
-            return try await answerSemantic(query: query, allNotes: allNotes, articles: articles)
+            return try await answerSemantic(query: query, allNotes: visibleNotes, articles: visibleArticles)
         }
+    }
+
+    private static func routingQuestion(from query: String) -> String {
+        query.components(separatedBy: "\n\nAsk session context").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? query
     }
 
     // MARK: - Route: ranking ("top N projects/people/topics")
@@ -202,17 +280,19 @@ class RAGService {
         allNotes: [Note],
         dailyBriefs: [DailyBrief]
     ) async throws -> RAGResponse {
-        let notesInRange = allNotes
+        let allNotesInRange = allNotes
             .filter { interval.contains($0.createdAt) }
             .sorted { $0.createdAt > $1.createdAt }
-            .prefix(20)
+        let contextNoteLimit = 40
+        let notesInRange = Array(allNotesInRange.prefix(contextNoteLimit))
+        let omittedNoteCount = max(0, allNotesInRange.count - notesInRange.count)
 
         let briefsInRange = dailyBriefs
             .filter { interval.contains($0.briefDate) }
             .sorted { $0.briefDate > $1.briefDate }
             .prefix(7)
 
-        if notesInRange.isEmpty && briefsInRange.isEmpty {
+        if allNotesInRange.isEmpty && briefsInRange.isEmpty {
             let startStr = interval.start.formatted(date: .abbreviated, time: .omitted)
             let endStr = interval.end.formatted(date: .abbreviated, time: .omitted)
             return RAGResponse(
@@ -233,6 +313,9 @@ class RAGService {
             let dateStr = note.createdAt.formatted(date: .abbreviated, time: .shortened)
             return "[Note \(idx + 1): \"\(note.displayTitle)\", \(dateStr)]\n\(excerpt)"
         }.joined(separator: "\n\n")
+        let noteLimitLine = omittedNoteCount > 0
+            ? "Only the newest \(notesInRange.count) of \(allNotesInRange.count) matching notes are included below. If the answer needs exhaustive coverage, say that the result is based on the newest notes and suggest narrowing the window."
+            : "All \(allNotesInRange.count) matching notes are included below."
 
         let briefsBlock = briefsInRange.map { brief -> String in
             let dateStr = brief.briefDate.formatted(date: .abbreviated, time: .omitted)
@@ -244,6 +327,7 @@ class RAGService {
         let systemPrompt = """
         \(ContextAssembler.flatPrefix(for: .rag))You are EEON, the user's memory assistant. Answer concisely. Cite sources inline using [Note: title] or [Brief: date]. End with exactly 2-3 lines prefixed "FOLLOWUP: ". No emojis. If the supplied context is insufficient, say so plainly — do not speculate.
         Only reference notes and briefs inside the time window (\(windowDesc)). If the window has no data, say so.
+        \(noteLimitLine)
 
         --- DAILY BRIEFS IN WINDOW ---
 
@@ -264,7 +348,7 @@ class RAGService {
 
         return RAGResponse(
             answer: answer,
-            sourceNotes: Array(notesInRange),
+            sourceNotes: notesInRange,
             suggestedFollowUps: defaults,
             route: .timeRange(interval)
         )
@@ -491,7 +575,7 @@ class RAGService {
     private func callLLM(
         systemPrompt: String,
         userPrompt: String,
-        model: String = "gpt-4o-mini",
+        model: String? = nil,
         maxTokens: Int = 800,
         temperature: Double = 0.5
     ) async throws -> String {
@@ -505,14 +589,16 @@ class RAGService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let preference = AskModelPreference.current
+        let resolvedTemperature = min(max(temperature + preference.temperatureOffset, 0), 1)
         let body: [String: Any] = [
-            "model": model,
+            "model": model ?? preference.modelIdentifier,
             "messages": [
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": userPrompt]
             ],
-            "temperature": temperature,
-            "max_tokens": maxTokens
+            "temperature": resolvedTemperature,
+            "max_tokens": preference.adjustedMaxTokens(maxTokens)
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

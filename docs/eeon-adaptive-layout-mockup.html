@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EEON — Adaptive Home Layout · Design Proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #F4F1EC;
+    --cream-deep: #EBE6DC;
+    --ink: #15110D;
+    --ink-soft: #4A4137;
+    --ink-mute: #8B8377;
+    --rule: #DCD5C7;
+    --paper: #FFFFFF;
+
+    --coral: #E85D4A;
+    --coral-soft: #F4DCD7;
+    --coral-deep: #B8412F;
+
+    --build: #E85D4A;
+    --build-soft: #F4DCD7;
+    --research: #4A6FA5;
+    --research-soft: #DCE4F0;
+    --client: #5C7A52;
+    --client-soft: #DDE4D6;
+
+    --shadow-sm: 0 1px 2px rgba(21,17,13,0.04), 0 1px 1px rgba(21,17,13,0.03);
+    --shadow-md: 0 6px 16px -4px rgba(21,17,13,0.08), 0 2px 6px rgba(21,17,13,0.04);
+    --shadow-lg: 0 24px 48px -16px rgba(21,17,13,0.18), 0 4px 12px rgba(21,17,13,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background:
+      radial-gradient(ellipse at top, rgba(232,93,74,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at bottom right, rgba(74,111,165,0.03) 0%, transparent 50%),
+      var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ===== Layout chrome ===== */
+
+  .frame {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 56px 48px 96px;
+  }
+
+  /* Editorial document header */
+  .doc-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 32px;
+    align-items: end;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 80px;
+  }
+
+  .doc-mark {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 24px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .doc-mark::before {
+    content: '';
+    width: 24px;
+    height: 1px;
+    background: var(--coral);
+    display: inline-block;
+  }
+
+  .doc-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(48px, 6vw, 84px);
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  .doc-title em {
+    font-style: italic;
+    color: var(--coral);
+  }
+
+  .doc-meta {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-mute);
+    letter-spacing: 0.05em;
+    line-height: 1.8;
+  }
+
+  .doc-meta strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* ===== Lede ===== */
+
+  .lede {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 80px;
+    margin-bottom: 96px;
+    align-items: start;
+  }
+
+  .lede-kicker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--coral);
+    margin-bottom: 16px;
+  }
+
+  .lede-headline {
+    font-family: 'Instrument Serif', serif;
+    font-size: 38px;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    font-weight: 400;
+  }
+
+  .lede-headline em { font-style: italic; }
+
+  .lede-body p {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 16px;
+  }
+
+  .lede-body p:first-child::first-letter {
+    font-family: 'Instrument Serif', serif;
+    font-size: 56px;
+    line-height: 0.85;
+    float: left;
+    margin: 4px 8px -4px 0;
+    color: var(--ink);
+    font-style: italic;
+  }
+
+  /* ===== Mode triptych ===== */
+
+  .triptych-rail {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    margin-bottom: 80px;
+    position: relative;
+  }
+
+  .mode-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0;
+    animation: rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mode-column:nth-child(1) { animation-delay: 0.1s; }
+  .mode-column:nth-child(2) { animation-delay: 0.25s; }
+  .mode-column:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .mode-tag {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 24px;
+    width: 100%;
+  }
+
+  .mode-tag-num {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 48px;
+    line-height: 0.9;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+  }
+
+  .mode-tag-num.build { color: var(--build); }
+  .mode-tag-num.research { color: var(--research); }
+  .mode-tag-num.client { color: var(--client); }
+
+  .mode-tag-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    line-height: 1.6;
+  }
+
+  .mode-tag-label strong {
+    display: block;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    font-family: 'DM Sans', sans-serif;
+    margin-top: 2px;
+  }
+
+  /* ===== Phone frame ===== */
+
+  .phone {
+    width: 320px;
+    height: 660px;
+    border-radius: 36px;
+    background: #F8F7F5;
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .phone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 36px;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6);
+  }
+
+  .status-bar {
+    padding: 12px 18px 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .dyn-island {
+    width: 90px;
+    height: 22px;
+    background: #1a1a1a;
+    border-radius: 14px;
+  }
+
+  .battery {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    color: var(--ink-mute);
+  }
+
+  .screen {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px 14px 100px;
+  }
+
+  .screen::-webkit-scrollbar { display: none; }
+
+  /* Greeting */
+  .hello {
+    padding: 8px 4px 4px;
+  }
+
+  .hello-h {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  .hello-d {
+    font-size: 11px;
+    color: var(--ink-mute);
+    margin-top: 1px;
+  }
+
+  /* Mode chip — replaces "Tuned for you" */
+  .mode-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 5px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .mode-chip .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    position: relative;
+  }
+
+  .mode-chip .dot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 5px;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { opacity: 0; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.4); }
+  }
+
+  .mode-chip .chev {
+    margin-left: 2px;
+    font-size: 9px;
+    color: currentColor;
+    opacity: 0.5;
+  }
+
+  .mode-chip.build {
+    background: var(--build-soft);
+    color: var(--coral-deep);
+  }
+  .mode-chip.build .dot { background: var(--build); }
+  .mode-chip.build .dot::after { background: var(--build); }
+
+  .mode-chip.research {
+    background: var(--research-soft);
+    color: #2d4870;
+  }
+  .mode-chip.research .dot { background: var(--research); }
+  .mode-chip.research .dot::after { background: var(--research); }
+
+  .mode-chip.client {
+    background: var(--client-soft);
+    color: #3d5236;
+  }
+  .mode-chip.client .dot { background: var(--client); }
+  .mode-chip.client .dot::after { background: var(--client); }
+
+  /* Section headers */
+  .sec-h {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 18px 4px 8px;
+  }
+
+  .sec-h h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+
+  .sec-pin {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.08em;
+    background: rgba(21,17,13,0.06);
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .sec-pin.adaptive {
+    background: rgba(232,93,74,0.1);
+    color: var(--coral-deep);
+  }
+
+  /* Today's 3 (pinned, identical across modes) */
+  .today-card {
+    background: var(--paper);
+    border-radius: 12px;
+    padding: 10px 12px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .today-circle {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    border: 1.5px solid var(--coral);
+    flex-shrink: 0;
+  }
+
+  .today-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  /* Person row */
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--paper);
+    padding: 10px 12px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 6px;
+  }
+
+  .row-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+    color: white;
+  }
+
+  .row-icon.person { background: #B14ED9; }
+  .row-icon.project { background: var(--coral); }
+  .row-icon.decision { background: #BF5AF2; }
+  .row-icon.idea { background: #5B8DEF; }
+  .row-icon.thread { background: #9B7AB6; }
+  .row-icon.research { background: var(--research); }
+  .row-icon.note { background: var(--ink-mute); }
+
+  .row-body { flex: 1; min-width: 0; }
+  .row-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .row-sub {
+    font-size: 10.5px;
+    color: var(--ink-mute);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row-meta {
+    font-size: 9.5px;
+    color: var(--ink-mute);
+    flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Bottom dock */
+  .dock {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(transparent, #F8F7F5 36%);
+  }
+
+  .mic-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 22px;
+    background: var(--coral);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    box-shadow: 0 4px 16px rgba(232,93,74,0.3);
+  }
+
+  .new-note-btn {
+    background: var(--coral);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 22px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ===== Annotation rail ===== */
+
+  .annotations {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    margin-bottom: 96px;
+    padding-top: 32px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .annot {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .annot-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--ink-mute);
+  }
+
+  .annot-h {
+    font-family: 'Instrument Serif', serif;
+    font-size: 26px;
+    line-height: 1.1;
+    letter-spacing: -0.005em;
+  }
+
+  .annot-h em { font-style: italic; }
+
+  .annot-b {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  /* ===== "Why this layout" sheet ===== */
+
+  .why-section {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 80px;
+    margin-bottom: 96px;
+    padding-top: 64px;
+    border-top: 1px solid var(--rule);
+    align-items: start;
+  }
+
+  .why-intro h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 44px;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    font-weight: 400;
+    margin-bottom: 24px;
+  }
+
+  .why-intro h2 em { font-style: italic; color: var(--research); }
+
+  .why-intro p {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+
+  /* Sheet */
+  .sheet {
+    background: var(--paper);
+    border-radius: 24px;
+    padding: 28px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--rule);
+    position: relative;
+  }
+
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--rule);
+    border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+
+  .sheet-h {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 24px;
+  }
+
+  .sheet-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 26px;
+    line-height: 1;
+    font-style: italic;
+  }
+
+  .sheet-mode {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--research);
+    letter-spacing: 0.08em;
+  }
+
+  /* Triangle viz */
+  .triangle-wrap {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 28px;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .triangle {
+    width: 220px;
+    height: 200px;
+    position: relative;
+  }
+
+  .triangle svg { width: 100%; height: 100%; overflow: visible; }
+
+  .triangle-leg {
+    fill: none;
+    stroke: var(--rule);
+    stroke-width: 1;
+  }
+
+  .triangle-fill {
+    fill: rgba(74,111,165,0.18);
+    stroke: var(--research);
+    stroke-width: 1.5;
+  }
+
+  .triangle-vertex {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    fill: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .triangle-current {
+    fill: var(--research);
+  }
+
+  .vector-readout {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .vector-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .vector-line-label {
+    font-size: 12px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+
+  .vector-line-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--cream-deep);
+    border-radius: 2px;
+    margin: 0 12px;
+    overflow: hidden;
+  }
+
+  .vector-line-fill {
+    height: 100%;
+    background: var(--ink-mute);
+    border-radius: 2px;
+  }
+
+  .vector-line.dominant .vector-line-fill { background: var(--research); }
+  .vector-line.dominant .vector-line-label { color: var(--research); }
+
+  .vector-line-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    min-width: 40px;
+    text-align: right;
+    font-weight: 500;
+  }
+
+  /* Signal table */
+  .signals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 28px;
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .signal {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .signal-l {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .signal-v {
+    font-size: 14px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .signal-v em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 16px;
+  }
+
+  /* Sheet actions */
+  .sheet-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .sheet-btn {
+    flex: 1;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  .sheet-btn:active { transform: scale(0.98); }
+
+  .sheet-btn.primary {
+    background: var(--research);
+    color: white;
+  }
+
+  .sheet-btn.secondary {
+    background: var(--paper);
+    color: var(--ink);
+    border-color: var(--rule);
+  }
+
+  /* ===== Pinned vs adapted legend ===== */
+
+  .legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    margin-bottom: 96px;
+    padding: 56px 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .legend-col h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 12px;
+  }
+
+  .legend-col h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 36px;
+    line-height: 1.05;
+    margin-bottom: 16px;
+    font-weight: 400;
+  }
+
+  .legend-col h2 em { font-style: italic; }
+  .legend-col h2 .pinned { color: var(--coral); }
+  .legend-col h2 .adapted { color: var(--research); }
+
+  .legend-col p {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+
+  .legend-list {
+    list-style: none;
+    margin-top: 14px;
+  }
+
+  .legend-list li {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .legend-list code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink);
+    background: var(--cream-deep);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* ===== Footer ===== */
+
+  .footer {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 80px;
+    padding-top: 48px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .footer-quote {
+    font-family: 'Instrument Serif', serif;
+    font-size: 28px;
+    line-height: 1.2;
+    font-style: italic;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+
+  .footer-quote::before {
+    content: '"';
+    font-size: 64px;
+    color: var(--coral);
+    line-height: 0.3;
+    margin-right: 4px;
+    vertical-align: -16px;
+  }
+
+  .footer-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-mute);
+    line-height: 1.8;
+  }
+
+  .footer-meta strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* Responsive — collapse triptych at narrow widths */
+  @media (max-width: 1100px) {
+    .triptych-rail { grid-template-columns: 1fr; gap: 64px; justify-items: center; }
+    .annotations { grid-template-columns: 1fr; gap: 32px; }
+    .lede { grid-template-columns: 1fr; gap: 32px; }
+    .why-section { grid-template-columns: 1fr; gap: 32px; }
+    .legend { grid-template-columns: 1fr; gap: 32px; }
+    .footer { grid-template-columns: 1fr; gap: 32px; }
+  }
+
+  @media (max-width: 600px) {
+    .frame { padding: 32px 20px 64px; }
+    .doc-header { grid-template-columns: 1fr; }
+    .doc-meta { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+
+  <!-- Document header -->
+  <header class="doc-header">
+    <div>
+      <div class="doc-mark">EEON · Internal Design Proposal</div>
+      <h1 class="doc-title">A home that <em>follows</em><br>the work, not the role.</h1>
+    </div>
+    <div class="doc-meta">
+      v0.1 · 2026.05.07<br>
+      <strong>Adaptive Layout</strong><br>
+      Tier 2 · No new LLM calls
+    </div>
+  </header>
+
+  <!-- Lede -->
+  <section class="lede">
+    <div>
+      <div class="lede-kicker">The brief</div>
+      <h2 class="lede-headline">Today, EEON's home shows you who you said you <em>were</em>. It should show you what you're <em>doing</em>.</h2>
+    </div>
+    <div class="lede-body">
+      <p>The current home layout is locked in at the moment you tune EEON. State your purpose once, and the LLM picks 4–6 sections from a fixed catalog of 17. After that — even as you switch between client calls, deep research, and a shipping sprint — the same layout stares back at you for weeks.</p>
+      <p>This proposal threads a third path between fully manual ("re-tune yourself constantly") and fully silent ("the layout moves and you don't know why"). It borrows from Spotify Daylist, Linear Insights, and Superhuman: <em>silent rearrangement that announces what it did</em>. The persona layout you tuned remains the base. A small overlay re-orders middle sections based on a 14-day FocusVector. The chip at the top says exactly what mode it inferred.</p>
+      <p>Three states of the same user, on three different days, below.</p>
+    </div>
+  </section>
+
+  <!-- Triptych: 3 phones, 3 modes -->
+  <section class="triptych-rail">
+
+    <!-- Mode 1: Build -->
+    <div class="mode-column">
+      <div class="mode-tag">
+        <span class="mode-tag-num build">01</span>
+        <span class="mode-tag-label">
+          Day 7 · Tuesday
+          <strong>Build mode</strong>
+        </span>
+      </div>
+      <div class="phone">
+        <div class="status-bar">
+          <span>3:13</span>
+          <div class="dyn-island"></div>
+          <span class="battery">98</span>
+        </div>
+        <div class="screen">
+          <div class="hello">
+            <div class="hello-h">Good afternoon</div>
+            <div class="hello-d">Tuesday, May 12</div>
+            <div class="mode-chip build">
+              <span class="dot"></span>
+              Build mode
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Today's 3</h3>
+            <span class="sec-pin">PINNED</span>
+          </div>
+          <div class="today-card">
+            <div class="today-circle"></div>
+            <div class="today-text">Ship Mac Catalyst 3.4.0 to TestFlight</div>
+          </div>
+          <div class="today-card">
+            <div class="today-circle"></div>
+            <div class="today-text">Wire RewriteService through ContextAssembler</div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Active Build</h3>
+            <span class="sec-pin adaptive">ADAPTIVE</span>
+          </div>
+          <div class="row">
+            <div class="row-icon project">⚡</div>
+            <div class="row-body">
+              <div class="row-title">EEON · Tune Coverage v2</div>
+              <div class="row-sub">11 commits · momentum rising</div>
+            </div>
+            <div class="row-meta">live</div>
+          </div>
+          <div class="row">
+            <div class="row-icon project">⚡</div>
+            <div class="row-body">
+              <div class="row-title">Mac Catalyst signing</div>
+              <div class="row-sub">3 fixes · 1 still failing</div>
+            </div>
+            <div class="row-meta">today</div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Open Decisions</h3>
+            <span class="sec-pin adaptive">ADAPTIVE</span>
+          </div>
+          <div class="row">
+            <div class="row-icon decision">✓</div>
+            <div class="row-body">
+              <div class="row-title">Ship adaptive layout v0.1?</div>
+              <div class="row-sub">2 days open</div>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Idea Inbox</h3>
+            <span class="sec-pin adaptive">ADAPTIVE</span>
+          </div>
+          <div class="row">
+            <div class="row-icon idea">✦</div>
+            <div class="row-body">
+              <div class="row-title">FocusVector debug surface</div>
+              <div class="row-sub">captured 2h ago</div>
+            </div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="mic-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </div>
+          <div class="new-note-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            New Note
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mode 2: Research -->
+    <div class="mode-column">
+      <div class="mode-tag">
+        <span class="mode-tag-num research">02</span>
+        <span class="mode-tag-label">
+          Day 12 · Sunday
+          <strong>Research mode</strong>
+        </span>
+      </div>
+      <div class="phone">
+        <div class="status-bar">
+          <span>10:42</span>
+          <div class="dyn-island"></div>
+          <span class="battery">76</span>
+        </div>
+        <div class="screen">
+          <div class="hello">
+            <div class="hello-h">Good morning</div>
+            <div class="hello-d">Sunday, May 17</div>
+            <div class="mode-chip research">
+              <span class="dot"></span>
+              Research mode
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Today's 3</h3>
+            <span class="sec-pin">PINNED</span>
+          </div>
+          <div class="today-card">
+            <div class="today-circle"></div>
+            <div class="today-text">Read the Karpathy LLM-OS thread</div>
+          </div>
+          <div class="today-card">
+            <div class="today-circle"></div>
+            <div class="today-text">Sketch out adaptive-UI failure modes</div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Active Inquiries</h3>
+            <span class="sec-pin adaptive">ADAPTIVE</span>
+          </div>
+          <div class="row">
+            <div class="row-icon research">?</div>
+            <div class="row-body">
+              <div class="row-title">When does adaptive UI work?</div>
+              <div class="row-sub">14 notes · 6 sources</div>
+            </div>
+            <div class="row-meta">hot</div>
+          </div>
+          <div class="row">
+            <div class="row-icon research">?</div>
+            <div class="row-body">
+              <div class="row-title">Karpathy index pattern</div>
+              <div class="row-sub">8 notes · 2 articles</div>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Recurring Patterns</h3>
+            <span class="sec-pin adaptive">ADAPTIVE</span>
+          </div>
+          <div class="row">
+            <div class="row-icon thread">∞</div>
+            <div class="row-body">
+              <div class="row-title">Memory vs context</div>
+              <div class="row-sub">surfaced 4 times this week</div>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>From Your Library</h3>
+            <span class="sec-pin adaptive">ADAPTIVE</span>
+          </div>
+          <div class="row">
+            <div class="row-icon idea">📚</div>
+            <div class="row-body">
+              <div class="row-title">CHI 2004 — Adaptive Menus</div>
+              <div class="row-sub">resonates with current work</div>
+            </div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="mic-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </div>
+          <div class="new-note-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            New Note
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mode 3: Client -->
+    <div class="mode-column">
+      <div class="mode-tag">
+        <span class="mode-tag-num client">03</span>
+        <span class="mode-tag-label">
+          Day 19 · Thursday
+          <strong>Client mode</strong>
+        </span>
+      </div>
+      <div class="phone">
+        <div class="status-bar">
+          <span>4:29</span>
+          <div class="dyn-island"></div>
+          <span class="battery">31</span>
+        </div>
+        <div class="screen">
+          <div class="hello">
+            <div class="hello-h">Good afternoon</div>
+            <div class="hello-d">Thursday, May 21</div>
+            <div class="mode-chip client">
+              <span class="dot"></span>
+              Client mode
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Today's 3</h3>
+            <span class="sec-pin">PINNED</span>
+          </div>
+          <div class="today-card">
+            <div class="today-circle"></div>
+            <div class="today-text">Patrick — answer streaming-data question</div>
+          </div>
+          <div class="today-card">
+            <div class="today-circle"></div>
+            <div class="today-text">Schedule dinner with Amber</div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Your People</h3>
+            <span class="sec-pin adaptive">ADAPTIVE</span>
+          </div>
+          <div class="row">
+            <div class="row-icon person">👤</div>
+            <div class="row-body">
+              <div class="row-title">Patrick Shannon</div>
+              <div class="row-sub">trader interested in StockAlarm</div>
+            </div>
+            <div class="row-meta">1h</div>
+          </div>
+          <div class="row">
+            <div class="row-icon person">👤</div>
+            <div class="row-body">
+              <div class="row-title">Craig</div>
+              <div class="row-sub">developing the data pipeline</div>
+            </div>
+            <div class="row-meta">2d</div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Relationship Arcs</h3>
+            <span class="sec-pin adaptive">ADAPTIVE</span>
+          </div>
+          <div class="row">
+            <div class="row-icon person">♥</div>
+            <div class="row-body">
+              <div class="row-title">Craig</div>
+              <div class="row-sub">Neutral → Collaborative</div>
+            </div>
+          </div>
+
+          <div class="sec-h">
+            <h3>Follow-ups</h3>
+            <span class="sec-pin adaptive">ADAPTIVE</span>
+          </div>
+          <div class="row">
+            <div class="row-icon thread">↻</div>
+            <div class="row-body">
+              <div class="row-title">Send Jeff the spec</div>
+              <div class="row-sub">promised yesterday</div>
+            </div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="mic-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </div>
+          <div class="new-note-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            New Note
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- Annotation rail -->
+  <section class="annotations">
+    <div class="annot">
+      <div class="annot-num">01</div>
+      <h3 class="annot-h"><em>Today's 3</em> never moves.</h3>
+      <p class="annot-b">Same position, same component, every day, every mode. The daily-intentions ritual lives at index 0 by hard rule. Capture button anchors the bottom. Both are immovable, regardless of what FocusVector says. Adaptation is allowed only in the middle of the page.</p>
+    </div>
+    <div class="annot">
+      <div class="annot-num">02</div>
+      <h3 class="annot-h">The chip is the <em>tell</em>.</h3>
+      <p class="annot-b">"Tuned for you" gets replaced with a named mode — Build, Research, Client. Same place on the screen, same shape, same one-tap-to-explain affordance. The user doesn't have to wonder why their layout shifted: the chip already said.</p>
+    </div>
+    <div class="annot">
+      <div class="annot-num">03</div>
+      <h3 class="annot-h">Middle sections <em>permute</em>.</h3>
+      <p class="annot-b">Build mode lifts <em>Active Build</em> and <em>Open Decisions</em>. Research lifts <em>Inquiries</em> and <em>Patterns</em>. Client lifts <em>People</em> and <em>Arcs</em>. The persona layout from Tune EEON is preserved as the base — adaptation is an overlay that re-orders, never replaces.</p>
+    </div>
+  </section>
+
+  <!-- Why this layout sheet -->
+  <section class="why-section">
+    <div class="why-intro">
+      <div class="lede-kicker">Tap the chip</div>
+      <h2>Every adaptation answers <em>why</em>.</h2>
+      <p>The chip opens a sheet showing the FocusVector that drove the rearrangement, the underlying signal, and a one-tap escape hatch. The user always sees the math, never just the result.</p>
+      <p>If the system is wrong, "Reset to my Tune" rolls back to the persona layout in one tap and freezes adaptation for 7 days. The layout never traps the user.</p>
+    </div>
+
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-h">
+        <div class="sheet-title">Why this layout?</div>
+        <div class="sheet-mode">RESEARCH MODE</div>
+      </div>
+
+      <div class="triangle-wrap">
+        <div class="triangle">
+          <svg viewBox="0 0 220 200">
+            <!-- Triangle legs (outer) -->
+            <polygon class="triangle-leg" points="110,20 200,170 20,170"/>
+            <!-- Mid lines for grid -->
+            <line class="triangle-leg" x1="110" y1="20" x2="110" y2="170" stroke-dasharray="2,3"/>
+            <!-- Filled FocusVector polygon — Research dominant -->
+            <polygon class="triangle-fill"
+                     points="110,42 168,156 64,164"/>
+            <!-- Current point -->
+            <circle class="triangle-current" cx="110" cy="42" r="4"/>
+            <!-- Vertex labels -->
+            <text class="triangle-vertex" x="110" y="14" text-anchor="middle">Research</text>
+            <text class="triangle-vertex" x="208" y="184" text-anchor="end">Build</text>
+            <text class="triangle-vertex" x="12" y="184" text-anchor="start">Client</text>
+          </svg>
+        </div>
+
+        <div class="vector-readout">
+          <div class="vector-line dominant">
+            <span class="vector-line-label">Research</span>
+            <div class="vector-line-bar"><div class="vector-line-fill" style="width: 66%"></div></div>
+            <span class="vector-line-val">0.66</span>
+          </div>
+          <div class="vector-line">
+            <span class="vector-line-label">Relationship</span>
+            <div class="vector-line-bar"><div class="vector-line-fill" style="width: 18%"></div></div>
+            <span class="vector-line-val">0.18</span>
+          </div>
+          <div class="vector-line">
+            <span class="vector-line-label">Execution</span>
+            <div class="vector-line-bar"><div class="vector-line-fill" style="width: 16%"></div></div>
+            <span class="vector-line-val">0.16</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="signals">
+        <div class="signal">
+          <div class="signal-l">Window</div>
+          <div class="signal-v">Last <em>14</em> days</div>
+        </div>
+        <div class="signal">
+          <div class="signal-l">Inputs</div>
+          <div class="signal-v">22 reference notes · 14 ideas</div>
+        </div>
+        <div class="signal">
+          <div class="signal-l">Top topic</div>
+          <div class="signal-v">When does adaptive UI work?</div>
+        </div>
+        <div class="signal">
+          <div class="signal-l">Stability</div>
+          <div class="signal-v">Held <em>5</em> sessions · hysteresis 0.15</div>
+        </div>
+      </div>
+
+      <div class="sheet-actions">
+        <button class="sheet-btn primary">Pin this layout</button>
+        <button class="sheet-btn secondary">Reset to my Tune</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pinned vs adapted -->
+  <section class="legend">
+    <div class="legend-col">
+      <h3>Anchored — never moves</h3>
+      <h2>The <span class="pinned">pinned</span> set.</h2>
+      <p>Five elements have hard positions. The user's muscle memory works because these never shift. Failure-mode literature on adaptive UIs names this as the load-bearing constraint.</p>
+      <ul class="legend-list">
+        <li><code>captureHero</code> · the mic button, always at the bottom</li>
+        <li><code>todayThree</code> · daily-intentions ritual, always index 0</li>
+        <li><code>openDecisions</code> · accountability floor, ≥ position 4</li>
+        <li><code>openThreads</code> · loose-ends floor, ≥ position 4</li>
+        <li><code>recentNotes</code> · always the tail</li>
+      </ul>
+    </div>
+    <div class="legend-col">
+      <h3>Variable — re-ordered by FocusVector</h3>
+      <h2>The <span class="adapted">adaptive</span> middle.</h2>
+      <p>The 12 remaining sections in the catalog get permuted by the dominant FocusVector axis. Hysteresis = 0.15 prevents flicker. Cold-start (&lt; 20 notes) and gap (&gt; 72h) freeze the overlay and render the persona layout raw.</p>
+      <ul class="legend-list">
+        <li><code>priorityProjects</code> · lifted in Build</li>
+        <li><code>ideaInbox</code> · neutral</li>
+        <li><code>activeInquiries</code> · lifted in Research</li>
+        <li><code>recurringPatterns</code> · lifted in Research</li>
+        <li><code>clientRoster</code> · lifted in Client</li>
+        <li><code>relationshipArcs</code> · lifted in Client</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-quote">
+      Declare the adaptation, not the reasoning. Spotify says <em>Tuesday afternoon indie folk</em> and users find it charming, not creepy — because the label gives them a handle to evaluate it.
+    </div>
+    <div class="footer-meta">
+      <strong>Stack</strong><br>
+      Local FocusVector heuristic · CPU only<br>
+      Tier 2 cadence · app foreground<br>
+      UserDefaults overlay · zero schema deploy<br>
+      <br>
+      <strong>Cost</strong><br>
+      $0.00 / user / month for ordering<br>
+      $0.90 / 1k DAU / month optional rationale<br>
+      <br>
+      <strong>Files</strong><br>
+      <code>HomeLayoutAdapter.swift</code> · new<br>
+      <code>IntelligenceService.swift</code> · 1 line<br>
+      <code>AIHomeView.swift</code> · merge in activeLayout
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  // Make mode chips toggle through modes when clicked, for a tiny taste of the affordance
+  document.querySelectorAll('.mode-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      chip.style.transform = 'scale(0.97)';
+      setTimeout(() => { chip.style.transform = ''; }, 120);
+      // Smooth-scroll to the why-section so user sees the explanation
+      document.querySelector('.why-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // Sheet button feedback
+  document.querySelectorAll('.sheet-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      const orig = btn.textContent;
+      btn.textContent = btn.classList.contains('primary') ? '✓ Pinned' : '✓ Reset for 7 days';
+      setTimeout(() => { btn.textContent = orig; }, 1400);
+    });
+  });
+</script>
+
+</body>
+</html>

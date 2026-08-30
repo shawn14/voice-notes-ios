@@ -1,4 +1,5 @@
-[debug] [2026-03-18T21:09:44.833Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[truncated by Claude Code to free disk space — 2026-04-30]
+ ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
 [debug] [2026-03-18T21:09:44.834Z] > authorizing via signed-in user (shawn14@gmail.com)
 [debug] [2026-03-18T21:09:44.834Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
 [debug] [2026-03-18T21:09:44.834Z] > authorizing via signed-in user (shawn14@gmail.com)

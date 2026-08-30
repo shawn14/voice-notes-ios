@@ -78,8 +78,7 @@ struct PriorityProjectsSection: View {
     @Environment(\.modelContext) private var modelContext
 
     private var active: [Project] {
-        projects
-            .filter { !$0.isArchived }
+        libraryVisibleProjects(projects)
             .sorted { a, b in
                 // Active first (non-stalled), then by last activity
                 let aStalled = a.isStalled
@@ -159,8 +158,8 @@ struct SilentProjectsSection: View {
     let staleDays: Int
 
     private var stalled: [Project] {
-        projects
-            .filter { !$0.isArchived && $0.daysSinceActivity >= staleDays && $0.daysSinceActivity < 9999 }
+        libraryVisibleProjects(projects)
+            .filter { $0.daysSinceActivity >= staleDays && $0.daysSinceActivity < 9999 }
             .sorted { $0.daysSinceActivity > $1.daysSinceActivity }
     }
 
@@ -208,7 +207,7 @@ struct OpenDecisionsSection: View {
 
     private var active: [ExtractedDecision] {
         decisions
-            .filter { $0.status == "Active" || $0.status == "Pending" }
+            .filter { ($0.status == "Active" || $0.status == "Pending") && !libraryIsSchemaSeedName($0.content) }
             .sorted { $0.createdAt > $1.createdAt }
             .prefix(limit)
             .map { $0 }
@@ -286,7 +285,7 @@ struct IdeaInboxSection: View {
     let limit: Int
 
     private var ideas: [Note] {
-        notes
+        libraryVisibleNotes(notes)
             .filter { $0.intent == .idea && $0.projectId == nil && !$0.isArchived }
             .sorted { $0.createdAt > $1.createdAt }
             .prefix(limit)
@@ -343,7 +342,7 @@ struct ClientRosterSection: View {
     let limit: Int
 
     private var people: [KnowledgeArticle] {
-        articles
+        libraryVisibleArticles(articles)
             .filter { $0.articleType == .person }
             .sorted { ($0.lastMentionedAt ?? .distantPast) > ($1.lastMentionedAt ?? .distantPast) }
             .prefix(limit)
@@ -403,7 +402,7 @@ struct FollowUpsPerClientSection: View {
 
     private var open: [ExtractedCommitment] {
         commitments
-            .filter { !$0.isCompleted }
+            .filter { !$0.isCompleted && !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
             .sorted { $0.createdAt > $1.createdAt }
             .prefix(limit)
             .map { $0 }
@@ -480,7 +479,7 @@ struct RecurringPatternsSection: View {
     let limit: Int
 
     private var topics: [KnowledgeArticle] {
-        articles
+        libraryVisibleArticles(articles)
             .filter { $0.articleType == .topic && $0.mentionCount >= 2 }
             .sorted { $0.mentionCount > $1.mentionCount }
             .prefix(limit)
@@ -547,7 +546,7 @@ struct OpenThreadsSection: View {
     }
 
     private var flatThreads: [FlatThread] {
-        articles.flatMap { article in
+        libraryVisibleArticles(articles).flatMap { article in
             article.openThreads.map { t in
                 FlatThread(id: "\(article.id)-\(t.thread)", articleName: article.name, articleId: article.id, thread: t)
             }
@@ -563,7 +562,7 @@ struct OpenThreadsSection: View {
                 HomeSectionHeader(title, subtitle: "\(flatThreads.count) unresolved", rationale: rationale)
                 VStack(spacing: 6) {
                     ForEach(flatThreads) { ft in
-                        if let article = articles.first(where: { $0.id == ft.articleId }) {
+                        if let article = libraryVisibleArticles(articles).first(where: { $0.id == ft.articleId }) {
                             NavigationLink(destination: KnowledgeArticleDetailView(article: article)) {
                                 threadRow(ft)
                             }
@@ -630,7 +629,7 @@ struct EmotionalToneArcSection: View {
 
     private var recentDays: [ToneDay] {
         let cutoff = Calendar.current.date(byAdding: .day, value: -limit, to: Date()) ?? Date()
-        let recent = notes.filter { $0.createdAt >= cutoff && ($0.emotionalTone?.isEmpty == false) }
+        let recent = libraryVisibleNotes(notes).filter { $0.createdAt >= cutoff && ($0.emotionalTone?.isEmpty == false) }
         let grouped = Dictionary(grouping: recent) { note -> String in
             let f = DateFormatter()
             f.dateFormat = "yyyy-MM-dd"
@@ -700,7 +699,7 @@ struct ActiveInquiriesSection: View {
     let limit: Int
 
     private var inquiries: [KnowledgeArticle] {
-        articles
+        libraryVisibleArticles(articles)
             .filter { $0.articleType == .topic && !$0.openThreads.isEmpty }
             .sorted { $0.openThreads.count > $1.openThreads.count }
             .prefix(limit)
@@ -755,7 +754,7 @@ struct RelationshipArcsSection: View {
     let limit: Int
 
     private var people: [KnowledgeArticle] {
-        articles
+        libraryVisibleArticles(articles)
             .filter { $0.articleType == .person && ($0.sentimentArc?.isEmpty == false) }
             .sorted { ($0.lastMentionedAt ?? .distantPast) > ($1.lastMentionedAt ?? .distantPast) }
             .prefix(limit)
@@ -816,7 +815,7 @@ struct ReferenceResonanceSection: View {
     let limit: Int
 
     private var refs: [KnowledgeArticle] {
-        articles
+        libraryVisibleArticles(articles)
             .filter { $0.articleType == .reference }
             .sorted { ($0.lastMentionedAt ?? .distantPast) > ($1.lastMentionedAt ?? .distantPast) }
             .prefix(limit)

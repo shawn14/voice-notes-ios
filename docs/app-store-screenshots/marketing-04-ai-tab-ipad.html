@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EEON - AI Tab</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 2064px;
+    height: 2752px;
+    background: #1C1C1E;
+    font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .headline {
+    margin-top: 140px;
+    text-align: center;
+  }
+  .headline h1 {
+    font-size: 140px;
+    font-weight: 800;
+    color: #FFFFFF;
+    line-height: 1.05;
+    letter-spacing: -3px;
+  }
+  .headline p {
+    font-size: 60px;
+    font-weight: 500;
+    color: #FF6B5A;
+    margin-top: 36px;
+    letter-spacing: -0.5px;
+  }
+  .phone-frame {
+    margin-top: 60px;
+    display: flex;
+    justify-content: center;
+  }
+  .phone-bezel {
+    width: 1000px;
+    height: 2140px;
+    background: #000000;
+    border-radius: 80px;
+    padding: 18px;
+    box-shadow:
+      0 40px 100px rgba(0,0,0,0.6),
+      0 0 0 2px rgba(255,255,255,0.08),
+      inset 0 0 0 1px rgba(255,255,255,0.05);
+    position: relative;
+    overflow: hidden;
+  }
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    border-radius: 64px;
+    overflow: hidden;
+    background: #1C1C1E;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Mock AI Tab screen */
+  .status-bar {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 20px;
+  }
+  .dynamic-island {
+    width: 180px;
+    height: 48px;
+    background: #000;
+    border-radius: 28px;
+  }
+  .screen-content {
+    flex: 1;
+    padding: 30px 40px;
+    overflow: hidden;
+  }
+  .greeting {
+    font-size: 48px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 6px;
+  }
+  .date {
+    font-size: 28px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 36px;
+  }
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 36px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 0;
+  }
+  .tab {
+    padding: 12px 24px;
+    font-size: 28px;
+    color: rgba(255,255,255,0.4);
+    font-weight: 500;
+    position: relative;
+  }
+  .tab.active {
+    color: white;
+    font-weight: 600;
+  }
+  .tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 24px;
+    right: 24px;
+    height: 3px;
+    background: #FF6B5A;
+    border-radius: 2px;
+  }
+  .section-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 20px;
+    margin-top: 12px;
+  }
+  .card {
+    background: rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .card-alert {
+    background: rgba(255,59,48,0.12);
+  }
+  .card-label {
+    font-size: 22px;
+    font-weight: 600;
+    color: #FF6B5A;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  .card-label.green { color: #30D158; }
+  .card-label.blue { color: #5AC8FA; }
+  .card-label.purple { color: #BF5AF2; }
+  .card-text {
+    font-size: 30px;
+    color: rgba(255,255,255,0.9);
+    line-height: 1.4;
+  }
+  .card-meta {
+    font-size: 24px;
+    color: rgba(255,255,255,0.4);
+    margin-top: 8px;
+  }
+  .thread-row {
+    display: flex;
+    align-items: center;
+    padding: 20px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .thread-color {
+    width: 8px;
+    height: 40px;
+    border-radius: 4px;
+    margin-right: 18px;
+  }
+  .thread-name {
+    font-size: 30px;
+    color: rgba(255,255,255,0.9);
+    flex: 1;
+  }
+  .thread-count {
+    font-size: 26px;
+    color: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.08);
+    padding: 4px 14px;
+    border-radius: 12px;
+  }
+  .people-row {
+    display: flex;
+    align-items: center;
+    padding: 18px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .people-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #5AC8FA, #BF5AF2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 600;
+    color: white;
+    margin-right: 18px;
+  }
+  .people-name {
+    font-size: 30px;
+    color: rgba(255,255,255,0.9);
+    flex: 1;
+  }
+  .people-detail {
+    font-size: 24px;
+    color: rgba(255,255,255,0.4);
+  }
+  .bottom-bar {
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 60px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .bottom-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.1);
+  }
+  .mic-btn {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, #FF6B5A, #FF3B30);
+    border-radius: 50%;
+    box-shadow: 0 4px 20px rgba(255,59,48,0.3);
+  }
+</style>
+</head>
+<body>
+  <div class="headline">
+    <h1>AI organizes<br>your thoughts</h1>
+    <p>Zero effort. Zero extra cost.</p>
+  </div>
+  <div class="phone-frame">
+    <div class="phone-bezel">
+      <div class="phone-screen">
+        <div class="status-bar">
+          <div class="dynamic-island"></div>
+        </div>
+        <div class="screen-content">
+          <div class="greeting">Good morning, Shawn</div>
+          <div class="date">Monday, March 30</div>
+
+          <div class="tabs">
+            <div class="tab">All</div>
+            <div class="tab active">AI</div>
+            <div class="tab">Favorites</div>
+            <div class="tab">Archive</div>
+          </div>
+
+          <div class="section-title">Needs Attention</div>
+          <div class="card card-alert">
+            <div class="card-label">Overdue</div>
+            <div class="card-text">Prepare agenda for team meeting</div>
+            <div class="card-meta">Committed Mar 25 -- 5 days ago</div>
+          </div>
+          <div class="card">
+            <div class="card-text">Follow up on project proposal</div>
+            <div class="card-meta">Mentioned to Kerry -- 2 days ago</div>
+          </div>
+
+          <div class="section-title">Active Threads</div>
+          <div class="thread-row">
+            <div class="thread-color" style="background:#FF6B5A"></div>
+            <div class="thread-name">product launch</div>
+            <div class="thread-count">4 notes</div>
+          </div>
+          <div class="thread-row">
+            <div class="thread-color" style="background:#5AC8FA"></div>
+            <div class="thread-name">hiring</div>
+            <div class="thread-count">3 notes</div>
+          </div>
+          <div class="thread-row">
+            <div class="thread-color" style="background:#30D158"></div>
+            <div class="thread-name">consulting deal</div>
+            <div class="thread-count">2 notes</div>
+          </div>
+
+          <div class="section-title">People</div>
+          <div class="people-row">
+            <div class="people-avatar">S</div>
+            <div class="people-name">Sarah</div>
+            <div class="people-detail">2 open commitments</div>
+          </div>
+          <div class="people-row">
+            <div class="people-avatar" style="background:linear-gradient(135deg,#FF6B5A,#FF9500)">K</div>
+            <div class="people-name">Kerry</div>
+            <div class="people-detail">1 follow-up</div>
+          </div>
+        </div>
+        <div class="bottom-bar">
+          <div class="bottom-icon"></div>
+          <div class="mic-btn"></div>
+          <div class="bottom-icon"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

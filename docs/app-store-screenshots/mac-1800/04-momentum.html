@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:2880px; height:1800px;
+    background: radial-gradient(ellipse at 50% -10%, rgba(255,159,10,0.20) 0%, transparent 60%),
+                radial-gradient(ellipse at 100% 100%, rgba(232,93,74,0.14) 0%, transparent 60%),
+                linear-gradient(135deg,#0c0a08 0%, #15110D 100%);
+    color:#fff; font-family:'DM Sans',sans-serif; overflow:hidden;
+    display:grid; grid-template-columns: 1fr 1.45fr; gap:80px; padding:140px 140px;
+    -webkit-font-smoothing:antialiased; }
+  .left { padding-top:60px; }
+  .badge { font-size:30px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:#FFB59E; margin-bottom:48px; display:flex; align-items:center; gap:18px; }
+  .badge::before { content:''; width:60px; height:1px; background:#FFB59E; opacity:0.5; }
+  h1 { font-family:'Instrument Serif',serif; font-size:200px; line-height:0.92; font-weight:400; letter-spacing:-4px; }
+  h1 em { font-style:italic; color:#FFB59E; }
+  .subhead { font-size:42px; font-weight:500; color:rgba(255,255,255,0.65); margin-top:48px; line-height:1.32; max-width:900px; }
+  .points { margin-top:80px; display:flex; flex-direction:column; gap:30px; }
+  .point { display:flex; gap:24px; align-items:flex-start; }
+  .point .num { font-family:'Instrument Serif',serif; font-style:italic; font-size:58px; color:#FFB59E; line-height:0.9; flex-shrink:0; width:60px; }
+  .point .text { font-size:28px; line-height:1.45; color:rgba(255,255,255,0.85); }
+  .point .text strong { color:#fff; font-weight:600; }
+
+  .right { display:flex; align-items:center; justify-content:center; }
+  .window { width:1500px; height:1100px; background:#F4F1EC; border-radius:18px; overflow:hidden; box-shadow:0 80px 160px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08); position:relative; color:#15110D; }
+  .titlebar { height:50px; background:#EBE6DC; border-bottom:1px solid rgba(0,0,0,0.08); display:flex; align-items:center; padding:0 18px; gap:9px; }
+  .traffic { display:flex; gap:8px; }
+  .light { width:14px; height:14px; border-radius:7px; }
+  .light.r { background:#FF5F57; } .light.y { background:#FFBD2E; } .light.g { background:#28CA41; }
+  .titlebar .title { flex:1; text-align:center; font-size:14px; font-weight:600; color:#4A4137; margin-left:-78px; }
+
+  .content { height: calc(100% - 50px); padding:38px 56px 36px; overflow:hidden; display:grid; grid-template-columns: 1fr 320px; gap:30px; }
+
+  .main h2 { font-size:48px; font-weight:800; letter-spacing:-1.2px; line-height:1; }
+  .main .date { font-size:17px; color:#8B8377; margin-top:5px; }
+  .pill { display:inline-flex; align-items:center; gap:8px; padding:7px 14px 7px 12px; margin-top:18px; border-radius:18px; background:#F4DCD7; color:#B8412F; font-size:15px; font-weight:700; }
+  .pill .dot { width:10px; height:10px; border-radius:5px; background:#E85D4A; }
+
+  .sec-h { padding:30px 4px 14px; }
+  .sec-h h3 { font-size:32px; font-weight:800; letter-spacing:-0.5px; }
+
+  .momentum { background:white; border-radius:18px; padding:24px 28px; border:1px solid rgba(220,213,199,0.5); box-shadow:0 1px 3px rgba(21,17,13,0.04); }
+  .mom-row { display:grid; grid-template-columns: 1fr 280px 70px; align-items:center; gap:20px; padding:16px 0; border-bottom:1px solid rgba(220,213,199,0.5); }
+  .mom-row:last-child { border-bottom:none; padding-bottom:6px; }
+  .mom-title { font-size:22px; font-weight:700; letter-spacing:-0.3px; }
+  .mom-meta { font-size:14px; color:#8B8377; margin-top:3px; }
+  .mom-bar { height:9px; background:rgba(139,131,119,0.16); border-radius:5px; overflow:hidden; }
+  .mom-bar .fill { height:100%; border-radius:5px; }
+  .mom-bar.primary .fill { background:#E85D4A; width:14%; }
+  .mom-bar.secondary .fill { background:rgba(232,93,74,0.55); width:88%; }
+  .mom-bar.tertiary .fill { background:rgba(139,131,119,0.45); width:0%; }
+  .mom-num { text-align:right; font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; color:#15110D; }
+  .mom-num.zero { color:#8B8377; }
+  .drift { margin-top:20px; padding:18px 22px; background:#FFF4DD; border:1px solid rgba(255,159,10,0.3); border-radius:13px; display:flex; gap:14px; align-items:flex-start; }
+  .drift .ico { font-size:24px; color:#FF9F0A; flex-shrink:0; line-height:1; }
+  .drift-text { font-size:17px; line-height:1.45; color:#15110D; }
+  .drift-text strong { color:#A86200; font-weight:700; }
+
+  .side-card { background:white; border-radius:18px; padding:22px; border:1px solid rgba(220,213,199,0.5); margin-top:14px; }
+  .side-card h4 { font-size:18px; font-weight:800; letter-spacing:-0.3px; margin-bottom:14px; }
+  .fs-row { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#F4F1EC; border-radius:12px; margin-bottom:8px; }
+  .fs-name { flex:1; font-size:14px; font-weight:700; }
+  .fs-note { font-family:'Instrument Serif',serif; font-style:italic; font-size:11px; color:#8B8377; margin-top:2px; }
+  .weight-chip { font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.12em; padding:3px 8px; border-radius:5px; font-weight:600; }
+  .weight-chip.primary { background:#E85D4A; color:white; }
+  .weight-chip.secondary { background:#F4DCD7; color:#B8412F; }
+</style></head>
+<body>
+  <div class="left">
+    <div class="badge">EEON · MOMENTUM</div>
+    <h1>Where your<br>time <em>actually</em><br>goes.</h1>
+    <p class="subhead">Declare what matters. EEON observes capture density and surfaces the drift between what you said and what you did.</p>
+    <div class="points">
+      <div class="point"><div class="num">01</div><div class="text"><strong>Stated focus.</strong> Drag-to-reorder priorities.</div></div>
+      <div class="point"><div class="num">02</div><div class="text"><strong>Observed activity.</strong> Capture density per project, 14 days.</div></div>
+      <div class="point"><div class="num">03</div><div class="text"><strong>Drift, surfaced.</strong> Reality vs. intent — gently, but plainly.</div></div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="window">
+      <div class="titlebar">
+        <div class="traffic"><div class="light r"></div><div class="light y"></div><div class="light g"></div></div>
+        <div class="title">EEON — Today</div>
+      </div>
+      <div class="content">
+        <div class="main">
+          <h2>Good morning</h2>
+          <div class="date">Friday, May 9</div>
+          <div class="pill"><span class="dot"></span>Tuned for you</div>
+
+          <div class="sec-h"><h3>Where You Are</h3></div>
+          <div class="momentum">
+            <div class="mom-row">
+              <div><div class="mom-title">StockAlarm</div><div class="mom-meta">Primary · 2 notes this week</div></div>
+              <div class="mom-bar primary"><div class="fill"></div></div>
+              <div class="mom-num">2</div>
+            </div>
+            <div class="mom-row">
+              <div><div class="mom-title">EEON</div><div class="mom-meta">Secondary · 18 notes, 9 decisions</div></div>
+              <div class="mom-bar secondary"><div class="fill"></div></div>
+              <div class="mom-num">18</div>
+            </div>
+            <div class="mom-row">
+              <div><div class="mom-title">Flash AI Cards</div><div class="mom-meta">Tertiary · silent 12 days</div></div>
+              <div class="mom-bar tertiary"><div class="fill"></div></div>
+              <div class="mom-num zero">0</div>
+            </div>
+            <div class="drift">
+              <div class="ico">⚠</div>
+              <div class="drift-text"><strong>StockAlarm</strong> is your stated primary, but <strong>EEON</strong> dominated this week (18 notes). StockAlarm got 2 notes.</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="side-card">
+            <h4>Your Focus</h4>
+            <div class="fs-row"><span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#8B8377">⋮⋮</span><div class="fs-name">StockAlarm <div class="fs-note">where I want to spend most of my time</div></div><span class="weight-chip primary">P</span></div>
+            <div class="fs-row"><span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#8B8377">⋮⋮</span><div class="fs-name">EEON</div><span class="weight-chip secondary">S</span></div>
+            <div class="fs-row"><span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#8B8377">⋮⋮</span><div class="fs-name">Flash AI Cards</div><span class="weight-chip" style="background:#DCD5C7;color:#8B8377">T</span></div>
+          </div>
+          <div class="side-card">
+            <h4>This Week</h4>
+            <div style="font-size:13px; line-height:1.5; color:#4A4137;">EEON shipped 3.5.0 with focus + momentum picture. StockAlarm streaming infrastructure decision pending. Flash AI Cards has gone silent — re-evaluate.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>

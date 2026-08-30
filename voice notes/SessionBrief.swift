@@ -205,30 +205,36 @@ struct SessionBriefBuilder {
         let now = Date()
         let startOfToday = calendar.startOfDay(for: now)
         let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) ?? now
+        let visibleNotes = librarySearchableNotes(notes)
+        let visibleProjects = libraryVisibleProjects(projects)
+        let visibleActions = actions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
+        let visibleCommitments = commitments.filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
+        let visibleUnresolved = unresolved.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
+        let visibleItems = items.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.reason) }
 
         // Calculate dropped balls once and reuse (was being called 3 times before)
-        let droppedBalls = HealthScoreService.detectDroppedBalls(items: items)
+        let droppedBalls = HealthScoreService.detectDroppedBalls(items: visibleItems)
 
         // Build project summaries (top 3 most active)
-        let activeProjects = projects.filter { !$0.isArchived }
-        let projectSummaries = buildProjectSummaries(projects: activeProjects, notes: notes, items: items)
+        let activeProjects = visibleProjects
+        let projectSummaries = buildProjectSummaries(projects: activeProjects, notes: visibleNotes, items: visibleItems)
             .sorted { ($0.lastActivityAt ?? .distantPast) > ($1.lastActivityAt ?? .distantPast) }
             .prefix(3)
             .map { $0 }
 
         // Build stalled items (reuse cached droppedBalls)
-        let stalledItems = buildStalledItems(droppedBalls: droppedBalls, projects: projects)
+        let stalledItems = buildStalledItems(droppedBalls: droppedBalls, projects: visibleProjects)
 
         // Build attention warnings (reuse cached droppedBalls)
-        let warnings = buildAttentionWarnings(droppedBalls: droppedBalls, commitments: commitments)
+        let warnings = buildAttentionWarnings(droppedBalls: droppedBalls, commitments: visibleCommitments)
 
         // Build quick stats
-        let notesToday = notes.filter { $0.createdAt >= startOfToday }.count
-        let notesThisWeek = notes.filter { $0.createdAt >= startOfWeek }.count
-        let openActions = actions.filter { !$0.isCompleted }.count
-        let openCommitments = commitments.filter { !$0.isCompleted }.count
+        let notesToday = visibleNotes.filter { $0.createdAt >= startOfToday }.count
+        let notesThisWeek = visibleNotes.filter { $0.createdAt >= startOfWeek }.count
+        let openActions = visibleActions.filter { !$0.isCompleted }.count
+        let openCommitments = visibleCommitments.filter { !$0.isCompleted }.count
 
-        let activeItems = items.filter { $0.kanbanColumn != .done }
+        let activeItems = visibleItems.filter { $0.kanbanColumn != .done }
         var atRiskCount = 0
         var stalledCount = 0
         for item in activeItems {
@@ -241,12 +247,12 @@ struct SessionBriefBuilder {
         }
 
         let quickStats = QuickStats(
-            totalNotes: notes.count,
+            totalNotes: visibleNotes.count,
             notesToday: notesToday,
             notesThisWeek: notesThisWeek,
             openActions: openActions,
             openCommitments: openCommitments,
-            unresolvedCount: unresolved.count,
+            unresolvedCount: visibleUnresolved.count,
             activeProjectCount: activeProjects.count,
             stalledItemCount: stalledCount,
             atRiskCount: atRiskCount

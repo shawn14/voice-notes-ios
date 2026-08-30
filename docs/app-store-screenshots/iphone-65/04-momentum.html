@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1242px; height:2688px;
+    background: radial-gradient(ellipse at 50% -10%, rgba(255,159,10,0.18) 0%, transparent 55%),
+                radial-gradient(ellipse at 100% 100%, rgba(232,93,74,0.14) 0%, transparent 60%),
+                linear-gradient(180deg,#0c0a08 0%, #15110D 100%);
+    color:#fff; font-family:'DM Sans',sans-serif; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; -webkit-font-smoothing:antialiased; }
+  .badge { margin-top:130px; font-size:28px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:#FFB59E; display:flex; align-items:center; gap:18px; }
+  .badge::before, .badge::after { content:''; width:60px; height:1px; background:#FFB59E; opacity:0.5; }
+  .headline { margin-top:38px; text-align:center; max-width:1100px; padding:0 60px; }
+  .headline h1 { font-family:'Instrument Serif',serif; font-size:156px; line-height:0.95; font-weight:400; letter-spacing:-3px; }
+  .headline h1 em { font-style:italic; color:#FFB59E; }
+  .headline p { font-size:38px; font-weight:500; color:rgba(255,255,255,0.62); margin-top:36px; line-height:1.35; }
+
+  .phone { margin-top:90px; width:940px; height:1620px; background:#1a1a1a; border-radius:78px; padding:16px; box-shadow:0 60px 140px rgba(0,0,0,0.7), 0 0 0 2px rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.04); position:relative; overflow:hidden; }
+  .screen { width:100%; height:100%; background:#F4F1EC; border-radius:64px; overflow:hidden; position:relative; color:#15110D; display:flex; flex-direction:column; }
+  .island { position:absolute; top:26px; left:50%; transform:translateX(-50%); width:240px; height:56px; background:#1a1a1a; border-radius:30px; z-index:5; }
+  .status { padding:30px 50px 12px; display:flex; justify-content:space-between; align-items:center; font-size:26px; font-weight:700; color:#15110D; }
+
+  .body { flex:1; padding:14px 32px 40px; overflow:hidden; }
+  .greeting h2 { font-size:56px; font-weight:800; letter-spacing:-1.5px; line-height:1; }
+  .greeting .date { font-size:24px; color:#8B8377; margin-top:6px; }
+  .pill { display:inline-flex; align-items:center; gap:10px; padding:10px 20px 10px 16px; margin-top:22px; border-radius:22px; background:#F4DCD7; color:#B8412F; font-size:22px; font-weight:700; }
+  .pill .dot { width:14px; height:14px; border-radius:7px; background:#E85D4A; }
+
+  .sec-h { padding:36px 4px 16px; }
+  .sec-h h3 { font-size:38px; font-weight:800; letter-spacing:-0.5px; }
+
+  .momentum {
+    background:white; border-radius:24px; padding:30px;
+    border:1px solid rgba(220,213,199,0.5); box-shadow:0 1px 4px rgba(21,17,13,0.06);
+  }
+  .mom-row {
+    display:flex; align-items:center; gap:18px; padding:18px 0;
+    border-bottom:1px solid rgba(220,213,199,0.5);
+  }
+  .mom-row:last-child { border-bottom:none; padding-bottom:6px; }
+  .mom-name { flex:1; }
+  .mom-title { font-size:26px; font-weight:700; letter-spacing:-0.3px; }
+  .mom-meta { font-size:18px; color:#8B8377; margin-top:4px; }
+  .mom-bar { width:160px; height:8px; background:rgba(139,131,119,0.16); border-radius:4px; overflow:hidden; flex-shrink:0; }
+  .mom-bar .fill { height:100%; border-radius:4px; }
+  .mom-bar.primary .fill { background:#E85D4A; width:14%; }
+  .mom-bar.secondary .fill { background:rgba(232,93,74,0.55); width:88%; }
+  .mom-bar.tertiary .fill { background:rgba(139,131,119,0.45); width:0%; }
+  .mom-num { width:80px; text-align:right; font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700; color:#15110D; }
+  .mom-num.zero { color:#8B8377; }
+
+  .drift {
+    margin-top:22px; padding:24px;
+    background:#FFF4DD; border:1px solid rgba(255,159,10,0.3); border-radius:18px;
+    display:flex; gap:14px; align-items:flex-start;
+  }
+  .drift .ico { font-size:30px; color:#FF9F0A; flex-shrink:0; line-height:1; }
+  .drift-text { font-size:22px; line-height:1.4; color:#15110D; }
+  .drift-text strong { color:#A86200; font-weight:700; }
+
+  .focus-summary { margin-top:30px; }
+  .fs-h { font-size:32px; font-weight:800; letter-spacing:-0.4px; margin-bottom:14px; }
+  .fs-row { display:flex; align-items:center; gap:14px; padding:18px 22px; background:white; border-radius:16px; margin-bottom:10px; border:1px solid rgba(220,213,199,0.4); }
+  .fs-name { flex:1; font-size:23px; font-weight:700; }
+  .fs-note { font-family:'Instrument Serif',serif; font-style:italic; font-size:18px; color:#8B8377; }
+  .weight-chip { font-family:'JetBrains Mono',monospace; font-size:13px; letter-spacing:0.12em; padding:5px 12px; border-radius:7px; font-weight:600; }
+  .weight-chip.primary { background:#E85D4A; color:white; }
+  .weight-chip.secondary { background:#F4DCD7; color:#B8412F; }
+  .weight-chip.tertiary { background:#DCD5C7; color:#8B8377; }
+</style></head>
+<body>
+  <div class="badge">EEON · MOMENTUM</div>
+  <div class="headline">
+    <h1>Where your time<br><em>actually</em> goes.</h1>
+    <p>Declare what matters. Watch reality<br>compare. EEON calls out the drift.</p>
+  </div>
+
+  <div class="phone">
+    <div class="island"></div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span></span><span>100</span></div>
+      <div class="body">
+        <div class="greeting">
+          <h2>Good morning</h2>
+          <div class="date">Friday, May 8</div>
+          <div class="pill"><span class="dot"></span>Tuned for you</div>
+        </div>
+
+        <div class="sec-h"><h3>Where You Are</h3></div>
+        <div class="momentum">
+          <div class="mom-row">
+            <div class="mom-name">
+              <div class="mom-title">StockAlarm</div>
+              <div class="mom-meta">Primary · 2 notes this week</div>
+            </div>
+            <div class="mom-bar primary"><div class="fill"></div></div>
+            <div class="mom-num">2</div>
+          </div>
+          <div class="mom-row">
+            <div class="mom-name">
+              <div class="mom-title">EEON</div>
+              <div class="mom-meta">Secondary · 18 notes, 9 decisions</div>
+            </div>
+            <div class="mom-bar secondary"><div class="fill"></div></div>
+            <div class="mom-num">18</div>
+          </div>
+          <div class="mom-row">
+            <div class="mom-name">
+              <div class="mom-title">Flash AI Cards</div>
+              <div class="mom-meta">Tertiary · silent 12 days</div>
+            </div>
+            <div class="mom-bar tertiary"><div class="fill"></div></div>
+            <div class="mom-num zero">0</div>
+          </div>
+
+          <div class="drift">
+            <div class="ico">⚠</div>
+            <div class="drift-text"><strong>StockAlarm</strong> is your stated primary, but <strong>EEON</strong> dominated this week (18 notes). StockAlarm got 2 notes.</div>
+          </div>
+        </div>
+
+        <div class="focus-summary">
+          <div class="fs-h">Your Focus</div>
+          <div class="fs-row">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:18px; color:#8B8377">⋮⋮</span>
+            <div class="fs-name">StockAlarm <span class="fs-note">where I want to spend most of my time</span></div>
+            <span class="weight-chip primary">Primary</span>
+          </div>
+          <div class="fs-row">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:18px; color:#8B8377">⋮⋮</span>
+            <div class="fs-name">EEON</div>
+            <span class="weight-chip secondary">Secondary</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>

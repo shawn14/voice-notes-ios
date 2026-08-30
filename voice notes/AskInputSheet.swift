@@ -14,11 +14,52 @@
 
 import SwiftUI
 
+private enum AskMemoryScope: String, CaseIterable, Identifiable {
+    case everything
+    case today
+    case last7Days
+    case last30Days
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .everything: return "Everything"
+        case .today: return "Today"
+        case .last7Days: return "7 days"
+        case .last30Days: return "30 days"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .everything: return "every note you've captured"
+        case .today: return "notes from today"
+        case .last7Days: return "notes from the last 7 days"
+        case .last30Days: return "notes from the last 30 days"
+        }
+    }
+
+    func scopedQuery(_ query: String) -> String {
+        switch self {
+        case .everything:
+            return query
+        case .today:
+            return "Using only my notes from today, \(query)"
+        case .last7Days:
+            return "Using only my notes from the last 7 days, \(query)"
+        case .last30Days:
+            return "Using only my notes from the last 30 days, \(query)"
+        }
+    }
+}
+
 struct AskInputSheet: View {
     let onSubmit: (String) -> Void
     let onCancel: () -> Void
 
     @State private var queryText: String = ""
+    @State private var selectedScope: AskMemoryScope = .everything
     @FocusState private var isFocused: Bool
 
     private let cannedPrompts: [String] = [
@@ -36,12 +77,14 @@ struct AskInputSheet: View {
                     Text("Ask your memory")
                         .font(.title3.bold())
                         .foregroundStyle(Color("EEONTextPrimary"))
-                    Text("Type a question or pick a starter below. EEON searches every note you've captured.")
+                    Text("Type a question or pick a starter below. EEON searches \(selectedScope.description).")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
+
+                scopePicker
 
                 // Input row
                 HStack(alignment: .bottom, spacing: 12) {
@@ -74,7 +117,7 @@ struct AskInputSheet: View {
                     VStack(spacing: 8) {
                         ForEach(cannedPrompts, id: \.self) { prompt in
                             Button {
-                                onSubmit(prompt)
+                                onSubmit(selectedScope.scopedQuery(prompt))
                             } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: "sparkles")
@@ -116,6 +159,28 @@ struct AskInputSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    private var scopePicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(AskMemoryScope.allCases) { scope in
+                    Button {
+                        selectedScope = scope
+                    } label: {
+                        Text(scope.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(selectedScope == scope ? .white : Color("EEONTextPrimary"))
+                            .padding(.horizontal, 12)
+                            .frame(height: 34)
+                            .background(selectedScope == scope ? Color("EEONAccentAI") : Color("EEONCard"))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
     private var canSubmit: Bool {
         !queryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -123,7 +188,7 @@ struct AskInputSheet: View {
     private func submit() {
         let trimmed = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        onSubmit(trimmed)
+        onSubmit(selectedScope.scopedQuery(trimmed))
     }
 }
 

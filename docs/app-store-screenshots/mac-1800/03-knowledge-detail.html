@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:2880px; height:1800px;
+    background: radial-gradient(ellipse at 50% -10%, rgba(107,74,140,0.20) 0%, transparent 60%),
+                radial-gradient(ellipse at 0% 100%, rgba(232,93,74,0.10) 0%, transparent 60%),
+                linear-gradient(135deg,#0c0a08 0%, #15110D 100%);
+    color:#fff; font-family:'DM Sans',sans-serif; overflow:hidden;
+    display:grid; grid-template-columns: 1fr 1.45fr; gap:80px; padding:140px 140px;
+    -webkit-font-smoothing:antialiased; }
+  .left { padding-top:60px; }
+  .badge { font-size:30px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:#C7B0E0; margin-bottom:48px; display:flex; align-items:center; gap:18px; }
+  .badge::before { content:''; width:60px; height:1px; background:#C7B0E0; opacity:0.5; }
+  h1 { font-family:'Instrument Serif',serif; font-size:200px; line-height:0.92; font-weight:400; letter-spacing:-4px; }
+  h1 em { font-style:italic; color:#C7B0E0; }
+  .subhead { font-size:42px; font-weight:500; color:rgba(255,255,255,0.65); margin-top:48px; line-height:1.32; max-width:900px; }
+  .points { margin-top:80px; display:flex; flex-direction:column; gap:30px; }
+  .point { display:flex; gap:24px; align-items:flex-start; }
+  .point .num { font-family:'Instrument Serif',serif; font-style:italic; font-size:58px; color:#C7B0E0; line-height:0.9; flex-shrink:0; width:60px; }
+  .point .text { font-size:28px; line-height:1.45; color:rgba(255,255,255,0.85); }
+  .point .text strong { color:#fff; font-weight:600; }
+
+  .right { display:flex; align-items:center; justify-content:center; }
+  .window { width:1500px; height:1100px; background:#F4F1EC; border-radius:18px; overflow:hidden; box-shadow:0 80px 160px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08); position:relative; color:#15110D; }
+  .titlebar { height:50px; background:#EBE6DC; border-bottom:1px solid rgba(0,0,0,0.08); display:flex; align-items:center; padding:0 18px; gap:9px; }
+  .traffic { display:flex; gap:8px; }
+  .light { width:14px; height:14px; border-radius:7px; }
+  .light.r { background:#FF5F57; } .light.y { background:#FFBD2E; } .light.g { background:#28CA41; }
+  .titlebar .title { flex:1; text-align:center; font-size:14px; font-weight:600; color:#4A4137; margin-left:-78px; }
+
+  .content { height: calc(100% - 50px); padding:38px 56px 36px; overflow:hidden; }
+  .breadcrumb { font-size:16px; color:#8B8377; margin-bottom:14px; }
+  .breadcrumb .arrow { margin:0 8px; opacity:0.5; }
+  .hero-tag { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500; color:#6B4A8C; letter-spacing:0.14em; text-transform:uppercase; }
+  .hero h2 { font-size:64px; font-weight:800; letter-spacing:-1.6px; line-height:1.05; margin-top:6px; }
+  .meta-row { display:flex; gap:30px; margin-top:14px; font-size:18px; color:#8B8377; }
+  .meta-row strong { color:#15110D; font-weight:600; }
+
+  .grid { display:grid; grid-template-columns: 1.3fr 1fr; gap:24px; margin-top:30px; }
+
+  .summary { padding:24px 26px; background:white; border-radius:18px; border:1px solid rgba(220,213,199,0.5); box-shadow:0 1px 3px rgba(21,17,13,0.04); }
+  .summary-label { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#8B8377; margin-bottom:10px; }
+  .summary-text { font-size:18px; line-height:1.5; color:#15110D; }
+  .summary h3 { font-size:22px; font-weight:800; letter-spacing:-0.3px; margin-top:24px; margin-bottom:12px; }
+
+  .item { background:white; border-radius:13px; padding:14px 18px; margin-bottom:8px; border:1px solid rgba(220,213,199,0.4); }
+  .item .top { display:flex; justify-content:space-between; align-items:flex-start; gap:11px; }
+  .item .title { font-size:15px; font-weight:700; line-height:1.3; flex:1; }
+  .item .status-tag { font-family:'JetBrains Mono',monospace; font-size:9px; padding:3px 7px; border-radius:5px; flex-shrink:0; font-weight:600; letter-spacing:0.04em; }
+  .item .status-tag.open { background:rgba(232,93,74,0.14); color:#B8412F; }
+  .item .status-tag.waiting { background:rgba(255,159,10,0.18); color:#A86200; }
+  .item .status-tag.resolved { background:rgba(92,122,82,0.18); color:#3D5236; }
+  .item .stale { font-size:12px; color:#8B8377; margin-top:3px; }
+
+  .right-col { display:flex; flex-direction:column; gap:16px; }
+  .col-card { background:white; border-radius:18px; padding:24px; border:1px solid rgba(220,213,199,0.5); }
+  .col-card h3 { font-size:20px; font-weight:800; letter-spacing:-0.3px; margin-bottom:14px; }
+  .col-card .pill { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; padding:3px 8px; border-radius:5px; background:rgba(107,74,140,0.12); color:#6B4A8C; text-transform:uppercase; font-weight:600; margin-left:8px; }
+
+  .arc { padding:18px 22px; background:linear-gradient(135deg, #F4DCD7 0%, #E5DCED 100%); border-radius:13px; }
+  .arc-label { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:#8B8377; margin-bottom:6px; }
+  .arc-text { font-size:18px; font-weight:600; color:#15110D; }
+
+  .timeline-item { padding:10px 0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:12px; }
+  .timeline-item:last-child { border-bottom:none; }
+  .timeline-item .date { font-family:'JetBrains Mono',monospace; font-size:11px; color:#8B8377; min-width:75px; flex-shrink:0; padding-top:2px; }
+  .timeline-item .event { font-size:14px; line-height:1.4; flex:1; }
+</style></head>
+<body>
+  <div class="left">
+    <div class="badge">EEON · WIKI</div>
+    <h1>Every note<br><em>compiles</em><br>into a wiki.</h1>
+    <p class="subhead">Topics, people, projects — the AI compounds your captures into living articles. Open threads, decisions, sentiment arcs.</p>
+    <div class="points">
+      <div class="point"><div class="num">01</div><div class="text"><strong>AI summary.</strong> Every related note compounds into a paragraph you can trust.</div></div>
+      <div class="point"><div class="num">02</div><div class="text"><strong>Open threads.</strong> Track what's stuck, waiting, or stale across every topic.</div></div>
+      <div class="point"><div class="num">03</div><div class="text"><strong>Sentiment arcs.</strong> See how each project, person, or topic has evolved.</div></div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="window">
+      <div class="titlebar">
+        <div class="traffic"><div class="light r"></div><div class="light y"></div><div class="light g"></div></div>
+        <div class="title">EEON — Knowledge</div>
+      </div>
+      <div class="content">
+        <div class="breadcrumb">Knowledge<span class="arrow">›</span>Projects<span class="arrow">›</span>StockAlarm</div>
+        <div class="hero-tag">PROJECT · 34 mentions · COMPILED 1H AGO</div>
+        <h2>StockAlarm</h2>
+        <div class="meta-row"><span><strong>Active</strong> build focus</span><span>2 open threads</span><span>2 decisions</span><span>last touched 1h ago</span></div>
+
+        <div class="grid">
+          <div>
+            <div class="summary">
+              <div class="summary-label">✦ AI summary</div>
+              <div class="summary-text">AI-powered stock alert and market intelligence platform. Streaming-data architecture is the current build focus. Recent decision to ship a paid tier in Q3 — pricing finalization with Patrick still in waiting state. Backend infrastructure work pairing with Craig is the gating dependency.</div>
+
+              <h3>Open Threads</h3>
+              <div class="item"><div class="top"><div class="title">Decide between WebSocket and SSE for live quotes</div><span class="status-tag open">OPEN</span></div><div class="stale">3 days open</div></div>
+              <div class="item"><div class="top"><div class="title">Pricing tier finalization with Patrick</div><span class="status-tag waiting">WAITING</span></div><div class="stale">5 days open</div></div>
+
+              <h3>Decisions</h3>
+              <div class="item"><div class="top"><div class="title">Ship paid tier in Q3</div><span class="status-tag resolved">RESOLVED</span></div><div class="stale">2026-04-22</div></div>
+              <div class="item"><div class="top"><div class="title">Use Polygon.io for primary feed</div><span class="status-tag resolved">RESOLVED</span></div><div class="stale">2026-04-15</div></div>
+            </div>
+          </div>
+          <div class="right-col">
+            <div class="col-card">
+              <h3>Sentiment Arc</h3>
+              <div class="arc">
+                <div class="arc-label">✦ AI-tracked over 8 weeks</div>
+                <div class="arc-text">Cautiously confident → Building momentum</div>
+              </div>
+            </div>
+            <div class="col-card">
+              <h3>Timeline</h3>
+              <div class="timeline-item"><div class="date">May 8</div><div class="event">Streaming decision: WebSocket over SSE</div></div>
+              <div class="timeline-item"><div class="date">May 5</div><div class="event">Patrick pricing feedback session</div></div>
+              <div class="timeline-item"><div class="date">Apr 22</div><div class="event">Q3 paid tier confirmed</div></div>
+              <div class="timeline-item"><div class="date">Apr 15</div><div class="event">Polygon.io selected as primary feed</div></div>
+            </div>
+            <div class="col-card">
+              <h3>Connections</h3>
+              <div class="timeline-item"><div class="date">person</div><div class="event">Patrick Shannon — pricing feedback</div></div>
+              <div class="timeline-item"><div class="date">person</div><div class="event">Craig — streaming infrastructure</div></div>
+              <div class="timeline-item"><div class="date">topic</div><div class="event">AI memory architecture</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>

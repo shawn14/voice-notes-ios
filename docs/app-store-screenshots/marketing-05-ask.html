@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EEON - Ask EEON</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1290px;
+    height: 2796px;
+    background: #1C1C1E;
+    font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .headline {
+    margin-top: 120px;
+    text-align: center;
+  }
+  .headline h1 {
+    font-size: 104px;
+    font-weight: 800;
+    color: #FFFFFF;
+    line-height: 1.05;
+    letter-spacing: -3px;
+  }
+  .headline p {
+    font-size: 46px;
+    font-weight: 500;
+    color: #FF6B5A;
+    margin-top: 28px;
+    letter-spacing: -0.5px;
+    font-style: italic;
+  }
+  .phone-frame {
+    margin-top: 60px;
+    display: flex;
+    justify-content: center;
+  }
+  .phone-bezel {
+    width: 1000px;
+    height: 2140px;
+    background: #000000;
+    border-radius: 80px;
+    padding: 18px;
+    box-shadow:
+      0 40px 100px rgba(0,0,0,0.6),
+      0 0 0 2px rgba(255,255,255,0.08),
+      inset 0 0 0 1px rgba(255,255,255,0.05);
+    position: relative;
+    overflow: hidden;
+  }
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    border-radius: 64px;
+    overflow: hidden;
+    background: #1C1C1E;
+    display: flex;
+    flex-direction: column;
+  }
+  .status-bar {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 20px;
+  }
+  .dynamic-island {
+    width: 180px;
+    height: 48px;
+    background: #000;
+    border-radius: 28px;
+  }
+  .nav-bar {
+    display: flex;
+    align-items: center;
+    padding: 10px 40px 20px;
+  }
+  .back-arrow {
+    font-size: 36px;
+    color: #FF6B5A;
+    margin-right: 20px;
+  }
+  .nav-title {
+    font-size: 36px;
+    font-weight: 600;
+    color: white;
+  }
+  .chat-area {
+    flex: 1;
+    padding: 20px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+  }
+  .message {
+    max-width: 85%;
+    padding: 24px 30px;
+    border-radius: 28px;
+    font-size: 32px;
+    line-height: 1.5;
+  }
+  .message-user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #FF6B5A, #E85D4A);
+    color: white;
+    border-bottom-right-radius: 8px;
+  }
+  .message-ai {
+    align-self: flex-start;
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.92);
+    border-bottom-left-radius: 8px;
+  }
+  .source-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .source-chip {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 8px 18px;
+    border-radius: 16px;
+    font-size: 24px;
+    color: rgba(255,255,255,0.5);
+  }
+  .message-user-2 {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #FF6B5A, #E85D4A);
+    color: white;
+    border-bottom-right-radius: 8px;
+  }
+  .message-ai-2 {
+    align-self: flex-start;
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.92);
+    border-bottom-left-radius: 8px;
+  }
+  .input-bar {
+    padding: 20px 40px 50px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .input-field {
+    flex: 1;
+    height: 72px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 36px;
+    padding: 0 30px;
+    display: flex;
+    align-items: center;
+  }
+  .input-placeholder {
+    font-size: 28px;
+    color: rgba(255,255,255,0.3);
+  }
+  .send-btn {
+    width: 72px;
+    height: 72px;
+    background: linear-gradient(135deg, #FF6B5A, #FF3B30);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .send-arrow {
+    width: 0;
+    height: 0;
+    border-left: 14px solid white;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+    margin-left: 4px;
+  }
+</style>
+</head>
+<body>
+  <div class="headline">
+    <h1>Ask your memory<br>anything</h1>
+    <p>"What did I promise Sarah?"</p>
+  </div>
+  <div class="phone-frame">
+    <div class="phone-bezel">
+      <div class="phone-screen">
+        <div class="status-bar">
+          <div class="dynamic-island"></div>
+        </div>
+        <div class="nav-bar">
+          <span class="back-arrow">&larr;</span>
+          <span class="nav-title">Ask EEON</span>
+        </div>
+        <div class="chat-area">
+          <div class="message message-user">
+            What did I promise Sarah?
+          </div>
+          <div class="message message-ai">
+            Based on your notes, you promised Sarah you would review her press release by Friday and send feedback on the onboarding flow.
+            <div class="source-chips">
+              <div class="source-chip">Meeting with Sarah, Mar 28</div>
+              <div class="source-chip">Product Launch, Mar 30</div>
+            </div>
+          </div>
+          <div class="message message-user-2">
+            What's the status of the product launch?
+          </div>
+          <div class="message message-ai-2">
+            You have 4 notes about the product launch. The main action items are: finalize pricing (decided $9.99/mo), prepare App Store assets, and schedule the press release. Kerry is handling the media outreach.
+            <div class="source-chips">
+              <div class="source-chip">Launch Strategy, Mar 26</div>
+              <div class="source-chip">Pricing Discussion, Mar 27</div>
+              <div class="source-chip">Launch Prep, Mar 29</div>
+            </div>
+          </div>
+        </div>
+        <div class="input-bar">
+          <div class="input-field">
+            <span class="input-placeholder">Ask anything about your notes...</span>
+          </div>
+          <div class="send-btn">
+            <div class="send-arrow"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

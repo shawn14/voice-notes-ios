@@ -67,7 +67,7 @@ enum HomeSectionKind: String, Codable, CaseIterable {
         case .activeInquiries: return "Active Inquiries"
         case .contradictionLedger: return "Contradictions"
         case .knowledgeCarousel: return "Your Knowledge"
-        case .recentNotes: return "Recent Notes"
+        case .recentNotes: return "Library"
         case .dailyBrief: return "Today's Brief"
         }
     }

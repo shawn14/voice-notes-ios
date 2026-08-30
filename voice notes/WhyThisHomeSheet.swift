@@ -169,7 +169,7 @@ struct WhyThisHomeSheet: View {
     }
 
     private var intro: some View {
-        Text("This is how EEON has shaped itself around what you've told it. Re-tune anytime to update.")
+        Text("This is how EEON has shaped itself around what you've told it. Update personalization anytime.")
             .font(.subheadline)
             .foregroundStyle(.eeonTextSecondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -227,7 +227,7 @@ struct WhyThisHomeSheet: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "scope")
-                Text("Re-tune EEON")
+                Text("Update Personalization")
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption)
