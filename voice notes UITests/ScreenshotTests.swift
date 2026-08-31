@@ -3,12 +3,12 @@
 //  voice notes UITests
 //
 //  App Store screenshot automation (fastlane snap). Five shots that tell the
-//  same story as eeon.com — say it once, EEON remembers:
-//    01 Home          the feed, blue, dropdown header
-//    02 Highlights    what mattered, what's open, what's next
-//    03 Tasks         every to-do, inline
-//    04 Note detail   "Standup with Lena" — calendar row, decision, format chips
-//    05 Remind me     the confirmation sheet for a spoken reminder
+//  same story as eeon.com — your personal AI assistant:
+//    01 Home          private memory from the phone in your pocket
+//    02 Ask EEON      chat with notes, tasks, people, and projects
+//    03 Note detail   "Standup with Lena" — calendar row, decision, format chips
+//    04 Tasks         every to-do you said out loud, inline
+//    05 Connections   iCloud, Reminders, and AI connector status
 //
 //  Backed by ScreenshotSeed (DEBUG-only, -SeedScreenshotData): the hero note
 //  with calendar context, its action item, and today's brief — no API calls.
@@ -44,16 +44,10 @@ final class ScreenshotTests: XCTestCase {
         sleep(2)
         shot("01_Home")
 
-        if openFeedMenu(), tapMenuItem("Highlights") {
+        if tapAskEEON() {
             sleep(2)
-            shot("02_Highlights")
-            backToAllNotes()
-        }
-
-        if openFeedMenu(), tapMenuItem("Tasks") {
-            sleep(2)
-            shot("03_Tasks")
-            backToAllNotes()
+            shot("02_AskEEON")
+            backFromPushedPage()
         }
 
         let row = app.staticTexts.matching(
@@ -62,20 +56,19 @@ final class ScreenshotTests: XCTestCase {
         if row.waitForExistence(timeout: 4) {
             row.tap()
             sleep(2)
-            shot("04_NoteDetail")
+            shot("03_NoteDetail")
+            backFromPushedPage()
         }
 
-        // 05: relaunch with the demo flag so the confirmation sheet presents itself.
-        app.terminate()
-        app.launchArguments.append("-ShowReminderDemo")
-        app.launch()
-        sleep(3)
-        dismissGatesIfNeeded()
-        if app.buttons["Add to Reminders"].waitForExistence(timeout: 8) {
-            sleep(1)
-            dismissSystemAlerts()
-            sleep(1)
-            shot("05_RemindMe")
+        if tapSegment("Tasks") {
+            sleep(2)
+            shot("04_Tasks")
+            _ = tapSegment("Library")
+        }
+
+        if tapSettings(), tapSettingsRow("Connections") {
+            sleep(2)
+            shot("05_Connections")
         }
     }
 
@@ -116,30 +109,44 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
-    /// The left dropdown on the feed header is a Menu whose label names the
-    /// current view: "All notes", "Highlights", "Tasks", or a category.
-    private func openFeedMenu() -> Bool {
-        let menu = app.buttons.matching(NSPredicate(
-            format: "label BEGINSWITH 'All notes' OR label BEGINSWITH 'Highlights' OR label BEGINSWITH 'Tasks'"
-        )).firstMatch
-        guard menu.waitForExistence(timeout: 3) else { return false }
-        menu.tap()
-        sleep(1)
+    private func tapAskEEON() -> Bool {
+        let ask = app.buttons["Ask EEON"]
+        guard ask.waitForExistence(timeout: 3) else { return false }
+        ask.tap()
         return true
     }
 
-    private func tapMenuItem(_ title: String) -> Bool {
-        // Menu items live above the label; the last match is the item, not the label.
-        let matches = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title))
-        guard matches.count > 0 else { return false }
-        let item = matches.element(boundBy: max(0, matches.count - 1))
-        guard item.waitForExistence(timeout: 3) else { return false }
-        item.tap()
+    private func tapSegment(_ title: String) -> Bool {
+        let segment = app.buttons[title]
+        guard segment.waitForExistence(timeout: 3) else { return false }
+        segment.tap()
         return true
     }
 
-    private func backToAllNotes() {
-        if openFeedMenu() { _ = tapMenuItem("All notes") }
+    private func tapSettings() -> Bool {
+        let settings = app.buttons["Settings"]
+        guard settings.waitForExistence(timeout: 3) else { return false }
+        settings.tap()
+        return true
+    }
+
+    private func tapSettingsRow(_ title: String) -> Bool {
+        let row = app.buttons[title]
+        if row.waitForExistence(timeout: 4) {
+            row.tap()
+            return true
+        }
+        let text = app.staticTexts[title]
+        guard text.waitForExistence(timeout: 2) else { return false }
+        text.tap()
+        return true
+    }
+
+    private func backFromPushedPage() {
+        let backButtons = app.navigationBars.buttons
+        if backButtons.count > 0 {
+            backButtons.element(boundBy: 0).tap()
+        }
         sleep(1)
     }
 

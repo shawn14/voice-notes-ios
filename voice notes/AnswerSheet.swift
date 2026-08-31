@@ -21,7 +21,7 @@ struct AnswerSheet: View {
     @Query private var dailyBriefs: [DailyBrief]
 
     /// When present, run this question on appear. When nil, the view opens as
-    /// a composer for Ask Library.
+    /// a composer for Ask EEON.
     let initialQuery: String?
     let navigationTitle: String
     let showsDoneButton: Bool
@@ -66,7 +66,7 @@ struct AnswerSheet: View {
     }
 
     init(
-        navigationTitle: String = "Ask Library",
+        navigationTitle: String = "Ask EEON",
         showsDoneButton: Bool = false,
         wrapsInNavigationStack: Bool = false
     ) {
@@ -207,18 +207,51 @@ struct AnswerSheet: View {
                 .frame(width: 68, height: 68)
                 .background(Circle().fill(Color.eeonAccentAI.opacity(0.14)))
 
-            Text("Ask Library")
+            Text("Ask EEON")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.eeonTextPrimary)
 
-            Text("Type a question about your notes.")
+            Text("Ask a question about anything you have captured.")
                 .font(.subheadline)
                 .foregroundStyle(.eeonTextSecondary)
                 .multilineTextAlignment(.center)
 
+            VStack(spacing: 8) {
+                ForEach(starterQuestions, id: \.self) { question in
+                    Button {
+                        runQuery(question)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "sparkles")
+                                .font(EEONType.meta)
+                                .foregroundStyle(.eeonAccentAI)
+                            Text(question)
+                                .font(EEONType.preview)
+                                .foregroundStyle(.eeonTextPrimary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: EEONLayout.minTarget)
+                        .background(Color.eeonCard)
+                        .clipShape(RoundedRectangle(cornerRadius: EEONLayout.chipRadius, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, EEONLayout.snug)
+            .padding(.horizontal, EEONLayout.standard)
+
             Spacer(minLength: 24)
         }
         .frame(maxWidth: .infinity, minHeight: 300)
+    }
+
+    private var starterQuestions: [String] {
+        [
+            "What follow-ups do I owe?",
+            "What decisions did I make this week?",
+            "Summarize my active projects"
+        ]
     }
 
     private func loadingView(question: String?) -> some View {

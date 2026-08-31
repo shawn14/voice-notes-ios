@@ -1581,10 +1581,10 @@ struct HomeTranscribingOverlay: View {
     @State private var stepTimer: Timer?
 
     private let steps: [MemoryProcessingStep] = [
-        MemoryProcessingStep(icon: "waveform", title: "Transcribing", subtitle: "Turning speech into text"),
-        MemoryProcessingStep(icon: "sparkles", title: "Finding meaning", subtitle: "Pulling out decisions, people, and projects"),
-        MemoryProcessingStep(icon: "checklist", title: "Saving follow-ups", subtitle: "Preparing action items and reminders"),
-        MemoryProcessingStep(icon: "icloud", title: "Syncing memory", subtitle: "Making it available after iCloud sync")
+        MemoryProcessingStep(icon: "waveform", title: "Writing the note", subtitle: "Turning your voice into clean text"),
+        MemoryProcessingStep(icon: "sparkles", title: "Finding what matters", subtitle: "Pulling out decisions, people, and projects"),
+        MemoryProcessingStep(icon: "checklist", title: "Preparing follow-ups", subtitle: "Finding action items for Reminders"),
+        MemoryProcessingStep(icon: "sparkle.magnifyingglass", title: "Ready for Ask EEON", subtitle: "Adding this context to your searchable memory")
     ]
 
     var body: some View {
@@ -1623,7 +1623,7 @@ struct HomeTranscribingOverlay: View {
                         .font(.system(size: 30, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
 
-                    Text("EEON is turning this recording into searchable context.")
+                    Text("EEON is turning this recording into notes, tasks, and AI-searchable context.")
                         .font(.subheadline.weight(.medium))
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.58))
@@ -1835,30 +1835,27 @@ struct SettingsView: View {
     private var connectionsSection: some View {
         Group {
             Section {
-                Button {
-                    documentExportConfirmation = aiAccessHelpText
-                } label: {
-                    EEONSettingsRow(
-                        icon: "icloud",
-                        title: "Private iCloud Sync",
-                        subtitle: aiAccessSubtitle
-                    ) {
-                        Text(aiAccessStatusBadge)
-                            .font(.subheadline)
-                            .foregroundStyle(iCloudStatus == .available ? Color.secondary : Color.orange)
-                    }
-                }
-                .buttonStyle(.plain)
-            } header: {
-                Text("iCloud")
-            } footer: {
-                Text("EEON keeps notes in your private iCloud account. AI tools can read them only after that tool signs in with Apple through the EEON connector.")
-            }
+                connectionStatusRow(
+                    icon: "icloud",
+                    title: "iCloud Sync",
+                    subtitle: aiAccessSubtitle,
+                    status: aiAccessStatusBadge,
+                    statusColor: iCloudStatus == .available ? Color.secondary : Color.orange
+                )
 
-            Section {
                 remindersSyncRow
+
+                connectionStatusRow(
+                    icon: "sparkle.magnifyingglass",
+                    title: "AI Connector",
+                    subtitle: aiConnectorSubtitle,
+                    status: aiConnectorStatusBadge,
+                    statusColor: iCloudStatus == .available ? Color.secondary : Color.orange
+                )
+            } header: {
+                Text("Connections")
             } footer: {
-                Text("Action items EEON hears in recordings appear in an EEON list in Apple Reminders.")
+                Text("EEON stays Apple-centric: notes sync through your private iCloud account. Compatible AI workspaces can read them only after you authorize the EEON CloudKit connector there.")
             }
 
             Section {
@@ -1866,8 +1863,25 @@ struct SettingsView: View {
             } footer: {
                 Text("EEON reads the event title and attendees for recordings made during meetings. It never writes to your calendar.")
             }
+
+            Section {
+                Button {
+                    documentExportConfirmation = aiAccessHelpText
+                } label: {
+                    EEONSettingsRow(
+                        icon: "questionmark.circle",
+                        title: "How AI tools connect",
+                        subtitle: "Codex, Claude Code, Cursor, and ChatGPT"
+                    ) {
+                        EEONChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+            } footer: {
+                Text("If that AI workspace also has Google Docs, Drive, or Gmail access, it can use EEON memory there. EEON does not connect directly to Google or silently write to other apps.")
+            }
         }
-        .alert("Private iCloud Sync", isPresented: Binding(
+        .alert("Connections", isPresented: Binding(
             get: { documentExportConfirmation != nil },
             set: { if !$0 { documentExportConfirmation = nil } }
         )) {
@@ -1877,12 +1891,30 @@ struct SettingsView: View {
         }
     }
 
+    private func connectionStatusRow(
+        icon: String,
+        title: String,
+        subtitle: String,
+        status: String,
+        statusColor: Color
+    ) -> some View {
+        EEONSettingsRow(
+            icon: icon,
+            title: title,
+            subtitle: subtitle
+        ) {
+            Text(status)
+                .font(EEONType.badge)
+                .foregroundStyle(statusColor)
+        }
+    }
+
     private var remindersSyncRow: some View {
         Toggle(isOn: $remindersSyncEnabled) {
             EEONSettingsRow(
                 icon: "checklist",
-                title: "Sync actions to Reminders",
-                subtitle: "New action items appear in an EEON list"
+                title: "Reminders",
+                subtitle: "Action items can appear in an EEON list"
             )
         }
         .onChange(of: remindersSyncEnabled) { _, isOn in
@@ -1938,9 +1970,20 @@ struct SettingsView: View {
 
     private var aiAccessHelpText: String {
         if iCloudStatus == .available {
-            return "EEON syncs notes through your private iCloud database. This does not automatically give AI tools access. On each AI workspace, add the EEON CloudKit connector and sign in with Apple. There is no folder picker."
+            return "EEON syncs notes through your private iCloud database. This does not automatically give AI tools access. In each AI workspace, add the EEON CloudKit connector and sign in with Apple. There is no phone folder picker."
         }
         return "EEON needs iCloud to sync notes. Sign in to iCloud in the Settings app, then return to EEON."
+    }
+
+    private var aiConnectorSubtitle: String {
+        if iCloudStatus == .available {
+            return "Authorize from each AI workspace"
+        }
+        return "Turn on iCloud to make notes available"
+    }
+
+    private var aiConnectorStatusBadge: String {
+        iCloudStatus == .available ? "Available" : "Needs iCloud"
     }
 
     /// Auto-format every new note in the style the user's profession preset
@@ -2731,8 +2774,10 @@ struct SettingsView: View {
         if calendarContextEnabled {
             enabled.append("Calendar")
         }
-        let iCloudSummary = iCloudStatus == .available ? "iCloud notes on" : "iCloud needs attention"
-        return enabled.isEmpty ? iCloudSummary : "\(iCloudSummary); \(enabled.joined(separator: ", ")) connected"
+        let iCloudSummary = iCloudStatus == .available ? "iCloud on" : "iCloud needs attention"
+        let aiSummary = iCloudStatus == .available ? "AI connector available" : "AI connector needs iCloud"
+        let appleSummary = enabled.isEmpty ? "" : "; \(enabled.joined(separator: ", ")) on"
+        return "\(iCloudSummary); \(aiSummary)\(appleSummary)"
     }
 
     private var selectedAskModelPreference: AskModelPreference {
@@ -2828,7 +2873,7 @@ struct SettingsView: View {
         Section {
             connectionsSettingsRow
         } footer: {
-            Text("Manage private iCloud sync, Reminders, and Calendar.")
+            Text("Manage private iCloud sync, Apple follow-up, and AI connector access.")
         }
     }
 

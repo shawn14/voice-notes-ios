@@ -918,7 +918,7 @@ struct AIHomeView: View {
 
             // Optional keyboard path into the same RAG system voice questions use.
             // Record remains the primary control; Ask is not a capture mode.
-            NavigationLink(destination: AnswerSheet(navigationTitle: "Ask Library")) {
+            NavigationLink(destination: AnswerSheet(navigationTitle: "Ask EEON")) {
                 Label("Ask", systemImage: "sparkle.magnifyingglass")
                     .font(EEONType.control)
                     .foregroundStyle(.eeonAccentAI)
@@ -942,6 +942,7 @@ struct AIHomeView: View {
                         .foregroundStyle(.eeonTextSecondary)
                 }
             }
+            .accessibilityLabel("Settings")
         }
         .padding(.top, 8)
     }
@@ -1355,7 +1356,7 @@ struct AIHomeView: View {
     }
 
     private var askLibraryCard: some View {
-        NavigationLink(destination: AnswerSheet(navigationTitle: "Ask Library")) {
+        NavigationLink(destination: AnswerSheet(navigationTitle: "Ask EEON")) {
             HStack(spacing: EEONLayout.standard) {
                 Image(systemName: "sparkle.magnifyingglass")
                     .font(EEONType.body)
@@ -1364,10 +1365,10 @@ struct AIHomeView: View {
                     .background(Circle().fill(Color.eeonAccentAI.opacity(0.14)))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Ask Library")
+                    Text("Ask EEON")
                         .font(EEONType.body)
                         .foregroundStyle(.eeonTextPrimary)
-                    Text("Notes, topics, and people")
+                    Text("Ask your notes, tasks, people, and projects")
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextSecondary)
                 }

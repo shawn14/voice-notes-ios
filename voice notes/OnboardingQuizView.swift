@@ -188,13 +188,13 @@ struct OnboardingQuizView: View {
                 .foregroundStyle(.eeonTextSecondary)
                 .padding(.bottom, EEONLayout.tight)
 
-            Text("Talk. It remembers,\norganizes, and follows up.")
+            Text("Your personal\nAI assistant.")
                 .font(.largeTitle.weight(.bold))
                 .foregroundStyle(.eeonTextPrimary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, EEONLayout.snug)
 
-            Text("No device to buy. No pairing. Press record and keep talking for as long as you like.")
+            Text("Use the phone in your pocket. Talk naturally; EEON remembers, organizes, and follows up.")
                 .font(EEONType.body)
                 .foregroundStyle(.eeonTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
