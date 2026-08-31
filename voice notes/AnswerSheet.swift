@@ -46,6 +46,7 @@ struct AnswerSheet: View {
     @State private var previousTurns: [AnswerTurn] = []
     @State private var activeScopePrefix: String?
     @State private var followUpInput: String = ""
+    @State private var submittedQuestion: String?
     @State private var didSave: Bool = false
     @State private var showingSaveConfirmation: Bool = false
     @State private var navigateToNote: Note?
@@ -97,11 +98,11 @@ struct AnswerSheet: View {
                     case .idle:
                         askStartView
                     case .loading:
-                        loadingView
+                        loadingView(question: submittedQuestion)
                     case .answer(let question, let response):
                         answerView(question: question, response: response)
                     case .error(let message):
-                        errorView(message: message)
+                        errorView(question: submittedQuestion, message: message)
                     }
                 }
                 .padding()
@@ -111,7 +112,7 @@ struct AnswerSheet: View {
             Divider()
                 .overlay(Color.eeonDivider)
 
-            HStack(spacing: 12) {
+            HStack(alignment: .bottom, spacing: 10) {
                 TextField(inputPlaceholder, text: $followUpInput, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...4)
@@ -120,14 +121,18 @@ struct AnswerSheet: View {
                     .background(Color.eeonCard)
                     .cornerRadius(20)
                     .focused($isComposerFocused)
-                    .onSubmit { submitFollowUp() }
+                    .submitLabel(.send)
+                    .onSubmit { submitTypedQuestion() }
 
-                Button(action: submitFollowUp) {
+                Button(action: submitTypedQuestion) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title)
                         .foregroundColor(canSubmit ? .eeonAccentAI : .eeonTextTertiary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
                 }
                 .disabled(!canSubmit)
+                .accessibilityLabel("Send question")
             }
             .padding()
             .background(Color.eeonBackground)
@@ -216,12 +221,18 @@ struct AnswerSheet: View {
         .frame(maxWidth: .infinity, minHeight: 300)
     }
 
-    private var loadingView: some View {
-        HStack(spacing: 12) {
-            TypingIndicator()
-            Text("Searching your Library...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+    private func loadingView(question: String?) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if let question, !question.isEmpty {
+                questionBubble(question)
+            }
+
+            HStack(spacing: 12) {
+                TypingIndicator()
+                Text("Searching your Library...")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.top, 24)
     }
@@ -387,8 +398,24 @@ struct AnswerSheet: View {
         }
     }
 
-    private func errorView(message: String) -> some View {
+    private func questionBubble(_ question: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("QUESTION")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Text(question)
+                .font(.headline)
+                .foregroundStyle(.eeonTextPrimary)
+        }
+    }
+
+    private func errorView(question: String?, message: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            if let question, !question.isEmpty {
+                questionBubble(question)
+            }
+
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundColor(.orange)
@@ -406,7 +433,7 @@ struct AnswerSheet: View {
 
     // MARK: - Actions
 
-    private func submitFollowUp() {
+    private func submitTypedQuestion() {
         let trimmed = followUpInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if case .loading = state { return }
@@ -444,6 +471,7 @@ struct AnswerSheet: View {
         let ragQuery = contextualQuery(for: trimmed)
 
         state = .loading
+        submittedQuestion = trimmed
         didSave = false
 
         Task {
@@ -456,6 +484,7 @@ struct AnswerSheet: View {
                     dailyBriefs: dailyBriefs
                 )
                 await MainActor.run {
+                    submittedQuestion = nil
                     state = .answer(question: trimmed, response: response)
                 }
             } catch {
