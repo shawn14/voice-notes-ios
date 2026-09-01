@@ -409,10 +409,10 @@ private final class GoogleCalendarPresentationContextProvider: NSObject, ASWebAu
         if let keyWindow = scenes.flatMap(\.windows).first(where: { $0.isKeyWindow }) {
             return keyWindow
         }
-        if #available(iOS 26.0, *), let scene = scenes.first {
-            return ASPresentationAnchor(windowScene: scene)
+        guard let scene = scenes.first else {
+            fatalError("Google Calendar OAuth requires an active window scene")
         }
-        return ASPresentationAnchor(frame: .zero)
+        return ASPresentationAnchor(windowScene: scene)
     }
 }
 
