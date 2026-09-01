@@ -67,6 +67,7 @@ struct LibraryView: View {
     @Query(sort: \Project.sortOrder) private var projects: [Project]
 
     @State private var searchQuery = ""
+    @State private var editingNote: Note?
 
     private var visibleNotes: [Note] {
         libraryVisibleNotes(notes)
@@ -107,7 +108,7 @@ struct LibraryView: View {
                 } else {
                     Section(searchResults.count == 1 ? "1 Result" : "\(searchResults.count) Results") {
                         ForEach(searchResults) { note in
-                            LibraryNoteListRow(note: note)
+                            LibraryNoteListRow(note: note, editingNote: $editingNote)
                         }
                     }
                 }
@@ -121,7 +122,7 @@ struct LibraryView: View {
                 if !visibleNotes.isEmpty {
                     Section("Recent") {
                         ForEach(Array(visibleNotes.prefix(12))) { note in
-                            LibraryNoteListRow(note: note)
+                            LibraryNoteListRow(note: note, editingNote: $editingNote)
                         }
 
                         if visibleNotes.count > 12 {
@@ -156,12 +157,16 @@ struct LibraryView: View {
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchQuery, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search Library")
         .listStyle(.insetGrouped)
+        .navigationDestination(item: $editingNote) { note in
+            NoteDetailView(note: note, startEditing: true)
+        }
         .background(Color(.systemGroupedBackground))
     }
 
 }
 
 struct LibraryCollectionView: View {
+    @State private var editingNote: Note?
     let kind: LibraryCollectionKind
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
@@ -193,6 +198,9 @@ struct LibraryCollectionView: View {
         .navigationTitle(kind.title)
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
+        .navigationDestination(item: $editingNote) { note in
+            NoteDetailView(note: note, startEditing: true)
+        }
         .background(Color(.systemGroupedBackground))
     }
 
@@ -207,7 +215,7 @@ struct LibraryCollectionView: View {
                     description: Text("This collection has no notes yet.")
                 )
             } else {
-                LibraryNoteSections(notes: baseNotes)
+                LibraryNoteSections(notes: baseNotes, editingNote: $editingNote)
             }
         case .projects:
             namedCollectionSections(projectGroups)
@@ -369,6 +377,7 @@ struct LibraryCollectionView: View {
 }
 
 struct LibraryFilteredNotesView: View {
+    @State private var editingNote: Note?
     let title: String
     let notes: [Note]
 
@@ -385,24 +394,28 @@ struct LibraryFilteredNotesView: View {
                     description: Text("This collection has no notes yet.")
                 )
             } else {
-                LibraryNoteSections(notes: visibleNotes)
+                LibraryNoteSections(notes: visibleNotes, editingNote: $editingNote)
             }
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
+        .navigationDestination(item: $editingNote) { note in
+            NoteDetailView(note: note, startEditing: true)
+        }
         .background(Color(.systemGroupedBackground))
     }
 }
 
 private struct LibraryNoteSections: View {
     let notes: [Note]
+    @Binding var editingNote: Note?
 
     var body: some View {
         ForEach(libraryMonthGroups(notes), id: \.0) { month, monthNotes in
             Section(month) {
                 ForEach(monthNotes) { note in
-                    LibraryNoteListRow(note: note)
+                    LibraryNoteListRow(note: note, editingNote: $editingNote)
                 }
             }
         }
@@ -410,58 +423,47 @@ private struct LibraryNoteSections: View {
 
 }
 
-/// One Library note row: tap to open, swipe or long-press for favorite /
-/// archive / delete. Delete always confirms first ("Delete Note?", same as
-/// NoteDetailView) — a full swipe must never destroy a note and its audio.
+/// One Library note row: tap to open, swipe left for Edit / Delete. No
+/// confirmation dialog (Shawn, 2026-09-01: "like Stock Alarm"), but no
+/// full-swipe commit either — a note and its audio go only on that tap.
 private struct LibraryNoteListRow: View {
     @Environment(\.modelContext) private var modelContext
 
     let note: Note
-
-    @State private var showingDeleteConfirm = false
+    @Binding var editingNote: Note?
 
     var body: some View {
         NavigationLink(destination: NoteDetailView(note: note)) {
             LibraryNoteRow(note: note)
         }
+        // First button sits at the edge; no full swipe so a note goes only on a tap.
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
-                showingDeleteConfirm = true
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                deleteNote()
             } label: {
                 Label("Delete", systemImage: "trash")
             }
-        }
-        .contextMenu {
+            ShareLink(item: noteShareText) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            .tint(.eeonAccentAI)
             Button {
-                note.isFavorite.toggle()
-                try? modelContext.save()
+                editingNote = note
             } label: {
-                Label(note.isFavorite ? "Unfavorite" : "Favorite", systemImage: note.isFavorite ? "heart.slash" : "heart.fill")
+                Label("Edit", systemImage: "pencil")
             }
-
-            Button {
-                withAnimation {
-                    note.isArchived.toggle()
-                    try? modelContext.save()
-                }
-            } label: {
-                Label(note.isArchived ? "Unarchive" : "Archive", systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox")
-            }
-
-            Button(role: .destructive) {
-                showingDeleteConfirm = true
-            } label: {
-                Label("Delete Note", systemImage: "trash")
-            }
+            .tint(Color(.systemGray))
         }
-        .confirmationDialog("Delete Note?", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                deleteNote()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This cannot be undone.")
-        }
+    }
+
+    private var noteShareText: String {
+        var parts: [String] = []
+        if !note.displayTitle.isEmpty { parts.append(note.displayTitle) }
+        let body = note.enhancedNoteText ?? note.transcript ?? note.content
+        if !body.isEmpty { parts.append(body) }
+        parts.append("Shared from EEON")
+        return parts.joined(separator: "\n\n")
     }
 
     private func deleteNote() {

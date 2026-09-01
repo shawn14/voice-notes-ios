@@ -1846,8 +1846,6 @@ struct SettingsView: View {
                     statusColor: iCloudStatus == .available ? Color.secondary : Color.orange
                 )
 
-                remindersSyncRow
-
                 connectionStatusRow(
                     icon: "sparkle.magnifyingglass",
                     title: "EEON MCP Connector",
@@ -1872,15 +1870,6 @@ struct SettingsView: View {
                 Text("Sync & AI")
             } footer: {
                 Text("iCloud sync stays private by default. AI access requires explicit CloudKit authorization.")
-            }
-
-            Section {
-                calendarContextRow
-                googleCalendarRow
-            } header: {
-                Text("Calendars")
-            } footer: {
-                Text("Read-only meeting context: titles, attendees, times, and links. EEON does not write calendar events.")
             }
         }
         .alert("Connections", isPresented: Binding(
@@ -2634,14 +2623,6 @@ struct SettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private var notificationsDetail: some View {
-        List {
-            NotificationSettingsSection()
-        }
-        .navigationTitle("Notifications")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
     private var syncDetail: some View {
         List {
             iCloudSyncSection
@@ -2859,46 +2840,8 @@ struct SettingsView: View {
         return "\(peopleCount) people, \(speakerCount) named speakers"
     }
 
-    private var connectionsSettingsRow: some View {
-        NavigationLink {
-            connectionsDetail
-        } label: {
-            EEONSettingsRow(
-                icon: "link",
-                title: "Calendars & Connections",
-                subtitle: connectionsSummary
-            )
-        }
-    }
-
-    private var connectionsSummary: String {
-        let calendarSummary: String
-        if googleCalendarService.isConnected {
-            calendarSummary = "Google on"
-        } else if calendarContextEnabled {
-            calendarSummary = "iPhone Calendar on"
-        } else {
-            calendarSummary = "Calendar off"
-        }
-        let remindersSummary = remindersSyncEnabled ? "Reminders on" : "Reminders off"
-        let aiSummary = iCloudStatus == .available ? "AI ready" : "Needs iCloud"
-        return "\(calendarSummary) · \(remindersSummary) · \(aiSummary)"
-    }
-
     private var selectedAskModelPreference: AskModelPreference {
         AskModelPreference(rawValue: askModelPreferenceRaw) ?? .balanced
-    }
-
-    private var notificationsSettingsRow: some View {
-        NavigationLink {
-            notificationsDetail
-        } label: {
-            EEONSettingsRow(
-                icon: "bell",
-                title: "Notifications",
-                subtitle: "Proactive nudges"
-            )
-        }
     }
 
     private var syncSettingsRow: some View {
@@ -2979,19 +2922,28 @@ struct SettingsView: View {
         }
     }
 
-    private var alertsSettingsSection: some View {
-        Section {
-            notificationsSettingsRow
-        } header: {
-            Text("Alerts")
-        }
-    }
-
     private var connectionsSettingsSection: some View {
+        // Inlined 2026-09-01 (Shawn): the calendar and reminder toggles used
+        // to hide one tap deep behind a "Calendars & Connections" row. They
+        // are the settings people actually flip, so they live on the root now;
+        // only the AI-connector / iCloud status detail stays behind a tap.
         Section {
-            connectionsSettingsRow
+            calendarContextRow
+            googleCalendarRow
+            remindersSyncRow
+            NavigationLink {
+                connectionsDetail
+            } label: {
+                EEONSettingsRow(
+                    icon: "sparkle.magnifyingglass",
+                    title: "AI access & iCloud",
+                    subtitle: iCloudStatus == .available ? "iCloud on · AI ready" : "Needs iCloud"
+                )
+            }
         } header: {
             Text("Connections")
+        } footer: {
+            Text("Calendar and Reminders are read-only meeting context. AI access needs CloudKit authorization.")
         }
     }
 
@@ -3024,7 +2976,7 @@ struct SettingsView: View {
                 accountSettingsSection
                 coreSettingsSection
                 connectionsSettingsSection
-                alertsSettingsSection
+                NotificationSettingsSection()
                 dataSettingsSection
                 helpSettingsSection
 

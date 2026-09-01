@@ -31,6 +31,9 @@ struct TasksView: View {
     @State private var showingCompleteVisibleConfirm = false
     @State private var newTaskText = ""
     @State private var navigateToNote: Note?
+    @State private var editingAction: ExtractedAction?
+    @State private var editTaskText = ""
+    @State private var sharePayload: EEONSharePayload?
 
     // MARK: - Grouping
 
@@ -174,6 +177,17 @@ struct TasksView: View {
             Button("Cancel", role: .cancel) { newTaskText = "" }
             Button("Add") { addTask() }
         }
+        .alert("Edit task", isPresented: Binding(
+            get: { editingAction != nil },
+            set: { if !$0 { editingAction = nil } }
+        )) {
+            TextField("Task", text: $editTaskText)
+            Button("Cancel", role: .cancel) { editingAction = nil }
+            Button("Save") { renameTask() }
+        }
+        .sheet(item: $sharePayload) { payload in
+            ActivityViewControllerRepresentable(activityItems: [payload.text])
+        }
         .confirmationDialog("Complete Visible Tasks?", isPresented: $showingCompleteVisibleConfirm, titleVisibility: .visible) {
             Button("Complete Visible Tasks") {
                 markVisibleComplete()
@@ -262,6 +276,17 @@ struct TasksView: View {
                 Button("Cancel", role: .cancel) { newTaskText = "" }
                 Button("Add") { addTask() }
             }
+            .alert("Edit task", isPresented: Binding(
+                get: { editingAction != nil },
+                set: { if !$0 { editingAction = nil } }
+            )) {
+                TextField("Task", text: $editTaskText)
+                Button("Cancel", role: .cancel) { editingAction = nil }
+                Button("Save") { renameTask() }
+            }
+            .sheet(item: $sharePayload) { payload in
+                ActivityViewControllerRepresentable(activityItems: [payload.text])
+            }
             .confirmationDialog("Complete Visible Tasks?", isPresented: $showingCompleteVisibleConfirm, titleVisibility: .visible) {
                 Button("Complete Visible Tasks") {
                     markVisibleComplete()
@@ -293,9 +318,14 @@ struct TasksView: View {
 
     @ViewBuilder
     private func taskSwipeRow(_ action: ExtractedAction) -> some View {
-        EEONSwipeDeleteRow(label: "Delete", background: .eeonBackground, onDelete: {
-            delete(action)
-        }) {
+        EEONSwipeActionsRow(
+            actions: [
+                .edit { beginEdit(action) },
+                .share { sharePayload = EEONSharePayload(text: taskShareText(action)) },
+                .delete { delete(action) }
+            ],
+            background: .eeonBackground
+        ) {
             if let note = sourceNote(for: action) {
                 NavigationLink(destination: NoteDetailView(note: note)) {
                     taskRowContent(action)
@@ -303,19 +333,6 @@ struct TasksView: View {
                 .buttonStyle(.plain)
             } else {
                 taskRowContent(action)
-            }
-        }
-        .contextMenu {
-            Button {
-                toggle(action)
-            } label: {
-                Label(action.isCompleted ? "Reopen" : "Complete", systemImage: action.isCompleted ? "circle" : "checkmark.circle")
-            }
-
-            Button(role: .destructive) {
-                delete(action)
-            } label: {
-                Label("Delete Task", systemImage: "trash")
             }
         }
     }
@@ -472,6 +489,31 @@ struct TasksView: View {
         modelContext.insert(action)
         try? modelContext.save()
         Task { await EventKitSyncService.shared.sync(actions: [action]) }
+    }
+
+    private func taskShareText(_ action: ExtractedAction) -> String {
+        var line = action.content
+        if action.deadline != "TBD", !action.deadline.isEmpty { line += " (due \(action.deadline))" }
+        return line + "\n\nShared from EEON"
+    }
+
+    private func beginEdit(_ action: ExtractedAction) {
+        editTaskText = action.content
+        editingAction = action
+    }
+
+    private func renameTask() {
+        guard let action = editingAction else { return }
+        editingAction = nil
+        let trimmed = editTaskText.trimmingCharacters(in: .whitespacesAndNewlines)
+        editTaskText = ""
+        guard !trimmed.isEmpty, trimmed != action.content else { return }
+        action.content = trimmed
+        try? modelContext.save()
+        if let note = sourceNote(for: action) {
+            DocumentExportService.shared.export(note: note, context: modelContext)
+        }
+        Task { await EventKitSyncService.shared.updateTitle(for: action) }
     }
 
     private func delete(_ action: ExtractedAction) {

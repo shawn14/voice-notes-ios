@@ -161,6 +161,20 @@ final class EventKitSyncService {
         }
     }
 
+    /// Mirror a renamed EEON task onto its paired Apple Reminder, if any.
+    func updateTitle(for action: ExtractedAction) async {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return }
+        guard let identifier = reminderMap()[action.id.uuidString],
+              let reminder = store.calendarItem(withIdentifier: identifier) as? EKReminder,
+              reminder.title != action.content else { return }
+        reminder.title = action.content
+        do {
+            try store.save(reminder, commit: true)
+        } catch {
+            print("[EventKitSync] reminder rename failed: \(error)")
+        }
+    }
+
     /// Find or create the "EEON" list in Reminders.
     private func eeonRemindersList() throws -> EKCalendar {
         if let existing = store.calendars(for: .reminder).first(where: { $0.title == "EEON" }) {

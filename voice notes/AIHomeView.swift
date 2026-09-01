@@ -90,8 +90,10 @@ struct AIHomeView: View {
     // Navigation state
     @State private var navigateToNote: Note?
     @State private var navigateTransformType: AITransformType?
-    /// Note awaiting the "Delete Note?" confirmation from a swipe or context menu.
-    @State private var pendingDeleteNote: Note?
+    /// Swipe "Edit" on a note card: push the detail already in edit mode.
+    @State private var editNote: Note?
+    /// Swipe "Share" on a note card or action item.
+    @State private var sharePayload: EEONSharePayload?
 
     // Daily brief expansion
 
@@ -588,24 +590,6 @@ struct AIHomeView: View {
             } message: {
                 Text(errorMessage ?? "Unknown error")
             }
-            // Notes are never deleted without explicit consent: swipe and
-            // context-menu deletes land here first, matching NoteDetailView.
-            .confirmationDialog(
-                "Delete Note?",
-                isPresented: Binding(
-                    get: { pendingDeleteNote != nil },
-                    set: { if !$0 { pendingDeleteNote = nil } }
-                ),
-                titleVisibility: .visible,
-                presenting: pendingDeleteNote
-            ) { note in
-                Button("Delete", role: .destructive) {
-                    deleteNote(note)
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: { _ in
-                Text("This cannot be undone.")
-            }
             .fileImporter(
                 isPresented: $showingAudioImporter,
                 allowedContentTypes: [.audio],
@@ -650,6 +634,12 @@ struct AIHomeView: View {
                 if newValue == nil {
                     navigateTransformType = nil
                 }
+            }
+            .navigationDestination(item: $editNote) { note in
+                NoteDetailView(note: note, startEditing: true)
+            }
+            .sheet(item: $sharePayload) { payload in
+                ActivityViewControllerRepresentable(activityItems: [payload.text])
             }
             .onChange(of: shouldStartRecording) { _, newValue in
                 if newValue {
@@ -1444,42 +1434,20 @@ struct AIHomeView: View {
     }
 
     private func noteFeedLink(_ note: Note) -> some View {
-        EEONSwipeDeleteRow(label: "Delete Note", onDelete: {
-            pendingDeleteNote = note
-        }) {
+        // Swipe reveals Edit + Delete, tapping acts (no dialog, per Shawn
+        // 2026-09-01, "like Stock Alarm"). Notes need the tap: no full swipe.
+        EEONSwipeActionsRow(
+            actions: [
+                .edit { editNote = note },
+                .share { sharePayload = EEONSharePayload(text: noteShareText(note)) },
+                .delete { deleteNote(note) }
+            ],
+            allowsFullSwipe: false
+        ) {
             NavigationLink(destination: NoteDetailView(note: note)) {
                 NoteFeedCard(note: note)
             }
             .buttonStyle(.plain)
-        }
-        .contextMenu {
-            Button {
-                note.isFavorite.toggle()
-                try? modelContext.save()
-            } label: {
-                Label(
-                    note.isFavorite ? "Unfavorite" : "Favorite",
-                    systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
-                )
-            }
-
-            Button {
-                withAnimation {
-                    note.isArchived.toggle()
-                    try? modelContext.save()
-                }
-            } label: {
-                Label(
-                    note.isArchived ? "Unarchive" : "Archive",
-                    systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
-                )
-            }
-
-            Button(role: .destructive) {
-                pendingDeleteNote = note
-            } label: {
-                Label("Delete Note", systemImage: "trash")
-            }
         }
     }
 
@@ -1541,48 +1509,34 @@ struct AIHomeView: View {
         .padding(.horizontal)
     }
 
+    // Home action items intentionally have NO swipe actions (Shawn,
+    // 2026-09-01): the preview is a quick tap-through to the note or a
+    // toggle; edit/share/delete live on the full Tasks screen.
     private func homeActionRow(_ action: ExtractedAction) -> some View {
-        EEONSwipeDeleteRow(label: "Delete", onDelete: {
-            deleteHomeAction(action)
-        }) {
-            HStack(alignment: .top, spacing: 12) {
-                Button {
-                    toggleHomeAction(action)
-                } label: {
-                    Image(systemName: action.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .foregroundStyle(action.isCompleted ? Color.eeonAccent : Color.eeonTextTertiary)
-                        .eeonTapTarget()
-                }
-                .buttonStyle(.plain)
-
-                if let note = sourceNote(for: action) {
-                    NavigationLink(destination: NoteDetailView(note: note)) {
-                        homeActionText(action)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    homeActionText(action)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
-            .background(Color.eeonCard)
-            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
-        }
-        .contextMenu {
+        HStack(alignment: .top, spacing: 12) {
             Button {
                 toggleHomeAction(action)
             } label: {
-                Label(action.isCompleted ? "Reopen" : "Complete", systemImage: action.isCompleted ? "circle" : "checkmark.circle")
+                Image(systemName: action.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(action.isCompleted ? Color.eeonAccent : Color.eeonTextTertiary)
+                    .eeonTapTarget()
             }
+            .buttonStyle(.plain)
 
-            Button(role: .destructive) {
-                deleteHomeAction(action)
-            } label: {
-                Label("Delete Task", systemImage: "trash")
+            if let note = sourceNote(for: action) {
+                NavigationLink(destination: NoteDetailView(note: note)) {
+                    homeActionText(action)
+                }
+                .buttonStyle(.plain)
+            } else {
+                homeActionText(action)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(Color.eeonCard)
+        .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
     }
 
     private func homeActionText(_ action: ExtractedAction) -> some View {
@@ -1643,19 +1597,13 @@ struct AIHomeView: View {
         }
     }
 
-    private func deleteHomeAction(_ action: ExtractedAction) {
-        let actionID = action.id
-        let note = sourceNote(for: action)
-        withAnimation(.easeInOut(duration: 0.2)) {
-            modelContext.delete(action)
-            try? modelContext.save()
-        }
-        if let note {
-            DocumentExportService.shared.export(note: note, context: modelContext)
-        }
-        Task {
-            await EventKitSyncService.shared.deleteReminder(forActionID: actionID)
-        }
+    private func noteShareText(_ note: Note) -> String {
+        var parts: [String] = []
+        if !note.displayTitle.isEmpty { parts.append(note.displayTitle) }
+        let body = note.enhancedNoteText ?? note.transcript ?? note.content
+        if !body.isEmpty { parts.append(body) }
+        parts.append("Shared from EEON")
+        return parts.joined(separator: "\n\n")
     }
 
     private func persistHomeTaskChanges(_ changed: [ExtractedAction]) {

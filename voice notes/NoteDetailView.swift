@@ -149,10 +149,15 @@ struct NoteDetailView: View {
     // Paywall for PRO rewrite templates
     @State private var showingPaywall = false
 
-    init(note: Note, initialTab: NoteTab = .insights, autoTransform: AITransformType? = nil) {
+    init(note: Note, initialTab: NoteTab = .insights, autoTransform: AITransformType? = nil, startEditing: Bool = false) {
         self.note = note
         self.initialTab = initialTab
         self.autoTransform = autoTransform
+        // Swipe "Edit" from a list lands straight in the enhanced-text editor.
+        if startEditing {
+            _isEditingEnhanced = State(initialValue: true)
+            _enhancedDraft = State(initialValue: note.enhancedNoteText ?? note.transcript ?? note.content)
+        }
     }
 
     /// Formatted text for sharing via system share sheet
