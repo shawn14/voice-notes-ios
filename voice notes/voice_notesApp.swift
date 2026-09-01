@@ -120,6 +120,9 @@ struct voice_notesApp: App {
         #if DEBUG
         let seedContext = container.mainContext
         Task { @MainActor in
+            if ProcessInfo.processInfo.arguments.contains("-SeedScreenshotData") {
+                AuthService.shared.debugSignIn(displayName: "Shawn Carpenter")
+            }
             ScreenshotSeed.seedIfNeeded(in: seedContext)
         }
         #endif

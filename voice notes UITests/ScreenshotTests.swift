@@ -51,32 +51,36 @@ final class ScreenshotTests: XCTestCase {
         sleep(2)
         shot("01_Home")
 
-        if selectCalendarRange("This Week") {
-            sleep(2)
-            shot("02_Calendar")
+        let didSelectWeek = selectCalendarRange("This Week")
+        sleep(2)
+        shot("02_Calendar")
+        if didSelectWeek {
             _ = selectCalendarRange("Today")
         }
 
         if tapAskEEON() {
             sleep(2)
             shot("03_AskEEON")
-            closeAskSheet()
+            if !closeAskSheet() {
+                relaunchHome()
+            }
         }
 
-        let row = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS[c] 'remind me to send lena'")
-        ).firstMatch
-        if row.waitForExistence(timeout: 4) {
-            row.tap()
+        if tapSeededNote() {
             sleep(2)
             shot("04_NoteDetail")
-            backFromPushedPage()
+            if !backFromPushedPage() {
+                relaunchHome()
+            }
         }
 
-        if tapAllActionItems() {
-            sleep(2)
-            shot("05_Tasks")
+        relaunchHome()
+        guard openTasksFromHome() else {
+            XCTFail("Tasks feed did not load for screenshot capture")
+            return
         }
+        sleep(2)
+        shot("05_Tasks")
     }
 
     // MARK: - Helpers
@@ -123,12 +127,44 @@ final class ScreenshotTests: XCTestCase {
         return true
     }
 
-    private func closeAskSheet() {
-        let done = app.buttons["Done"]
-        if done.waitForExistence(timeout: 3) {
-            done.tap()
+    private func closeAskSheet() -> Bool {
+        for _ in 0..<3 {
+            if !isAskSheetVisible { return true }
+
+            let doneButtons = [
+                app.navigationBars.buttons["Done"],
+                app.buttons["Done"],
+                app.buttons["Close"],
+                app.buttons["Cancel"]
+            ]
+
+            if let button = doneButtons.first(where: { $0.waitForExistence(timeout: 1) }) {
+                button.tap()
+            } else {
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.22))
+                let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.88))
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+
+            if waitForAskSheetGone(timeout: 3) { return true }
         }
-        sleep(1)
+
+        return !isAskSheetVisible
+    }
+
+    private var isAskSheetVisible: Bool {
+        app.staticTexts["Ask EEON"].exists
+            || app.textFields["Ask EEON"].exists
+            || app.buttons["Send question"].exists
+    }
+
+    private func waitForAskSheetGone(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !isAskSheetVisible { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        return !isAskSheetVisible
     }
 
     private func tapSegment(_ title: String) -> Bool {
@@ -149,19 +185,78 @@ final class ScreenshotTests: XCTestCase {
         return true
     }
 
-    private func tapAllActionItems() -> Bool {
+    private func openTasksFromHome() -> Bool {
         let button = app.buttons["All action items"]
-        guard button.waitForExistence(timeout: 4) else { return false }
-        button.tap()
-        return true
+
+        for _ in 0..<4 {
+            if button.waitForExistence(timeout: 2), button.isHittable {
+                button.tap()
+                return waitForTasksScreen()
+            }
+            app.swipeUp()
+            sleep(1)
+        }
+
+        return false
     }
 
-    private func backFromPushedPage() {
+    private func waitForTasksScreen() -> Bool {
+        let navigationTitle = app.navigationBars["Tasks"].staticTexts["Tasks"]
+        let visibleTitle = app.staticTexts["Tasks"]
+        let seededTasks = [
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'send patrick the updated pricing deck'")).firstMatch,
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'write streaming pool config'")).firstMatch,
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'send lena the pricing deck'")).firstMatch
+        ]
+
+        for _ in 0..<4 {
+            let hasTitle = navigationTitle.waitForExistence(timeout: 1) || visibleTitle.exists
+            if hasTitle, seededTasks.contains(where: { $0.exists }) {
+                return true
+            }
+            app.swipeUp()
+            sleep(1)
+        }
+
+        return (navigationTitle.exists || visibleTitle.exists) && seededTasks.contains(where: { $0.exists })
+    }
+
+    private func tapSeededNote() -> Bool {
+        let row = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] 'remind me to send lena'")
+        ).firstMatch
+
+        for _ in 0..<4 {
+            if row.waitForExistence(timeout: 2), row.isHittable {
+                row.tap()
+                return true
+            }
+            app.swipeUp()
+            sleep(1)
+        }
+
+        if row.exists {
+            row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            return true
+        }
+
+        return false
+    }
+
+    private func backFromPushedPage() -> Bool {
         let backButtons = app.navigationBars.buttons
         if backButtons.count > 0 {
             backButtons.element(boundBy: 0).tap()
         }
         sleep(1)
+        return !app.staticTexts["Remind me to send Lena the pricing deck"].exists
+    }
+
+    private func relaunchHome(extraArguments: [String] = []) {
+        app.terminate()
+        launchApp(extraArguments: extraArguments)
+        sleep(3)
+        dismissGatesIfNeeded()
     }
 
     // MARK: - Individual Screen Tests (for debugging)

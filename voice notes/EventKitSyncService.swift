@@ -138,6 +138,29 @@ final class EventKitSyncService {
         }
     }
 
+    /// Remove the Apple Reminder paired to an EEON task when the task is
+    /// deleted. Best effort: if Reminders access is missing, keep the mapping
+    /// so a later authorized cleanup still has the identifier.
+    func deleteReminder(forActionID actionID: UUID) async {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return }
+
+        var map = reminderMap()
+        guard let identifier = map[actionID.uuidString] else { return }
+        guard let reminder = store.calendarItem(withIdentifier: identifier) as? EKReminder else {
+            map.removeValue(forKey: actionID.uuidString)
+            saveReminderMap(map)
+            return
+        }
+
+        do {
+            try store.remove(reminder, commit: true)
+            map.removeValue(forKey: actionID.uuidString)
+            saveReminderMap(map)
+        } catch {
+            print("[EventKitSync] reminder delete failed: \(error)")
+        }
+    }
+
     /// Find or create the "EEON" list in Reminders.
     private func eeonRemindersList() throws -> EKCalendar {
         if let existing = store.calendars(for: .reminder).first(where: { $0.title == "EEON" }) {

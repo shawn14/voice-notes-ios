@@ -1855,34 +1855,32 @@ struct SettingsView: View {
                     status: aiConnectorStatusBadge,
                     statusColor: iCloudStatus == .available ? Color.secondary : Color.orange
                 )
-            } header: {
-                Text("Connections")
-            } footer: {
-                Text("Compatible AI workspaces can read your EEON memory only after you authorize the CloudKit MCP connector there.")
-            }
 
-            Section {
-                calendarContextRow
-                googleCalendarRow
-            } footer: {
-                Text("Use iPhone Calendar for calendars synced to the phone. Use direct Google Calendar when events live in Google but are not visible on the phone. EEON reads event titles, attendees, times, and meeting links. It never writes to your calendar.")
-            }
-
-            Section {
                 Button {
                     documentExportConfirmation = aiAccessHelpText
                 } label: {
                     EEONSettingsRow(
                         icon: "questionmark.circle",
                         title: "How AI tools connect",
-                        subtitle: "Codex, Claude Code, Cursor, and ChatGPT"
+                        subtitle: "Authorize the connector in each workspace"
                     ) {
                         EEONChevron()
                     }
                 }
                 .buttonStyle(.plain)
+            } header: {
+                Text("Sync & AI")
             } footer: {
-                Text("Google Calendar can connect directly here with read-only access. Google Docs, Drive, Gmail, and task-app write-back remain explicit connector decisions; EEON never silently writes to other apps.")
+                Text("iCloud sync stays private by default. AI access requires explicit CloudKit authorization.")
+            }
+
+            Section {
+                calendarContextRow
+                googleCalendarRow
+            } header: {
+                Text("Calendars")
+            } footer: {
+                Text("Read-only meeting context: titles, attendees, times, and links. EEON does not write calendar events.")
             }
         }
         .alert("Connections", isPresented: Binding(
@@ -2287,6 +2285,17 @@ struct SettingsView: View {
         case .restricted:         return "Restricted by device policy"
         case .temporarilyUnavailable: return "Temporarily unavailable — retry shortly"
         case .couldNotDetermine:  return "Checking…"
+        @unknown default:         return "Unknown"
+        }
+    }
+
+    private var iCloudStatusShortText: String {
+        switch iCloudStatus {
+        case .available:          return "iCloud on"
+        case .noAccount:          return "Needs sign-in"
+        case .restricted:         return "Restricted"
+        case .temporarilyUnavailable: return "Unavailable"
+        case .couldNotDetermine:  return "Checking"
         @unknown default:         return "Unknown"
         }
     }
@@ -2732,28 +2741,43 @@ struct SettingsView: View {
     }
     #endif
 
-    private var planSettingsSection: some View {
-        Section {
-            LabeledContent("Plan", value: usage.isPro ? "EEON Pro" : "Free")
-            LabeledContent("Usage", value: usageStatusText)
+    private var planSummaryRow: some View {
+        HStack(spacing: EEONLayout.standard) {
+            EEONSettingsIcon(systemName: usage.isPro ? "star.fill" : "star")
 
-            if !usage.isPro {
-                Button {
-                    showingPaywall = true
-                } label: {
-                    EEONSettingsRow(
-                        icon: "star.fill",
-                        title: "Upgrade to Pro",
-                        subtitle: "$9.99/month"
-                    ) {
-                        EEONChevron()
-                    }
-                }
-                .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(usage.isPro ? "EEON Pro" : "Free")
+                    .font(EEONType.body)
+                    .foregroundStyle(.eeonTextPrimary)
+                Text(usageStatusText)
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonTextSecondary)
             }
-        } header: {
-            Text("Subscription")
+
+            Spacer(minLength: EEONLayout.tight)
+
+            if usage.isPro {
+                settingsStatusPill("Pro", color: .eeonAccentAI)
+            } else {
+                Button("Upgrade") {
+                    showingPaywall = true
+                }
+                .font(EEONType.badge)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
         }
+        .frame(minHeight: EEONLayout.minTarget)
+        .padding(.vertical, 2)
+    }
+
+    private func settingsStatusPill(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(EEONType.badge)
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(color.opacity(0.12)))
     }
 
     private var usageStatusText: String {
@@ -2776,7 +2800,7 @@ struct SettingsView: View {
             EEONSettingsRow(
                 icon: "person.crop.circle",
                 title: "Personalization",
-                subtitle: "Profile, focus, note style"
+                subtitle: "Profile, focus, tone"
             )
         }
     }
@@ -2788,7 +2812,7 @@ struct SettingsView: View {
             EEONSettingsRow(
                 icon: "waveform",
                 title: "Capture",
-                subtitle: "Language, vocabulary, formats"
+                subtitle: "Language, vocabulary, format"
             )
         }
     }
@@ -2800,7 +2824,7 @@ struct SettingsView: View {
             EEONSettingsRow(
                 icon: "sparkle.magnifyingglass",
                 title: "Ask EEON",
-                subtitle: selectedAskModelPreference.subtitle
+                subtitle: selectedAskModelPreference.title
             )
         }
     }
@@ -2841,27 +2865,24 @@ struct SettingsView: View {
         } label: {
             EEONSettingsRow(
                 icon: "link",
-                title: "Connections",
+                title: "Calendars & Connections",
                 subtitle: connectionsSummary
             )
         }
     }
 
     private var connectionsSummary: String {
-        var enabled: [String] = []
-        if remindersSyncEnabled {
-            enabled.append("Reminders")
-        }
-        if calendarContextEnabled {
-            enabled.append("Calendar")
-        }
+        let calendarSummary: String
         if googleCalendarService.isConnected {
-            enabled.append("Google Calendar")
+            calendarSummary = "Google on"
+        } else if calendarContextEnabled {
+            calendarSummary = "iPhone Calendar on"
+        } else {
+            calendarSummary = "Calendar off"
         }
-        let iCloudSummary = iCloudStatus == .available ? "iCloud on" : "iCloud needs attention"
-        let aiSummary = iCloudStatus == .available ? "AI connector available" : "AI connector needs iCloud"
-        let appleSummary = enabled.isEmpty ? "" : "; \(enabled.joined(separator: ", ")) on"
-        return "\(iCloudSummary); \(aiSummary)\(appleSummary)"
+        let remindersSummary = remindersSyncEnabled ? "Reminders on" : "Reminders off"
+        let aiSummary = iCloudStatus == .available ? "AI ready" : "Needs iCloud"
+        return "\(calendarSummary) · \(remindersSummary) · \(aiSummary)"
     }
 
     private var selectedAskModelPreference: AskModelPreference {
@@ -2874,7 +2895,8 @@ struct SettingsView: View {
         } label: {
             EEONSettingsRow(
                 icon: "bell",
-                title: "Notifications"
+                title: "Notifications",
+                subtitle: "Proactive nudges"
             )
         }
     }
@@ -2885,7 +2907,8 @@ struct SettingsView: View {
         } label: {
             EEONSettingsRow(
                 icon: "icloud",
-                title: "iCloud & Sync"
+                title: "iCloud & Storage",
+                subtitle: "\(noteCount) notes · \(iCloudStatusShortText)"
             )
         }
     }
@@ -2896,7 +2919,8 @@ struct SettingsView: View {
         } label: {
             EEONSettingsRow(
                 icon: "square.and.arrow.up",
-                title: "Export My Data"
+                title: "Export My Data",
+                subtitle: "Markdown backup"
             )
         }
     }
@@ -2907,7 +2931,8 @@ struct SettingsView: View {
         } label: {
             EEONSettingsRow(
                 icon: "questionmark.circle",
-                title: "Help & About"
+                title: "Help & About",
+                subtitle: "Support, privacy, terms"
             )
         }
     }
@@ -2919,13 +2944,14 @@ struct SettingsView: View {
         } label: {
             EEONSettingsRow(
                 icon: "hammer",
-                title: "Developer"
+                title: "Developer",
+                subtitle: "Debug tools"
             )
         }
     }
     #endif
 
-    private var topLevelAccountSection: some View {
+    private var accountSettingsSection: some View {
         Section {
             if authService.isSignedIn {
                 NavigationLink {
@@ -2936,28 +2962,36 @@ struct SettingsView: View {
             } else {
                 signedOutAccountPrompt
             }
+            planSummaryRow
         } header: {
             Text("Account")
         }
     }
 
-    private var setupSettingsSection: some View {
+    private var coreSettingsSection: some View {
         Section {
-            personalizationSettingsRow
-            peopleSpeakersSettingsRow
             captureSettingsRow
             askSettingsRow
+            personalizationSettingsRow
+            peopleSpeakersSettingsRow
+        } header: {
+            Text("Core")
+        }
+    }
+
+    private var alertsSettingsSection: some View {
+        Section {
             notificationsSettingsRow
         } header: {
-            Text("Preferences")
+            Text("Alerts")
         }
     }
 
     private var connectionsSettingsSection: some View {
         Section {
             connectionsSettingsRow
-        } footer: {
-            Text("Manage private iCloud sync, Apple follow-up, and AI connector access.")
+        } header: {
+            Text("Connections")
         }
     }
 
@@ -2973,43 +3007,33 @@ struct SettingsView: View {
     private var helpSettingsSection: some View {
         Section {
             helpSettingsRow
-        }
-    }
-
-    #if DEBUG
-    private var developerSettingsSection: some View {
-        Section {
+            #if DEBUG
             developerSettingsRow
+            #endif
+        } header: {
+            Text("Help")
         }
     }
-    #endif
 
     var body: some View {
         NavigationStack {
-            // Settings is a table of contents, not a pile (2026-08-20).
-            // It had grown to ELEVEN top-level sections, several with
-            // multi-line footers, because every feature filed itself at the
-            // top level and nothing was ever demoted. Two costs: the scroll,
-            // and worse, wrong filing — auto-format sat under
-            // "Personalization" where nobody hunting for study notes would
-            // look, so a shipped feature read as missing. One row per
-            // domain; details one tap deeper.
+            // Settings is a compact table of contents: account, core behavior,
+            // connections, alerts, data, and help. Explanatory copy belongs one
+            // tap deeper so the root stays scannable.
             List {
-                topLevelAccountSection
+                accountSettingsSection
+                coreSettingsSection
                 connectionsSettingsSection
-                planSettingsSection
-                setupSettingsSection
+                alertsSettingsSection
                 dataSettingsSection
                 helpSettingsSection
 
                 // MARK: - Developer Section (DEBUG only)
-                #if DEBUG
-                developerSettingsSection
-                #endif
             }
             .listStyle(.insetGrouped)
+            .listSectionSpacing(.compact)
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .task {
                 await refreshiCloudStatus()
                 await loadDiagnostics()

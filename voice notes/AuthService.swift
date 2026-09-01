@@ -203,9 +203,9 @@ class AuthService {
 
     #if DEBUG
     /// Debug-only method to simulate sign-in for testing
-    func debugSignIn() {
+    func debugSignIn(displayName: String = "Test User") {
         setUserId("debug-user")
-        userName = "Test User"
+        userName = displayName
         print("Debug sign in. userId: \(userId ?? "nil"), isSignedIn: \(isSignedIn)")
     }
     #endif

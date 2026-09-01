@@ -107,9 +107,7 @@ struct LibraryView: View {
                 } else {
                     Section(searchResults.count == 1 ? "1 Result" : "\(searchResults.count) Results") {
                         ForEach(searchResults) { note in
-                            NavigationLink(destination: NoteDetailView(note: note)) {
-                                LibraryNoteRow(note: note)
-                            }
+                            LibraryNoteListRow(note: note)
                         }
                     }
                 }
@@ -123,9 +121,7 @@ struct LibraryView: View {
                 if !visibleNotes.isEmpty {
                     Section("Recent") {
                         ForEach(Array(visibleNotes.prefix(12))) { note in
-                            NavigationLink(destination: NoteDetailView(note: note)) {
-                                LibraryNoteRow(note: note)
-                            }
+                            LibraryNoteListRow(note: note)
                         }
 
                         if visibleNotes.count > 12 {
@@ -162,6 +158,7 @@ struct LibraryView: View {
         .listStyle(.insetGrouped)
         .background(Color(.systemGroupedBackground))
     }
+
 }
 
 struct LibraryCollectionView: View {
@@ -405,11 +402,74 @@ private struct LibraryNoteSections: View {
         ForEach(libraryMonthGroups(notes), id: \.0) { month, monthNotes in
             Section(month) {
                 ForEach(monthNotes) { note in
-                    NavigationLink(destination: NoteDetailView(note: note)) {
-                        LibraryNoteRow(note: note)
-                    }
+                    LibraryNoteListRow(note: note)
                 }
             }
+        }
+    }
+
+}
+
+/// One Library note row: tap to open, swipe or long-press for favorite /
+/// archive / delete. Delete always confirms first ("Delete Note?", same as
+/// NoteDetailView) — a full swipe must never destroy a note and its audio.
+private struct LibraryNoteListRow: View {
+    @Environment(\.modelContext) private var modelContext
+
+    let note: Note
+
+    @State private var showingDeleteConfirm = false
+
+    var body: some View {
+        NavigationLink(destination: NoteDetailView(note: note)) {
+            LibraryNoteRow(note: note)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                showingDeleteConfirm = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .contextMenu {
+            Button {
+                note.isFavorite.toggle()
+                try? modelContext.save()
+            } label: {
+                Label(note.isFavorite ? "Unfavorite" : "Favorite", systemImage: note.isFavorite ? "heart.slash" : "heart.fill")
+            }
+
+            Button {
+                withAnimation {
+                    note.isArchived.toggle()
+                    try? modelContext.save()
+                }
+            } label: {
+                Label(note.isArchived ? "Unarchive" : "Archive", systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox")
+            }
+
+            Button(role: .destructive) {
+                showingDeleteConfirm = true
+            } label: {
+                Label("Delete Note", systemImage: "trash")
+            }
+        }
+        .confirmationDialog("Delete Note?", isPresented: $showingDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                deleteNote()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This cannot be undone.")
+        }
+    }
+
+    private func deleteNote() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            note.deleteAudioFile()
+            note.deleteImageFiles()
+            modelContext.delete(note)
+            try? modelContext.save()
         }
     }
 }

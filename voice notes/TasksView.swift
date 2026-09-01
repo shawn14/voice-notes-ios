@@ -120,17 +120,12 @@ struct TasksView: View {
                     ForEach(grouped, id: \.0) { day, dayActions in
                         dayHeader(day, count: dayActions.count)
                         ForEach(dayActions) { action in
-                            if let note = sourceNote(for: action) {
-                                NavigationLink(destination: NoteDetailView(note: note)) {
-                                    taskRowContent(action)
-                                }
-                                .buttonStyle(.plain)
-                            } else {
-                                taskRowContent(action)
-                            }
+                            taskSwipeRow(action)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             HStack {
@@ -202,11 +197,13 @@ struct TasksView: View {
                             ForEach(grouped, id: \.0) { day, dayActions in
                                 dayHeader(day, count: dayActions.count)
                                 ForEach(dayActions) { action in
-                                    taskRow(action)
+                                    taskSwipeRow(action)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }
                             Color.clear.frame(height: 80)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 8)
                     }
                 }
@@ -294,11 +291,33 @@ struct TasksView: View {
         .padding(.bottom, 6)
     }
 
-    private func taskRow(_ action: ExtractedAction) -> some View {
-        taskRowContent(action)
-            .onTapGesture {
-                if let note = sourceNote(for: action) { navigateToNote = note }
+    @ViewBuilder
+    private func taskSwipeRow(_ action: ExtractedAction) -> some View {
+        EEONSwipeDeleteRow(label: "Delete", background: .eeonBackground, onDelete: {
+            delete(action)
+        }) {
+            if let note = sourceNote(for: action) {
+                NavigationLink(destination: NoteDetailView(note: note)) {
+                    taskRowContent(action)
+                }
+                .buttonStyle(.plain)
+            } else {
+                taskRowContent(action)
             }
+        }
+        .contextMenu {
+            Button {
+                toggle(action)
+            } label: {
+                Label(action.isCompleted ? "Reopen" : "Complete", systemImage: action.isCompleted ? "circle" : "checkmark.circle")
+            }
+
+            Button(role: .destructive) {
+                delete(action)
+            } label: {
+                Label("Delete Task", systemImage: "trash")
+            }
+        }
     }
 
     private func taskRowContent(_ action: ExtractedAction) -> some View {
@@ -347,6 +366,7 @@ struct TasksView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
 
@@ -452,6 +472,21 @@ struct TasksView: View {
         modelContext.insert(action)
         try? modelContext.save()
         Task { await EventKitSyncService.shared.sync(actions: [action]) }
+    }
+
+    private func delete(_ action: ExtractedAction) {
+        let actionID = action.id
+        let note = sourceNote(for: action)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            modelContext.delete(action)
+            try? modelContext.save()
+        }
+        if let note {
+            DocumentExportService.shared.export(note: note, context: modelContext)
+        }
+        Task {
+            await EventKitSyncService.shared.deleteReminder(forActionID: actionID)
+        }
     }
 
     private func persistTaskChanges(_ changed: [ExtractedAction]) {

@@ -90,6 +90,8 @@ struct AIHomeView: View {
     // Navigation state
     @State private var navigateToNote: Note?
     @State private var navigateTransformType: AITransformType?
+    /// Note awaiting the "Delete Note?" confirmation from a swipe or context menu.
+    @State private var pendingDeleteNote: Note?
 
     // Daily brief expansion
 
@@ -585,6 +587,24 @@ struct AIHomeView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage ?? "Unknown error")
+            }
+            // Notes are never deleted without explicit consent: swipe and
+            // context-menu deletes land here first, matching NoteDetailView.
+            .confirmationDialog(
+                "Delete Note?",
+                isPresented: Binding(
+                    get: { pendingDeleteNote != nil },
+                    set: { if !$0 { pendingDeleteNote = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pendingDeleteNote
+            ) { note in
+                Button("Delete", role: .destructive) {
+                    deleteNote(note)
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: { _ in
+                Text("This cannot be undone.")
             }
             .fileImporter(
                 isPresented: $showingAudioImporter,
@@ -1265,33 +1285,7 @@ struct AIHomeView: View {
                 let columns = [GridItem(.flexible())]
                 LazyVGrid(columns: columns, spacing: 10) {
                     ForEach(searchResults) { note in
-                        NavigationLink(destination: NoteDetailView(note: note)) {
-                            NoteFeedCard(note: note)
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button {
-                                note.isFavorite.toggle()
-                                try? modelContext.save()
-                            } label: {
-                                Label(
-                                    note.isFavorite ? "Unfavorite" : "Favorite",
-                                    systemImage: note.isFavorite ? "heart.slash" : "heart.fill"
-                                )
-                            }
-
-                            Button {
-                                withAnimation {
-                                    note.isArchived.toggle()
-                                    try? modelContext.save()
-                                }
-                            } label: {
-                                Label(
-                                    note.isArchived ? "Unarchive" : "Archive",
-                                    systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
-                                )
-                            }
-                        }
+                        noteFeedLink(note)
                     }
                 }
                 .padding(.horizontal)
@@ -1450,10 +1444,14 @@ struct AIHomeView: View {
     }
 
     private func noteFeedLink(_ note: Note) -> some View {
-        NavigationLink(destination: NoteDetailView(note: note)) {
-            NoteFeedCard(note: note)
+        EEONSwipeDeleteRow(label: "Delete Note", onDelete: {
+            pendingDeleteNote = note
+        }) {
+            NavigationLink(destination: NoteDetailView(note: note)) {
+                NoteFeedCard(note: note)
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
         .contextMenu {
             Button {
                 note.isFavorite.toggle()
@@ -1475,6 +1473,12 @@ struct AIHomeView: View {
                     note.isArchived ? "Unarchive" : "Archive",
                     systemImage: note.isArchived ? "tray.and.arrow.up" : "archivebox"
                 )
+            }
+
+            Button(role: .destructive) {
+                pendingDeleteNote = note
+            } label: {
+                Label("Delete Note", systemImage: "trash")
             }
         }
     }
@@ -1538,30 +1542,47 @@ struct AIHomeView: View {
     }
 
     private func homeActionRow(_ action: ExtractedAction) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        EEONSwipeDeleteRow(label: "Delete", onDelete: {
+            deleteHomeAction(action)
+        }) {
+            HStack(alignment: .top, spacing: 12) {
+                Button {
+                    toggleHomeAction(action)
+                } label: {
+                    Image(systemName: action.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(action.isCompleted ? Color.eeonAccent : Color.eeonTextTertiary)
+                        .eeonTapTarget()
+                }
+                .buttonStyle(.plain)
+
+                if let note = sourceNote(for: action) {
+                    NavigationLink(destination: NoteDetailView(note: note)) {
+                        homeActionText(action)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    homeActionText(action)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .background(Color.eeonCard)
+            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
+        }
+        .contextMenu {
             Button {
                 toggleHomeAction(action)
             } label: {
-                Image(systemName: action.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(action.isCompleted ? Color.eeonAccent : Color.eeonTextTertiary)
-                    .eeonTapTarget()
+                Label(action.isCompleted ? "Reopen" : "Complete", systemImage: action.isCompleted ? "circle" : "checkmark.circle")
             }
-            .buttonStyle(.plain)
 
-            if let note = sourceNote(for: action) {
-                NavigationLink(destination: NoteDetailView(note: note)) {
-                    homeActionText(action)
-                }
-                .buttonStyle(.plain)
-            } else {
-                homeActionText(action)
+            Button(role: .destructive) {
+                deleteHomeAction(action)
+            } label: {
+                Label("Delete Task", systemImage: "trash")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 11)
-        .background(Color.eeonCard)
-        .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
     }
 
     private func homeActionText(_ action: ExtractedAction) -> some View {
@@ -1611,6 +1632,30 @@ struct AIHomeView: View {
             try? modelContext.save()
         }
         persistHomeTaskChanges([action])
+    }
+
+    private func deleteNote(_ note: Note) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            note.deleteAudioFile()
+            note.deleteImageFiles()
+            modelContext.delete(note)
+            try? modelContext.save()
+        }
+    }
+
+    private func deleteHomeAction(_ action: ExtractedAction) {
+        let actionID = action.id
+        let note = sourceNote(for: action)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            modelContext.delete(action)
+            try? modelContext.save()
+        }
+        if let note {
+            DocumentExportService.shared.export(note: note, context: modelContext)
+        }
+        Task {
+            await EventKitSyncService.shared.deleteReminder(forActionID: actionID)
+        }
     }
 
     private func persistHomeTaskChanges(_ changed: [ExtractedAction]) {

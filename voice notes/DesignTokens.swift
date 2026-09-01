@@ -110,11 +110,12 @@ struct EEONSettingsRow<Trailing: View>: View {
             ZStack {
                 Circle()
                     .fill(role.tint.opacity(0.15))
-                    .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
+                    .frame(width: 36, height: 36)
                 Image(systemName: icon)
-                    .font(.body)
+                    .font(.callout)
                     .foregroundStyle(role.tint)
             }
+            .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -134,7 +135,7 @@ struct EEONSettingsRow<Trailing: View>: View {
             trailing()
         }
         .frame(minHeight: EEONLayout.minTarget)
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }
 
@@ -168,10 +169,110 @@ struct EEONSettingsIcon: View {
         ZStack {
             Circle()
                 .fill(tint.opacity(0.15))
-                .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
+                .frame(width: 36, height: 36)
             Image(systemName: systemName)
-                .font(.body)
+                .font(.callout)
                 .foregroundStyle(tint)
         }
+        .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
+    }
+}
+
+// MARK: - Swipe delete
+
+/// Swipe-delete for custom ScrollView/LazyVStack rows. Native
+/// `.swipeActions` only works reliably in `List`; Home uses custom stacks so
+/// it needs this wrapper to make the same gesture available there too.
+struct EEONSwipeDeleteRow<Content: View>: View {
+    var label: String = "Delete"
+    var cornerRadius: CGFloat = EEONLayout.cardRadius
+    var background: Color = .eeonCard
+    let onDelete: () -> Void
+    let content: Content
+
+    @State private var offset: CGFloat = 0
+    @State private var isOpen = false
+
+    private let actionWidth: CGFloat = 86
+
+    init(
+        label: String = "Delete",
+        cornerRadius: CGFloat = EEONLayout.cardRadius,
+        background: Color = .eeonCard,
+        onDelete: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.label = label
+        self.cornerRadius = cornerRadius
+        self.background = background
+        self.onDelete = onDelete
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            if offset < -1 || isOpen {
+                Button(role: .destructive) {
+                    delete()
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.body.weight(.semibold))
+                        Text(label)
+                            .font(EEONType.badge)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(width: actionWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.red)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(label)
+            }
+
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(background)
+                .offset(x: offset)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .contentShape(Rectangle())
+        .gesture(dragGesture)
+        .animation(.spring(response: 0.24, dampingFraction: 0.86), value: offset)
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 18, coordinateSpace: .local)
+            .onChanged { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                let base = isOpen ? -actionWidth : 0
+                offset = max(-actionWidth, min(0, base + value.translation.width))
+            }
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else {
+                    settle(open: isOpen)
+                    return
+                }
+
+                let base = isOpen ? -actionWidth : 0
+                let projected = base + value.predictedEndTranslation.width
+                if projected < -actionWidth * 1.45 {
+                    delete()
+                } else {
+                    settle(open: offset < -actionWidth * 0.45)
+                }
+            }
+    }
+
+    private func settle(open: Bool) {
+        isOpen = open
+        offset = open ? -actionWidth : 0
+    }
+
+    private func delete() {
+        isOpen = false
+        offset = 0
+        onDelete()
     }
 }
