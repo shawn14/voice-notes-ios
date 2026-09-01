@@ -50,6 +50,7 @@ struct AIHomeView: View {
     private var authService = AuthService.shared
     private var intelligenceService = IntelligenceService.shared
     private var backgroundCapture = BackgroundCaptureService.shared
+    private var googleCalendarService = GoogleCalendarService.shared
     private let recordingRed = Color(red: 1.0, green: 0.23, blue: 0.27)
 
     init(shouldStartRecording: Binding<Bool>) {
@@ -109,19 +110,21 @@ struct AIHomeView: View {
     /// What the feed shows under the Library header. Library is the default;
     /// Tasks and Highlights render inline in the same place.
     enum FeedMode: String, CaseIterable, Identifiable, Hashable {
-        case library = "Library"
         case calendar = "Calendar"
         case tasks = "Tasks"
+        case library = "Library"
         case highlights = "Highlights"
 
         var id: String { rawValue }
     }
-    @State private var feedMode: FeedMode = .library
+    @State private var feedMode: FeedMode = .calendar
     @State private var selectedCategory: String?
     @State private var showingDatePicker = false
     @State private var showingFullRecorder = false
+    @State private var showingAskSheet = false
     #if DEBUG
     @State private var didStartRecorderDemo = false
+    @State private var didOpenAskDemo = false
     #endif
     @State private var selectedDay: Date?
     @State private var selectedIntents: Set<NoteIntent> = []
@@ -519,6 +522,12 @@ struct AIHomeView: View {
                         }
                     }
                 }
+                if ProcessInfo.processInfo.arguments.contains("-OpenAskDemo"), !didOpenAskDemo {
+                    didOpenAskDemo = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        showingAskSheet = true
+                    }
+                }
                 #endif
             }
             .sheet(item: $pendingReminder) { command in
@@ -526,6 +535,9 @@ struct AIHomeView: View {
             }
             .sheet(item: $pendingAnswerQuery) { item in
                 AnswerSheet(initialQuery: item.query)
+            }
+            .sheet(isPresented: $showingAskSheet) {
+                AnswerSheet(navigationTitle: "Ask EEON", showsDoneButton: true)
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView(onDismiss: { showPaywall = false })
@@ -875,7 +887,12 @@ struct AIHomeView: View {
     }
 
     private var openTaskCount: Int {
-        extractedActions.filter { !$0.isCompleted }.count
+        visibleExtractedActions.filter { !$0.isCompleted }.count
+    }
+
+    private var hasCalendarSource: Bool {
+        googleCalendarService.isConnected
+            || (calendarContextEnabled && CalendarContextService.shared.isAuthorized)
     }
 
     private var conversationsHeader: some View {
@@ -932,35 +949,40 @@ struct AIHomeView: View {
 
             Spacer(minLength: 8)
 
-            // Optional keyboard path into the same RAG system voice questions use.
-            // Record remains the primary control; Ask is not a capture mode.
-            NavigationLink(destination: AnswerSheet(navigationTitle: "Ask EEON")) {
-                Label("Ask", systemImage: "sparkle.magnifyingglass")
-                    .font(EEONType.control)
-                    .foregroundStyle(.eeonAccentAI)
-                    .padding(.horizontal, 12)
-                    .frame(height: 36)
-                    .background(Color.eeonCard)
-                    .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ask EEON")
-
             // Settings / avatar
             Button {
                 showingSettings = true
             } label: {
-                if authService.isSignedIn {
-                    UserAvatarView(name: authService.displayName, size: 36)
-                } else {
-                    Image(systemName: "person.circle")
-                        .font(.title2)
-                        .foregroundStyle(.eeonTextSecondary)
-                }
+                accountAvatar
             }
             .accessibilityLabel("Settings")
         }
         .padding(.top, 8)
+    }
+
+    private var accountAvatar: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if authService.isSignedIn {
+                UserAvatarView(name: authService.displayName, size: 40)
+            } else {
+                Image(systemName: "person.crop.circle")
+                    .font(.title)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .frame(width: 40, height: 40)
+            }
+
+            if googleCalendarService.isConnected {
+                Text("G")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 17, height: 17)
+                    .background(Circle().fill(Color.eeonAccent))
+                    .overlay(Circle().stroke(Color.eeonBackground, lineWidth: 2))
+                    .offset(x: 2, y: 2)
+            }
+        }
+        .frame(width: 44, height: 44)
+        .contentShape(Circle())
     }
 
     /// Small chip shown under the greeting once the user has a compiled .purpose article.
@@ -1000,7 +1022,7 @@ struct AIHomeView: View {
             timeGreeting = "Good evening"
         }
         if authService.isSignedIn, let firstName = authService.firstNameForGreeting {
-            return "\(timeGreeting), \(firstName)"
+            return "\(timeGreeting) \(firstName)"
         }
         return timeGreeting
     }
@@ -1114,19 +1136,7 @@ struct AIHomeView: View {
     // MARK: - 3. Bottom Bar (Mic / New Note / Search)
 
     private var bottomBar: some View {
-        // Notepad simplification (2026-08-19, Shawn): the single mic button IS
-        // the app — spoken questions still reach Ask/RAG via IntentClassifier.
-        // The Ask and New Note pills were removed; TypeNoteSheet and
-        // SourcePickerSheet remain wired (sheets + state) but currently have
-        // no entry point on the bottom bar.
-        HStack {
-            Spacer()
-
-            // A labelled pill, not a bare mic (2026-08-20). On iOS a
-            // microphone glyph usually means "dictate into this field" —
-            // voice INPUT — which is part of why recording read as something
-            // you talk into. The label states the action and the state:
-            // Record -> Stop, with the timer inline while running.
+        HStack(spacing: EEONLayout.snug) {
             Button(action: {
                 toggleRecording()
             }) {
@@ -1160,11 +1170,23 @@ struct AIHomeView: View {
                 .clipShape(Capsule())
             }
             .disabled(isTranscribing)
-            .padding(.horizontal, EEONLayout.screenMargin)
+            .accessibilityLabel(isRecording ? "Stop recording" : "Record memory")
 
-            Spacer()
+            Button {
+                showingAskSheet = true
+            } label: {
+                Image(systemName: "sparkle.magnifyingglass")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.eeonAccentAI)
+                    .frame(width: 56, height: 56)
+                    .background(Color.eeonCard)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ask EEON")
+            .disabled(isRecording || isTranscribing)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, EEONLayout.screenMargin)
         .padding(.top, 8)
         .background(
             Color.eeonBackground
@@ -1178,17 +1200,7 @@ struct AIHomeView: View {
     /// Feed entry point: the search field, then either search results or the
     /// normal tabbed browse feed depending on whether a query is active.
     private var noteFeed: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            searchField
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-
-            if isSearching {
-                searchResultsSection
-            } else {
-                browseFeed
-            }
-        }
+        calendarHome
     }
 
     /// Global keyword search input. Manual TextField (not `.searchable()`) so it
@@ -1312,16 +1324,13 @@ struct AIHomeView: View {
             // chronological feed entirely. Unresolved items still surface
             // via the AI tab and proactive alerts.
 
-            // Library / Tasks / Highlights mode switch. Library is a summary
-            // surface; the full chronological archive lives behind See All.
+            // Calendar is the default Home surface. Library and Highlights
+            // stay one tap away without making Home read like a dashboard.
             conversationsHeader
                 .padding(.bottom, 8)
 
             if feedMode == .calendar {
-                CalendarMeetingsView(embedded: true) {
-                    guard !isRecording, !isTranscribing else { return }
-                    toggleRecording()
-                }
+                calendarHome
             } else if feedMode == .tasks {
                 TasksView(embedded: true)
             } else if feedMode == .highlights {
@@ -1356,6 +1365,23 @@ struct AIHomeView: View {
                 .padding(.vertical, 40)
             } else {
                 libraryHome
+            }
+        }
+    }
+
+    private var calendarHome: some View {
+        VStack(alignment: .leading, spacing: EEONLayout.standard) {
+            CalendarMeetingsView(embedded: true) {
+                guard !isRecording, !isTranscribing else { return }
+                toggleRecording()
+            }
+
+            if !homeOpenActions.isEmpty {
+                homeActionItemsSection
+            }
+
+            if !visibleLibraryNotes.isEmpty {
+                recentLibrarySection
             }
         }
     }
@@ -1453,14 +1479,165 @@ struct AIHomeView: View {
         }
     }
 
+    private var homeOpenActions: [ExtractedAction] {
+        visibleExtractedActions
+            .filter { !$0.isCompleted }
+            .sorted { lhs, rhs in
+                let lhsDue = EventKitSyncService.parseDate(from: lhs.deadline)
+                let rhsDue = EventKitSyncService.parseDate(from: rhs.deadline)
+                switch (lhsDue, rhsDue) {
+                case let (left?, right?) where left != right:
+                    return left < right
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                default:
+                    return lhs.createdAt > rhs.createdAt
+                }
+            }
+    }
+
+    private var homeActionPreviewActions: [ExtractedAction] {
+        Array(homeOpenActions.prefix(3))
+    }
+
+    private var homeActionItemsSection: some View {
+        VStack(alignment: .leading, spacing: EEONLayout.snug) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Action Items")
+                        .font(.headline)
+                        .foregroundStyle(.eeonTextPrimary)
+                    Text(openTaskCount == 1 ? "1 open follow-up" : "\(openTaskCount) open follow-ups")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+
+                Spacer()
+
+                NavigationLink {
+                    TasksView()
+                } label: {
+                    Label("All", systemImage: "checklist")
+                        .font(EEONType.control)
+                        .foregroundStyle(.eeonAccent)
+                        .frame(minHeight: EEONLayout.minTarget)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("All action items")
+            }
+
+            VStack(spacing: EEONLayout.tight) {
+                ForEach(homeActionPreviewActions) { action in
+                    homeActionRow(action)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private func homeActionRow(_ action: ExtractedAction) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Button {
+                toggleHomeAction(action)
+            } label: {
+                Image(systemName: action.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(action.isCompleted ? Color.eeonAccent : Color.eeonTextTertiary)
+                    .eeonTapTarget()
+            }
+            .buttonStyle(.plain)
+
+            if let note = sourceNote(for: action) {
+                NavigationLink(destination: NoteDetailView(note: note)) {
+                    homeActionText(action)
+                }
+                .buttonStyle(.plain)
+            } else {
+                homeActionText(action)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(Color.eeonCard)
+        .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
+    }
+
+    private func homeActionText(_ action: ExtractedAction) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: EEONLayout.tight) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(action.content)
+                    .font(EEONType.preview)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: EEONLayout.tight) {
+                    if let due = EventKitSyncService.parseDate(from: action.deadline) {
+                        Label(due.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
+                    }
+
+                    if !action.owner.isEmpty && action.owner.lowercased() != "me" {
+                        Label(action.owner, systemImage: "person")
+                    }
+
+                    if sourceNote(for: action) != nil {
+                        Label("Note", systemImage: "waveform")
+                    }
+                }
+                .font(EEONType.badge)
+                .foregroundStyle(.eeonTextSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if sourceNote(for: action) != nil {
+                Image(systemName: "chevron.right")
+                    .font(EEONType.badge)
+                    .foregroundStyle(.eeonTextTertiary)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func sourceNote(for action: ExtractedAction) -> Note? {
+        guard let id = action.sourceNoteId else { return nil }
+        return visibleLibraryNotes.first { $0.id == id }
+    }
+
+    private func toggleHomeAction(_ action: ExtractedAction) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            action.isCompleted.toggle()
+            action.completedAt = action.isCompleted ? Date() : nil
+            try? modelContext.save()
+        }
+        persistHomeTaskChanges([action])
+    }
+
+    private func persistHomeTaskChanges(_ changed: [ExtractedAction]) {
+        guard !changed.isEmpty else { return }
+
+        var exportedNoteIds = Set<UUID>()
+        for action in changed {
+            if let note = sourceNote(for: action), exportedNoteIds.insert(note.id).inserted {
+                DocumentExportService.shared.export(note: note, context: modelContext)
+            }
+        }
+
+        Task {
+            for action in changed {
+                await EventKitSyncService.shared.updateCompletion(for: action)
+            }
+        }
+    }
+
     // MARK: - Personalization Hero Card
 
     private var showOnboardingChecklist: Bool {
         guard onboardingChecklistDismissedRaw == 0 else { return false }
-        if visibleLibraryNotes.count >= 3, calendarContextEnabled, remindersSyncEnabled {
+        if visibleLibraryNotes.count >= 3, hasCalendarSource, remindersSyncEnabled {
             return false
         }
-        return visibleLibraryNotes.count < 3 || !calendarContextEnabled || !remindersSyncEnabled || !hasImportedRecording
+        return visibleLibraryNotes.count < 3 || !hasCalendarSource || !remindersSyncEnabled || !hasImportedRecording
     }
 
     private var onboardingChecklist: some View {
@@ -1504,14 +1681,11 @@ struct AIHomeView: View {
 
                 checklistRow(
                     icon: "calendar",
-                    title: "Add calendar context",
-                    subtitle: "Includes Google Calendar on this iPhone",
-                    isDone: calendarContextEnabled
+                    title: "Connect your calendar",
+                    subtitle: googleCalendarService.isConnected ? "Google Calendar is connected" : "Google Calendar or iPhone Calendar",
+                    isDone: hasCalendarSource
                 ) {
-                    Task {
-                        let granted = await CalendarContextService.shared.requestAccess()
-                        await MainActor.run { calendarContextEnabled = granted }
-                    }
+                    connectChecklistCalendar()
                 }
 
                 Divider().padding(.leading, 44)
@@ -1586,6 +1760,32 @@ struct AIHomeView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func connectChecklistCalendar() {
+        if googleCalendarService.isConfigured {
+            Task {
+                do {
+                    try await googleCalendarService.signIn()
+                } catch {
+                    await MainActor.run {
+                        errorMessage = error.localizedDescription
+                        showingError = true
+                    }
+                }
+            }
+        } else {
+            Task {
+                let granted = await CalendarContextService.shared.requestAccess()
+                await MainActor.run {
+                    calendarContextEnabled = granted
+                    if !granted {
+                        errorMessage = "Calendar access was not granted."
+                        showingError = true
+                    }
+                }
+            }
+        }
     }
 
     /// Show the personalization hero card when the user hasn't set up their purpose yet.

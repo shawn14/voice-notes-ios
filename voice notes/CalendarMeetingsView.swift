@@ -17,6 +17,14 @@ private enum CalendarMeetingScope: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var menuTitle: String {
+        switch self {
+        case .today: return "Today"
+        case .week: return "This Week"
+        case .month: return "This Month"
+        }
+    }
+
     func interval(containing date: Date, calendar: Calendar = .current) -> DateInterval {
         switch self {
         case .today:
@@ -97,8 +105,8 @@ struct CalendarMeetingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: EEONLayout.standard) {
-            scopePicker
+        VStack(alignment: .leading, spacing: embedded ? EEONLayout.snug : EEONLayout.standard) {
+            calendarRangeHeader
 
             if !isCalendarReady {
                 connectState
@@ -109,7 +117,7 @@ struct CalendarMeetingsView: View {
                 emptyState
             } else {
                 calendarStatusLine
-                if horizontalSizeClass == .regular, let selectedMeeting {
+                if horizontalSizeClass == .regular, !embedded, let selectedMeeting {
                     HStack(alignment: .top, spacing: EEONLayout.standard) {
                         meetingList
                         meetingDetail(selectedMeeting)
@@ -117,7 +125,7 @@ struct CalendarMeetingsView: View {
                     }
                 } else {
                     meetingList
-                    if let selectedMeeting {
+                    if !embedded, let selectedMeeting {
                         meetingDetail(selectedMeeting)
                     }
                 }
@@ -141,68 +149,163 @@ struct CalendarMeetingsView: View {
         isLoading && !hasLoadedOnce && meetings.isEmpty && readSummary == nil && googleSummary == nil
     }
 
-    private var scopePicker: some View {
-        Picker("Calendar range", selection: $scope) {
-            ForEach(CalendarMeetingScope.allCases) { item in
-                Text(item.rawValue).tag(item)
+    @ViewBuilder
+    private var calendarRangeHeader: some View {
+        if embedded {
+            HStack(alignment: .center, spacing: EEONLayout.tight) {
+                Label("Calendar", systemImage: "calendar")
+                    .font(.headline)
+                    .foregroundStyle(.eeonTextPrimary)
+
+                Spacer(minLength: EEONLayout.tight)
+
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Color.eeonAccent)
+                }
+
+                calendarOptionsMenu
+                refreshCalendarButton
+                calendarRangeMenu
             }
+        } else {
+            fullCalendarRangeHeader
         }
-        .pickerStyle(.segmented)
     }
 
-    private var calendarStatusLine: some View {
-        HStack(spacing: EEONLayout.tight) {
-            Image(systemName: "calendar.badge.checkmark")
-                .font(EEONType.badge)
-                .foregroundStyle(Color.eeonAccentAI)
+    private var fullCalendarRangeHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: EEONLayout.tight) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(scopeTitle)
+                    .font(.headline)
+                    .foregroundStyle(.eeonTextPrimary)
 
-            Text(statusText)
-                .font(EEONType.meta)
-                .foregroundStyle(.eeonTextSecondary)
-                .lineLimit(2)
+                Text(scopeSubtitle)
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonTextSecondary)
+            }
 
             Spacer(minLength: EEONLayout.tight)
 
-            if isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(Color.eeonAccent)
-            }
+            calendarRangeMenu
+        }
+    }
 
-            if googleCalendarService.isConnected {
-                Menu {
-                    Toggle(isOn: $includeSharedGoogleCalendars) {
-                        Label("Shared Google calendars", systemImage: "person.2")
-                    }
-                    if calendarContextEnabled && CalendarContextService.shared.isAuthorized {
-                        Toggle(isOn: $includeIPhoneCalendars) {
-                            Label("iPhone Calendar", systemImage: "calendar")
-                        }
-                    }
+    private var calendarRangeMenu: some View {
+        Menu {
+            ForEach(CalendarMeetingScope.allCases) { item in
+                Button {
+                    scope = item
                 } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(EEONType.badge)
-                        .foregroundStyle(.eeonTextSecondary)
-                        .eeonTapTarget()
+                    if item == scope {
+                        Label(item.menuTitle, systemImage: "checkmark")
+                    } else {
+                        Text(item.menuTitle)
+                    }
                 }
-                .accessibilityLabel("Calendar Options")
             }
+        } label: {
+            HStack(spacing: 5) {
+                Text(scope.rawValue)
+                    .font(EEONType.control)
+                Image(systemName: "chevron.down")
+                    .font(EEONType.badge)
+            }
+            .foregroundStyle(Color.eeonAccent)
+            .frame(minHeight: EEONLayout.minTarget)
+        }
+        .accessibilityLabel("Calendar range")
+        .accessibilityValue(scope.rawValue)
+    }
 
-            Button {
-                Task { await refreshMeetings(force: true) }
+    @ViewBuilder
+    private var calendarOptionsMenu: some View {
+        if googleCalendarService.isConnected {
+            Menu {
+                Toggle(isOn: $includeSharedGoogleCalendars) {
+                    Label("Shared Google calendars", systemImage: "person.2")
+                }
+                if calendarContextEnabled && CalendarContextService.shared.isAuthorized {
+                    Toggle(isOn: $includeIPhoneCalendars) {
+                        Label("iPhone Calendar", systemImage: "calendar")
+                    }
+                }
             } label: {
-                Image(systemName: "arrow.clockwise")
+                Image(systemName: "slider.horizontal.3")
                     .font(EEONType.badge)
                     .foregroundStyle(.eeonTextSecondary)
                     .eeonTapTarget()
             }
-            .buttonStyle(.plain)
-            .disabled(isLoading)
-            .accessibilityLabel("Refresh Calendar")
+            .accessibilityLabel("Calendar Options")
+        }
+    }
+
+    private var refreshCalendarButton: some View {
+        Button {
+            Task { await refreshMeetings(force: true) }
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(EEONType.badge)
+                .foregroundStyle(.eeonTextSecondary)
+                .eeonTapTarget()
+        }
+        .buttonStyle(.plain)
+        .disabled(isLoading)
+        .accessibilityLabel("Refresh Calendar")
+    }
+
+    private var scopeTitle: String {
+        switch scope {
+        case .today: return "Today"
+        case .week: return "This Week"
+        case .month: return "This Month"
+        }
+    }
+
+    private var scopeSubtitle: String {
+        let interval = scope.interval(containing: Date())
+        switch scope {
+        case .today:
+            return Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
+        case .week:
+            return "\(interval.start.formatted(.dateTime.month(.abbreviated).day())) - \(interval.end.addingTimeInterval(-1).formatted(.dateTime.month(.abbreviated).day()))"
+        case .month:
+            return Date().formatted(.dateTime.month(.wide).year())
+        }
+    }
+
+    @ViewBuilder
+    private var calendarStatusLine: some View {
+        if !embedded || errorMessage != nil {
+            HStack(spacing: EEONLayout.tight) {
+                Image(systemName: errorMessage == nil ? "calendar.badge.checkmark" : "exclamationmark.triangle")
+                    .font(EEONType.badge)
+                    .foregroundStyle(errorMessage == nil ? Color.eeonAccentAI : Color.orange)
+
+                Text(statusText)
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .lineLimit(2)
+
+                Spacer(minLength: EEONLayout.tight)
+
+                if !embedded {
+                    if isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Color.eeonAccent)
+                    }
+
+                    calendarOptionsMenu
+                    refreshCalendarButton
+                }
+            }
         }
     }
 
     private var statusText: String {
+        if let errorMessage { return errorMessage }
         guard let readSummary else {
             if let googleSummary { return googleSummary.statusLine }
             return "Checking connected calendars"
@@ -220,7 +323,7 @@ struct CalendarMeetingsView: View {
     }
 
     private var meetingList: some View {
-        LazyVStack(alignment: .leading, spacing: EEONLayout.snug) {
+        LazyVStack(alignment: .leading, spacing: embedded ? EEONLayout.tight : EEONLayout.snug) {
             ForEach(meetings) { meeting in
                 meetingRow(meeting)
             }
@@ -228,40 +331,46 @@ struct CalendarMeetingsView: View {
     }
 
     private func meetingRow(_ meeting: CalendarMeeting) -> some View {
-        let isSelected = selectedMeeting?.id == meeting.id
+        let isSelected = !embedded && selectedMeeting?.id == meeting.id
         return Button {
             withAnimation(.easeInOut(duration: 0.2)) {
                 selectedMeetingID = meeting.id
             }
+            if embedded, let meetingURL = meeting.meetingURL {
+                openURL(meetingURL)
+            }
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: embedded ? 10 : 12) {
                 Text(initials(for: meeting))
-                    .font(EEONType.control)
+                    .font(embedded ? EEONType.badge : EEONType.control)
                     .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
+                    .frame(width: embedded ? 34 : 42, height: embedded ? 34 : 42)
                     .background(Circle().fill(Color.eeonAccentAI.opacity(0.86)))
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: embedded ? 2 : 4) {
                     HStack(spacing: 6) {
                         Text(meeting.title)
-                            .font(EEONType.itemTitle)
+                            .font(embedded ? EEONType.preview : EEONType.itemTitle)
                             .foregroundStyle(.eeonTextPrimary)
-                            .lineLimit(2)
+                            .lineLimit(embedded ? 1 : 2)
 
-                        if meeting.meetingURL != nil {
+                        if meeting.meetingURL != nil && !embedded {
                             Image(systemName: "video.fill")
                                 .font(EEONType.badge)
                                 .foregroundStyle(Color.eeonAccent)
                         }
                     }
 
-                    Text(timeLine(for: meeting))
+                    Text(meetingMetaLine(for: meeting))
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextSecondary)
+                        .lineLimit(1)
 
-                    Text(meeting.calendarTitle)
-                        .font(EEONType.badge)
-                        .foregroundStyle(.eeonTextTertiary)
+                    if !embedded {
+                        Text(meeting.calendarTitle)
+                            .font(EEONType.badge)
+                            .foregroundStyle(.eeonTextTertiary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -273,13 +382,19 @@ struct CalendarMeetingsView: View {
                         .padding(.vertical, 5)
                         .background(Color.eeonAccent.opacity(0.13))
                         .clipShape(Capsule())
+                } else if embedded, meeting.meetingURL != nil {
+                    Image(systemName: "video")
+                        .font(EEONType.control)
+                        .foregroundStyle(Color.eeonAccent)
                 } else {
-                    Image(systemName: "chevron.right")
-                        .font(EEONType.badge)
-                        .foregroundStyle(.eeonTextTertiary)
+                    if !embedded {
+                        Image(systemName: "chevron.right")
+                            .font(EEONType.badge)
+                            .foregroundStyle(.eeonTextTertiary)
+                    }
                 }
             }
-            .padding(12)
+            .padding(embedded ? 10 : 12)
             .background(isSelected ? Color.eeonAccentAI.opacity(0.12) : Color.eeonCard)
             .overlay(
                 RoundedRectangle(cornerRadius: EEONLayout.cardRadius)
@@ -696,6 +811,22 @@ struct CalendarMeetingsView: View {
         }
         let day = meeting.startDate.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
         return "\(day), \(time)"
+    }
+
+    private func meetingMetaLine(for meeting: CalendarMeeting) -> String {
+        if !embedded {
+            return timeLine(for: meeting)
+        }
+
+        var parts = [timeLine(for: meeting)]
+        if meeting.meetingURL != nil {
+            parts.append("Google Meet")
+        } else if let location = meeting.location, !location.isEmpty {
+            parts.append(location)
+        } else if !meeting.calendarTitle.isEmpty {
+            parts.append(meeting.calendarTitle)
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func timeOnly(_ date: Date) -> String {

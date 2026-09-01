@@ -24,10 +24,17 @@ final class ScreenshotTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = true
+        launchApp()
+    }
+
+    private func launchApp(extraArguments: [String] = []) {
         app = XCUIApplication()
         app.launchArguments.append("-UITestMode")
         app.launchArguments.append("-SkipOnboarding")
         app.launchArguments.append("-SeedScreenshotData")
+        for argument in extraArguments {
+            app.launchArguments.append(argument)
+        }
         setupSnapshot(app)
         app.launch()
     }
@@ -44,16 +51,16 @@ final class ScreenshotTests: XCTestCase {
         sleep(2)
         shot("01_Home")
 
-        if tapSegment("Calendar") {
+        if selectCalendarRange("This Week") {
             sleep(2)
             shot("02_Calendar")
-            _ = tapSegment("Library")
+            _ = selectCalendarRange("Today")
         }
 
         if tapAskEEON() {
             sleep(2)
             shot("03_AskEEON")
-            backFromPushedPage()
+            closeAskSheet()
         }
 
         let row = app.staticTexts.matching(
@@ -66,10 +73,9 @@ final class ScreenshotTests: XCTestCase {
             backFromPushedPage()
         }
 
-        if tapSegment("Tasks") {
+        if tapAllActionItems() {
             sleep(2)
             shot("05_Tasks")
-            _ = tapSegment("Library")
         }
     }
 
@@ -117,11 +123,36 @@ final class ScreenshotTests: XCTestCase {
         return true
     }
 
+    private func closeAskSheet() {
+        let done = app.buttons["Done"]
+        if done.waitForExistence(timeout: 3) {
+            done.tap()
+        }
+        sleep(1)
+    }
+
     private func tapSegment(_ title: String) -> Bool {
         let segment = app.buttons[title]
         guard segment.waitForExistence(timeout: 3) else { return false }
         if segment.isSelected { return true }
         segment.tap()
+        return true
+    }
+
+    private func selectCalendarRange(_ title: String) -> Bool {
+        let range = app.buttons["Calendar range"]
+        guard range.waitForExistence(timeout: 3) else { return false }
+        range.tap()
+        let option = app.buttons[title]
+        guard option.waitForExistence(timeout: 3) else { return false }
+        option.tap()
+        return true
+    }
+
+    private func tapAllActionItems() -> Bool {
+        let button = app.buttons["All action items"]
+        guard button.waitForExistence(timeout: 4) else { return false }
+        button.tap()
         return true
     }
 
