@@ -167,15 +167,12 @@ struct AnswerSheet: View {
                 runQuery(query)
             } else {
                 state = .idle
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    isComposerFocused = true
-                }
             }
         }
     }
 
     private var inputPlaceholder: String {
-        if case .idle = state { return "Ask your Library" }
+        if case .idle = state { return "Ask EEON" }
         return "Ask another"
     }
 

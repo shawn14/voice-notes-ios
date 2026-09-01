@@ -70,10 +70,13 @@ final class IntelligenceService {
         // Extract intent — branch on source type
         do {
             let result: IntentAnalysis
-            if note.sourceType == .voice {
+            let isSpokenCapture = note.sourceType == .voice || note.sourceType == .audioImport
+            if isSpokenCapture {
                 // Calendar context (no-op unless enabled; idempotent) — the
                 // event this recording overlapped, for names and subject.
-                await CalendarContextService.shared.attachIfNeeded(to: note)
+                if note.sourceType == .voice {
+                    await CalendarContextService.shared.attachIfNeeded(to: note)
+                }
                 result = try await SummaryService.extractIntent(
                     text: transcript,
                     context: note.calendarContext?.promptLine,
@@ -88,7 +91,7 @@ final class IntelligenceService {
                 note.intentType = result.intent
                 note.intentConfidence = result.intentConfidence
 
-                if note.sourceType == .voice {
+                if isSpokenCapture {
                     if let subject = result.subject {
                         note.extractedSubject = ExtractedSubject(
                             topic: subject.topic,
@@ -118,7 +121,7 @@ final class IntelligenceService {
                 }
 
                 // Persist extracted decisions, actions, commitments only for voice notes
-                if note.sourceType == .voice {
+                if isSpokenCapture {
                     for decision in result.decisions {
                         let item = ExtractedDecision(
                             content: decision.content,
@@ -484,6 +487,11 @@ final class IntelligenceService {
         SharedDefaults.clearPendingIngests()
 
         for ingest in pending {
+            if let sharedFileName = ingest.sharedFileName, !sharedFileName.isEmpty {
+                await createPendingRecordingIngest(from: ingest, sharedFileName: sharedFileName, context: context)
+                continue
+            }
+
             let note: Note
 
             if let urlString = ingest.url, !urlString.isEmpty {
@@ -536,6 +544,71 @@ final class IntelligenceService {
             await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
             await MainActor.run { try? context.save() }
         }
+    }
+
+    private func createPendingRecordingIngest(
+        from ingest: SharedDefaults.PendingIngest,
+        sharedFileName: String,
+        context: ModelContext
+    ) async {
+        do {
+            let storedFileName = try moveSharedRecordingIntoDocuments(sharedFileName: sharedFileName)
+            let title = recordingTitle(from: ingest)
+            let note = Note(title: title, content: "", audioFileName: storedFileName)
+            note.sourceType = .audioImport
+            note.annotation = ingest.annotation
+            note.transcriptionStatus = "pending"
+            CalendarContextService.shared.excludeFromMatching(note.id)
+
+            await MainActor.run {
+                context.insert(note)
+                try? context.save()
+            }
+        } catch {
+            print("[IntelligenceService] Recording import failed for \(sharedFileName): \(error)")
+        }
+    }
+
+    private func moveSharedRecordingIntoDocuments(sharedFileName: String) throws -> String {
+        let manager = FileManager.default
+        guard let containerURL = manager.containerURL(forSecurityApplicationGroupIdentifier: SharedDefaults.suiteName) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+
+        let sourceURL = containerURL
+            .appendingPathComponent("Shared Imports", isDirectory: true)
+            .appendingPathComponent(sharedFileName)
+        guard manager.fileExists(atPath: sourceURL.path) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+
+        let documentsURL = manager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileExtension = sourceURL.pathExtension.isEmpty ? "m4a" : sourceURL.pathExtension
+        let storedFileName = "\(UUID().uuidString).\(fileExtension.lowercased())"
+        let destinationURL = documentsURL.appendingPathComponent(storedFileName)
+
+        do {
+            try manager.moveItem(at: sourceURL, to: destinationURL)
+        } catch {
+            try manager.copyItem(at: sourceURL, to: destinationURL)
+            try? manager.removeItem(at: sourceURL)
+        }
+
+        return storedFileName
+    }
+
+    private func recordingTitle(from ingest: SharedDefaults.PendingIngest) -> String {
+        if let title = ingest.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return title
+        }
+
+        if let originalFileName = ingest.originalFileName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !originalFileName.isEmpty {
+            let baseName = URL(fileURLWithPath: originalFileName).deletingPathExtension().lastPathComponent
+            return baseName.isEmpty ? originalFileName : baseName
+        }
+
+        return "Imported Recording"
     }
 
     // MARK: - URL Processing

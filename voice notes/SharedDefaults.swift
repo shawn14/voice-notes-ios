@@ -86,6 +86,9 @@ struct SharedDefaults {
         let text: String?
         let title: String?
         let annotation: String?
+        let sharedFileName: String?
+        let originalFileName: String?
+        let contentTypeIdentifier: String?
         let createdAt: Date
     }
 

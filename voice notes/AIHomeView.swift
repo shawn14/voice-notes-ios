@@ -65,6 +65,9 @@ struct AIHomeView: View {
     @State private var showPaywall = false
     @State private var driftStatus: DriftStatus = .fresh
     @AppStorage("tuneBannerDismissedAt") private var tuneBannerDismissedRaw: Double = 0
+    @AppStorage("homeOnboardingChecklistDismissedAt") private var onboardingChecklistDismissedRaw: Double = 0
+    @AppStorage(EventKitSyncService.enabledKey) private var remindersSyncEnabled = false
+    @AppStorage(CalendarContextService.enabledKey) private var calendarContextEnabled = false
 
     // Recording state
     @State private var audioRecorder = AudioRecorder()
@@ -107,6 +110,7 @@ struct AIHomeView: View {
     /// Tasks and Highlights render inline in the same place.
     enum FeedMode: String, CaseIterable, Identifiable, Hashable {
         case library = "Library"
+        case calendar = "Calendar"
         case tasks = "Tasks"
         case highlights = "Highlights"
 
@@ -129,6 +133,10 @@ struct AIHomeView: View {
     private var todaysBrief: DailyBrief? {
         let today = Calendar.current.startOfDay(for: Date())
         return dailyBriefs.first { $0.briefDate >= today }
+    }
+
+    private var hasImportedRecording: Bool {
+        visibleLibraryNotes.contains { $0.sourceType == .audioImport }
     }
 
     /// Computed AI tab data (only built when AI tab is selected)
@@ -401,6 +409,11 @@ struct AIHomeView: View {
                             // Tune EEON hero card — prominent until user has compiled a .purpose article
                             if showTuneHeroCard {
                                 tuneHeroCard
+                                    .padding(.horizontal)
+                            }
+
+                            if showOnboardingChecklist {
+                                onboardingChecklist
                                     .padding(.horizontal)
                             }
 
@@ -842,6 +855,7 @@ struct AIHomeView: View {
     private var feedTitle: String {
         switch feedMode {
         case .library: return "Library"
+        case .calendar: return "Calendar"
         case .tasks: return "Tasks"
         case .highlights: return "Highlights"
         }
@@ -851,6 +865,8 @@ struct AIHomeView: View {
         switch feedMode {
         case .library:
             return libraryNoteCountLabel(visibleLibraryNotes.count)
+        case .calendar:
+            return "Today, week, month"
         case .tasks:
             return openTaskCount == 1 ? "1 open task" : "\(openTaskCount) open tasks"
         case .highlights:
@@ -1301,7 +1317,12 @@ struct AIHomeView: View {
             conversationsHeader
                 .padding(.bottom, 8)
 
-            if feedMode == .tasks {
+            if feedMode == .calendar {
+                CalendarMeetingsView(embedded: true) {
+                    guard !isRecording, !isTranscribing else { return }
+                    toggleRecording()
+                }
+            } else if feedMode == .tasks {
                 TasksView(embedded: true)
             } else if feedMode == .highlights {
                 TodayHighlightsView(
@@ -1341,9 +1362,6 @@ struct AIHomeView: View {
 
     private var libraryHome: some View {
         VStack(alignment: .leading, spacing: EEONLayout.snug) {
-            askLibraryCard
-                .padding(.horizontal)
-
             if !libraryHomeCollections.isEmpty {
                 libraryCollectionsSection
             }
@@ -1353,37 +1371,6 @@ struct AIHomeView: View {
             }
         }
         .padding(.bottom, EEONLayout.standard)
-    }
-
-    private var askLibraryCard: some View {
-        NavigationLink(destination: AnswerSheet(navigationTitle: "Ask EEON")) {
-            HStack(spacing: EEONLayout.standard) {
-                Image(systemName: "sparkle.magnifyingglass")
-                    .font(EEONType.body)
-                    .foregroundStyle(.eeonAccentAI)
-                    .frame(width: EEONLayout.minTarget, height: EEONLayout.minTarget)
-                    .background(Circle().fill(Color.eeonAccentAI.opacity(0.14)))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Ask EEON")
-                        .font(EEONType.body)
-                        .foregroundStyle(.eeonTextPrimary)
-                    Text("Ask your notes, tasks, people, and projects")
-                        .font(EEONType.meta)
-                        .foregroundStyle(.eeonTextSecondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Image(systemName: "chevron.right")
-                    .font(EEONType.badge)
-                    .foregroundStyle(.eeonTextTertiary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.eeonCard)
-            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
-        }
-        .buttonStyle(.plain)
     }
 
     private var libraryCollectionsSection: some View {
@@ -1467,6 +1454,139 @@ struct AIHomeView: View {
     }
 
     // MARK: - Personalization Hero Card
+
+    private var showOnboardingChecklist: Bool {
+        guard onboardingChecklistDismissedRaw == 0 else { return false }
+        if visibleLibraryNotes.count >= 3, calendarContextEnabled, remindersSyncEnabled {
+            return false
+        }
+        return visibleLibraryNotes.count < 3 || !calendarContextEnabled || !remindersSyncEnabled || !hasImportedRecording
+    }
+
+    private var onboardingChecklist: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Set up EEON")
+                        .font(.headline)
+                        .foregroundStyle(.eeonTextPrimary)
+                    Text("A few fast checks for meeting memory.")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+
+                Spacer()
+
+                Button {
+                    onboardingChecklistDismissedRaw = Date().timeIntervalSince1970
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.eeonTextSecondary)
+                        .eeonTapTarget()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss setup checklist")
+            }
+
+            VStack(spacing: 0) {
+                checklistRow(
+                    icon: "waveform",
+                    title: "Record a memory",
+                    subtitle: "Talk for 30 seconds",
+                    isDone: !visibleLibraryNotes.isEmpty
+                ) {
+                    guard !isRecording, !isTranscribing else { return }
+                    toggleRecording()
+                }
+
+                Divider().padding(.leading, 44)
+
+                checklistRow(
+                    icon: "calendar",
+                    title: "Add calendar context",
+                    subtitle: "Includes Google Calendar on this iPhone",
+                    isDone: calendarContextEnabled
+                ) {
+                    Task {
+                        let granted = await CalendarContextService.shared.requestAccess()
+                        await MainActor.run { calendarContextEnabled = granted }
+                    }
+                }
+
+                Divider().padding(.leading, 44)
+
+                checklistRow(
+                    icon: "checklist",
+                    title: "Send follow-ups to Reminders",
+                    subtitle: "Action items land in an EEON list",
+                    isDone: remindersSyncEnabled
+                ) {
+                    Task {
+                        let granted = await EventKitSyncService.shared.requestAccess()
+                        await MainActor.run { remindersSyncEnabled = granted }
+                    }
+                }
+
+                Divider().padding(.leading, 44)
+
+                checklistRow(
+                    icon: "square.and.arrow.down",
+                    title: "Import a recording",
+                    subtitle: "Use Files or share from Voice Memos",
+                    isDone: hasImportedRecording
+                ) {
+                    showingAudioImporter = true
+                }
+            }
+            .background(Color.eeonCard)
+            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
+        }
+    }
+
+    private func checklistRow(
+        icon: String,
+        title: String,
+        subtitle: String,
+        isDone: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isDone ? Color.eeonAccent : Color.eeonTextTertiary)
+                    .frame(width: 24)
+
+                Image(systemName: icon)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.eeonAccentAI)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(EEONType.control)
+                        .foregroundStyle(.eeonTextPrimary)
+                    Text(subtitle)
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 8)
+
+                if !isDone {
+                    Image(systemName: "chevron.right")
+                        .font(EEONType.badge)
+                        .foregroundStyle(.eeonTextTertiary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
 
     /// Show the personalization hero card when the user hasn't set up their purpose yet.
     /// Once the purpose is compiled (article has non-empty directive), the card disappears.
@@ -2004,6 +2124,7 @@ struct AIHomeView: View {
         if isImport {
             // Recorded some other time — the meeting happening at import
             // time has nothing to do with it.
+            note.sourceType = .audioImport
             CalendarContextService.shared.excludeFromMatching(note.id)
         }
 

@@ -190,10 +190,34 @@ test('CloudKit source maps private CD_Note records into memory docs', async () =
     tokenFile: path.join(temp, 'cloudkit.json'),
     baseURL: 'https://api.apple-cloudkit.com',
     fetchImpl: async (input, init) => {
+      const body = JSON.parse(init?.body?.toString() ?? '{}') as Record<string, unknown>
       requests.push({
         url: input.toString(),
-        body: JSON.parse(init?.body?.toString() ?? '{}') as Record<string, unknown>
+        body
       })
+      const query = body.query as { recordType?: string } | undefined
+      if (query?.recordType === 'CD_KnowledgeArticle') {
+        return new Response(JSON.stringify({
+          records: [
+            {
+              recordName: 'article-1',
+              recordType: 'CD_KnowledgeArticle',
+              fields: {
+                CD_id: { value: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+                CD_name: { value: 'Lena Ortiz' },
+                CD_articleTypeRaw: { value: 'person' },
+                CD_summary: { value: 'Lena owns pricing feedback and launch review.' },
+                CD_mentionCount: { value: 4 },
+                CD_updatedAt: { value: Date.UTC(2026, 7, 29, 17, 0, 0) },
+                CD_aliasesJSON: { value: JSON.stringify(['lena']) },
+                CD_openThreadsJSON: { value: JSON.stringify([{ thread: 'Confirm annual pricing', status: 'open', daysOpen: 2 }]) },
+                CD_timelineJSON: { value: JSON.stringify([{ date: '2026-08-29', event: 'Reviewed pricing page' }]) }
+              }
+            }
+          ]
+        }), { status: 200 })
+      }
+
       return new Response(JSON.stringify({
         ckWebAuthToken: 'rotated-token',
         records: [
@@ -231,7 +255,12 @@ test('CloudKit source maps private CD_Note records into memory docs', async () =
   const snapshot = await loadCloudKitSnapshot(config)
   assert.equal(snapshot.source, 'cloudkit')
   assert.equal(snapshot.notes.length, 1)
+  assert.equal(snapshot.articles.length, 1)
+  assert.equal(snapshot.docs.length, 2)
   assert.equal(snapshot.notes[0].title, 'Pricing page standup')
+  assert.equal(snapshot.articles[0].name, 'Lena Ortiz')
+  assert.equal(snapshot.articles[0].articleType, 'person')
+  assert.match(snapshot.articles[0].contents ?? '', /Confirm annual pricing/)
   assert.deepEqual(snapshot.notes[0].people, ['Lena Ortiz'])
   assert.deepEqual(snapshot.notes[0].topics, ['pricing', 'launch'])
   assert.match(snapshot.notes[0].contents ?? '', /Original transcript text/)
@@ -292,6 +321,26 @@ test('CloudKit source can use cktool when no web API token is configured', async
     fetchImpl: fetch,
     cktoolRunner: async (args) => {
       calls.push(args)
+      const recordType = args[args.indexOf('--record-type') + 1]
+      if (recordType === 'CD_KnowledgeArticle') {
+        return JSON.stringify({
+          records: [
+            {
+              recordName: 'article-1',
+              recordType: 'CD_KnowledgeArticle',
+              fields: {
+                CD_id: { value: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+                CD_name: { value: 'Launch' },
+                CD_articleTypeRaw: { value: 'topic' },
+                CD_summary: { value: 'Launch planning context.' },
+                CD_mentionCount: { value: 3 },
+                CD_updatedAt: { value: Date.UTC(2026, 7, 29, 17, 0, 0) }
+              }
+            }
+          ]
+        })
+      }
+
       return JSON.stringify({
         records: [
           {
@@ -313,8 +362,10 @@ test('CloudKit source can use cktool when no web API token is configured', async
   assert.equal(snapshot.source, 'cloudkit')
   assert.equal(snapshot.vault, 'cloudkit+cktool://production/private/com.apple.coredata.cloudkit.zone')
   assert.equal(snapshot.notes[0].title, 'CloudKit cktool note')
+  assert.equal(snapshot.articles[0].name, 'Launch')
   assert.equal(calls[0][0], 'query-records')
   assert.equal(calls[0][calls[0].indexOf('--filters') + 1], 'CD_id != __eeon_mcp_never__')
+  assert.equal(calls[1][calls[1].indexOf('--record-type') + 1], 'CD_KnowledgeArticle')
   const requestedFieldsIndex = calls[0].indexOf('--requested-fields')
   assert.notEqual(requestedFieldsIndex, -1)
   assert.equal(calls[0].filter((arg) => arg === '--requested-fields').length, 1)

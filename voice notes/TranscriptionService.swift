@@ -138,19 +138,25 @@ actor TranscriptionService {
     func transcribe(audioURL: URL) async throws -> String {
         let url = URL(string: "https://api.openai.com/v1/audio/transcriptions")!
 
+        // Check file size - Whisper has 25MB limit
+        let fileSizeMB = try fileSizeMB(for: audioURL)
+        if fileSizeMB > 25 {
+            return try await transcribeLargeFile(audioURL: audioURL)
+        }
+
+        let prepared = try await preparedSmallUploadURL(for: audioURL)
+        defer {
+            if prepared.shouldDelete {
+                try? FileManager.default.removeItem(at: prepared.url)
+            }
+        }
+
         // Read audio file
         let audioData: Data
         do {
-            audioData = try Data(contentsOf: audioURL)
+            audioData = try Data(contentsOf: prepared.url)
         } catch {
             throw TranscriptionError.invalidAudioFile
-        }
-
-        // Check file size - Whisper has 25MB limit
-        // For larger files, we'd need to chunk them
-        let fileSizeMB = Double(audioData.count) / (1024 * 1024)
-        if fileSizeMB > 25 {
-            return try await transcribeLargeFile(audioURL: audioURL)
         }
 
         // Create multipart form data
@@ -164,8 +170,8 @@ actor TranscriptionService {
 
         // Add file field
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(uploadFileName(for: prepared.url))\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(uploadContentType(for: prepared.url))\r\n\r\n".data(using: .utf8)!)
         body.append(audioData)
         body.append("\r\n".data(using: .utf8)!)
 
@@ -205,6 +211,67 @@ actor TranscriptionService {
 
         let result = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
         return result.text
+    }
+
+    private func fileSizeMB(for url: URL) throws -> Double {
+        do {
+            let values = try url.resourceValues(forKeys: [.fileSizeKey])
+            if let fileSize = values.fileSize {
+                return Double(fileSize) / (1024 * 1024)
+            }
+        } catch {
+            throw TranscriptionError.invalidAudioFile
+        }
+
+        throw TranscriptionError.invalidAudioFile
+    }
+
+    private func preparedSmallUploadURL(for sourceURL: URL) async throws -> (url: URL, shouldDelete: Bool) {
+        let supportedExtensions: Set<String> = ["flac", "mp3", "mp4", "mpeg", "mpga", "m4a", "ogg", "wav", "webm"]
+        let fileExtension = sourceURL.pathExtension.lowercased()
+        if supportedExtensions.contains(fileExtension) {
+            return (sourceURL, false)
+        }
+
+        let asset = AVURLAsset(url: sourceURL)
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
+            throw TranscriptionError.invalidAudioFile
+        }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prepared_\(UUID().uuidString).m4a")
+
+        do {
+            try await exportSession.export(to: outputURL, as: .m4a)
+        } catch {
+            throw TranscriptionError.apiError("Failed to prepare audio: \(error.localizedDescription)")
+        }
+
+        return (outputURL, true)
+    }
+
+    private func uploadFileName(for url: URL) -> String {
+        let fileExtension = url.pathExtension.isEmpty ? "m4a" : url.pathExtension.lowercased()
+        return "audio.\(fileExtension)"
+    }
+
+    private func uploadContentType(for url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "flac":
+            return "audio/flac"
+        case "mp3", "mpeg", "mpga":
+            return "audio/mpeg"
+        case "mp4":
+            return "video/mp4"
+        case "ogg":
+            return "audio/ogg"
+        case "wav":
+            return "audio/wav"
+        case "webm":
+            return "audio/webm"
+        default:
+            return "audio/mp4"
+        }
     }
 
     private func transcribeLargeFile(audioURL: URL) async throws -> String {

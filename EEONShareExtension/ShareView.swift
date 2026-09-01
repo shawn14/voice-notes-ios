@@ -15,9 +15,16 @@ struct ShareView: View {
     @State private var contentPreview: String = ""
     @State private var url: String?
     @State private var fullText: String?
+    @State private var sharedFileName: String?
+    @State private var originalFileName: String?
+    @State private var contentTypeIdentifier: String?
     @State private var annotation: String = ""
     @State private var isSaving = false
     @State private var isLoaded = false
+
+    private var canSave: Bool {
+        url != nil || fullText != nil || sharedFileName != nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -51,6 +58,18 @@ struct ShareView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
+                    if sharedFileName != nil {
+                        HStack(spacing: 4) {
+                            Image(systemName: "waveform")
+                                .font(.caption2)
+                            Text(originalFileName ?? "Recording")
+                                .font(.caption2)
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(.blue)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
                     Divider()
 
                     // Annotation
@@ -77,7 +96,7 @@ struct ShareView: View {
                     Button("Save") {
                         saveToEEON()
                     }
-                    .disabled(isSaving || !isLoaded)
+                    .disabled(isSaving || !isLoaded || !canSave)
                     .bold()
                 }
             }
@@ -99,6 +118,11 @@ struct ShareView: View {
             guard let attachments = item.attachments else { continue }
 
             for attachment in attachments {
+                if await extractRecordingAttachment(attachment, item: item) {
+                    await MainActor.run { isLoaded = true }
+                    return
+                }
+
                 // Check for URL
                 if attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
                     if let urlItem = try? await attachment.loadItem(forTypeIdentifier: UTType.url.identifier),
@@ -123,7 +147,97 @@ struct ShareView: View {
             }
         }
 
+        if title.isEmpty && contentPreview.isEmpty {
+            title = "Unsupported Content"
+            contentPreview = "Share a link, text, or audio recording."
+        }
+
         await MainActor.run { isLoaded = true }
+    }
+
+    private func extractRecordingAttachment(_ attachment: NSItemProvider, item: NSExtensionItem) async -> Bool {
+        let recordingTypes: [UTType] = [.audio, .movie, .mpeg4Movie, .quickTimeMovie]
+
+        for type in recordingTypes where attachment.hasItemConformingToTypeIdentifier(type.identifier) {
+            guard let copied = await Self.copyFileRepresentation(
+                from: attachment,
+                typeIdentifier: type.identifier,
+                suggestedName: attachment.suggestedName,
+                preferredFilenameExtension: type.preferredFilenameExtension
+            ) else {
+                continue
+            }
+
+            sharedFileName = copied.fileName
+            originalFileName = copied.originalName
+            contentTypeIdentifier = type.identifier
+            let baseTitle = copied.originalName.removingPathExtension
+            title = item.attributedContentText?.string ?? (baseTitle.isEmpty ? "Imported Recording" : baseTitle)
+            contentPreview = type.conforms(to: .movie) ? "Video recording ready to import." : "Audio recording ready to import."
+            return true
+        }
+
+        return false
+    }
+
+    private static func copyFileRepresentation(
+        from attachment: NSItemProvider,
+        typeIdentifier: String,
+        suggestedName: String?,
+        preferredFilenameExtension: String?
+    ) async -> (fileName: String, originalName: String)? {
+        await withCheckedContinuation { continuation in
+            attachment.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { sourceURL, _ in
+                guard let sourceURL else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                let copied = copySharedFile(
+                    from: sourceURL,
+                    suggestedName: suggestedName,
+                    preferredFilenameExtension: preferredFilenameExtension
+                )
+                continuation.resume(returning: copied)
+            }
+        }
+    }
+
+    private static func copySharedFile(
+        from sourceURL: URL,
+        suggestedName: String?,
+        preferredFilenameExtension: String?
+    ) -> (fileName: String, originalName: String)? {
+        let manager = FileManager.default
+        guard let containerURL = manager.containerURL(forSecurityApplicationGroupIdentifier: SharedDefaults.suiteName) else {
+            return nil
+        }
+
+        let importsURL = containerURL.appendingPathComponent("Shared Imports", isDirectory: true)
+        do {
+            try manager.createDirectory(at: importsURL, withIntermediateDirectories: true)
+        } catch {
+            return nil
+        }
+
+        let sourceExtension = sourceURL.pathExtension
+        let suggestedExtension = suggestedName.map { URL(fileURLWithPath: $0).pathExtension } ?? ""
+        let fileExtension = [sourceExtension, suggestedExtension, preferredFilenameExtension, "m4a"]
+            .compactMap { $0 }
+            .first { !$0.isEmpty } ?? "m4a"
+        let originalName = suggestedName?.isEmpty == false ? suggestedName! : "Recording.\(fileExtension)"
+        let fileName = "\(UUID().uuidString).\(fileExtension.lowercased())"
+        let destinationURL = importsURL.appendingPathComponent(fileName)
+
+        do {
+            if manager.fileExists(atPath: destinationURL.path) {
+                try manager.removeItem(at: destinationURL)
+            }
+            try manager.copyItem(at: sourceURL, to: destinationURL)
+            return (fileName, originalName)
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - Save
@@ -137,11 +251,20 @@ struct ShareView: View {
             text: fullText,
             title: title.isEmpty ? nil : title,
             annotation: annotation.isEmpty ? nil : annotation,
+            sharedFileName: sharedFileName,
+            originalFileName: originalFileName,
+            contentTypeIdentifier: contentTypeIdentifier,
             createdAt: Date()
         )
 
         SharedDefaults.addPendingIngest(ingest)
 
         extensionContext?.completeRequest(returningItems: nil)
+    }
+}
+
+private extension String {
+    var removingPathExtension: String {
+        URL(fileURLWithPath: self).deletingPathExtension().lastPathComponent
     }
 }

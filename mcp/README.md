@@ -155,4 +155,4 @@ Known fallback paths:
 - `people`
 - `vault_status`
 
-`list_articles`, `get_article`, `open_loops`, and `people` use compiled markdown articles when the fallback vault is available. CloudKit v1 exposes notes first; adding `CD_KnowledgeArticle` mapping is the next read-only extension.
+`list_articles`, `get_article`, `open_loops`, and `people` work in CloudKit mode and in the markdown fallback. CloudKit mode maps private `CD_Note` records plus compiled `CD_KnowledgeArticle` records into the same read-only memory document shape.

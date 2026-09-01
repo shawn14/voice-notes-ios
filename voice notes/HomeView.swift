@@ -1788,6 +1788,7 @@ struct SettingsView: View {
 
     // Observe AuthService for reactive updates
     private var authService = AuthService.shared
+    private var googleCalendarService = GoogleCalendarService.shared
     @AppStorage(EventKitSyncService.enabledKey) private var remindersSyncEnabled = false
     @AppStorage(CalendarContextService.enabledKey) private var calendarContextEnabled = false
     @AppStorage(PersonaPresetStore.autoSummarizeKey) private var autoSummarizeEnabled = false
@@ -1803,6 +1804,8 @@ struct SettingsView: View {
     @State private var editedName = ""
     @State private var signInError: String?
     @State private var documentExportConfirmation: String?
+    @State private var googleCalendarFeedback: String?
+    @State private var isConnectingGoogleCalendar = false
 
     // Export state
     @State private var isExporting = false
@@ -1847,7 +1850,7 @@ struct SettingsView: View {
 
                 connectionStatusRow(
                     icon: "sparkle.magnifyingglass",
-                    title: "AI Connector",
+                    title: "EEON MCP Connector",
                     subtitle: aiConnectorSubtitle,
                     status: aiConnectorStatusBadge,
                     statusColor: iCloudStatus == .available ? Color.secondary : Color.orange
@@ -1855,13 +1858,14 @@ struct SettingsView: View {
             } header: {
                 Text("Connections")
             } footer: {
-                Text("EEON stays Apple-centric: notes sync through your private iCloud account. Compatible AI workspaces can read them only after you authorize the EEON CloudKit connector there.")
+                Text("Compatible AI workspaces can read your EEON memory only after you authorize the CloudKit MCP connector there.")
             }
 
             Section {
                 calendarContextRow
+                googleCalendarRow
             } footer: {
-                Text("EEON reads the event title and attendees for recordings made during meetings. It never writes to your calendar.")
+                Text("Use iPhone Calendar for calendars synced to the phone. Use direct Google Calendar when events live in Google but are not visible on the phone. EEON reads event titles, attendees, times, and meeting links. It never writes to your calendar.")
             }
 
             Section {
@@ -1878,7 +1882,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
             } footer: {
-                Text("If that AI workspace also has Google Docs, Drive, or Gmail access, it can use EEON memory there. EEON does not connect directly to Google or silently write to other apps.")
+                Text("Google Calendar can connect directly here with read-only access. Google Docs, Drive, Gmail, and task-app write-back remain explicit connector decisions; EEON never silently writes to other apps.")
             }
         }
         .alert("Connections", isPresented: Binding(
@@ -1932,8 +1936,8 @@ struct SettingsView: View {
         Toggle(isOn: $calendarContextEnabled) {
             EEONSettingsRow(
                 icon: "calendar",
-                title: "Calendar context",
-                subtitle: "Notes recorded during a meeting get its title and attendees"
+                title: "iPhone Calendar",
+                subtitle: "Shows iCloud, Google, and Outlook events from iPhone Calendar"
             )
         }
         .onChange(of: calendarContextEnabled) { _, isOn in
@@ -1942,6 +1946,83 @@ struct SettingsView: View {
                 let granted = await CalendarContextService.shared.requestAccess()
                 if !granted {
                     await MainActor.run { calendarContextEnabled = false }
+                }
+            }
+        }
+    }
+
+    private var googleCalendarRow: some View {
+        Button {
+            handleGoogleCalendarTap()
+        } label: {
+            EEONSettingsRow(
+                icon: "g.circle",
+                title: "Google Calendar",
+                subtitle: googleCalendarSubtitle
+            ) {
+                Text(googleCalendarStatus)
+                    .font(EEONType.badge)
+                    .foregroundStyle(googleCalendarStatusColor)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var googleCalendarSubtitle: String {
+        if let googleCalendarFeedback {
+            return googleCalendarFeedback
+        }
+        if googleCalendarService.isConnected {
+            return "Direct read-only Google Calendar is connected"
+        }
+        if googleCalendarService.isConfigured {
+            return "Connect directly when Google events are not on this phone"
+        }
+        return "Needs Google OAuth client ID in this build"
+    }
+
+    private var googleCalendarStatus: String {
+        if isConnectingGoogleCalendar { return "Opening..." }
+        if googleCalendarService.isConnected { return "Connected" }
+        return "Connect"
+    }
+
+    private var googleCalendarStatusColor: Color {
+        if googleCalendarService.isConnected { return Color.secondary }
+        return googleCalendarService.isConfigured ? Color.eeonAccent : Color.orange
+    }
+
+    private func handleGoogleCalendarTap() {
+        guard !isConnectingGoogleCalendar else { return }
+
+        guard googleCalendarService.isConfigured else {
+            googleCalendarFeedback = googleCalendarService.configurationStatus
+            documentExportConfirmation = "Google Calendar is not configured in this build: \(googleCalendarService.configurationStatus). Rebuild EEON with the Google OAuth client ID and matching reversed Google URL scheme."
+            return
+        }
+
+        if googleCalendarService.isConnected {
+            googleCalendarService.disconnect()
+            googleCalendarFeedback = "Disconnected"
+            return
+        }
+
+        Task {
+            await MainActor.run {
+                isConnectingGoogleCalendar = true
+                googleCalendarFeedback = "Opening Google sign-in..."
+            }
+            do {
+                try await googleCalendarService.signIn()
+                await MainActor.run {
+                    isConnectingGoogleCalendar = false
+                    googleCalendarFeedback = "Connected"
+                }
+            } catch {
+                await MainActor.run {
+                    isConnectingGoogleCalendar = false
+                    googleCalendarFeedback = error.localizedDescription
+                    documentExportConfirmation = "Google Calendar did not connect: \(error.localizedDescription)"
                 }
             }
         }
@@ -2773,6 +2854,9 @@ struct SettingsView: View {
         }
         if calendarContextEnabled {
             enabled.append("Calendar")
+        }
+        if googleCalendarService.isConnected {
+            enabled.append("Google Calendar")
         }
         let iCloudSummary = iCloudStatus == .available ? "iCloud on" : "iCloud needs attention"
         let aiSummary = iCloudStatus == .available ? "AI connector available" : "AI connector needs iCloud"

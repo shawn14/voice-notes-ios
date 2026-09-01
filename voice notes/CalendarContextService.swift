@@ -53,12 +53,42 @@ nonisolated struct CalendarContext: Codable, Equatable {
     }
 }
 
+nonisolated struct CalendarMeeting: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let calendarTitle: String
+    let startDate: Date
+    let endDate: Date
+    let location: String?
+    let attendees: [String]
+    let meetingURL: URL?
+
+    var isHappeningNow: Bool {
+        DateInterval(start: startDate, end: endDate).contains(Date())
+    }
+}
+
+nonisolated struct CalendarReadSummary: Equatable {
+    let authorizationStatus: String
+    let calendarCount: Int
+    let sourceNames: [String]
+    let rawEventCount: Int
+    let visibleMeetingCount: Int
+
+    var sourceSummary: String {
+        guard !sourceNames.isEmpty else { return "No calendar sources visible" }
+        let shown = sourceNames.prefix(3).joined(separator: ", ")
+        let extra = sourceNames.count - min(sourceNames.count, 3)
+        return extra > 0 ? "\(shown) + \(extra) more" : shown
+    }
+}
+
 @Observable
 final class CalendarContextService {
     static let shared = CalendarContextService()
 
     static let enabledKey = "calendarContextEnabled"
-    static let maxAttendees = 8
+    nonisolated static let maxAttendees = 8
 
     /// Recording start is a little before the file's first sample and the
     /// user often presses Record a minute into a meeting; pad both ends.
@@ -85,7 +115,26 @@ final class CalendarContextService {
     }
 
     var isAuthorized: Bool {
-        EKEventStore.authorizationStatus(for: .event) == .fullAccess
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .authorized, .fullAccess:
+            return true
+        case .notDetermined, .restricted, .denied, .writeOnly:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
+    var authorizationStatusLabel: String {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .notDetermined: return "Not requested"
+        case .restricted: return "Restricted"
+        case .denied: return "Denied"
+        case .authorized: return "Authorized"
+        case .fullAccess: return "Full access"
+        case .writeOnly: return "Write only"
+        @unknown default: return "Unknown"
+        }
     }
 
     /// iOS 17+ full-access request (read needs full access; write-only is
@@ -182,5 +231,116 @@ final class CalendarContextService {
             endDate: event.endDate,
             location: event.location?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
+    }
+
+    /// User-facing calendar view: upcoming meetings in a date interval.
+    /// Same EventKit store as context matching, so Google Calendar support is
+    /// exactly whatever the iPhone Calendar app can already see.
+    func meetings(in interval: DateInterval) -> [CalendarMeeting] {
+        guard isAuthorized else { return [] }
+        let predicate = store.predicateForEvents(
+            withStart: interval.start,
+            end: interval.end,
+            calendars: nil
+        )
+
+        return store.events(matching: predicate)
+            .filter { !$0.isAllDay }
+            .filter { event in
+                if let me = event.attendees?.first(where: { $0.isCurrentUser }),
+                   me.participantStatus == .declined {
+                    return false
+                }
+                return !(event.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            .sorted { $0.startDate < $1.startDate }
+            .map(meeting(from:))
+    }
+
+    func readSummary(in interval: DateInterval) -> CalendarReadSummary {
+        guard isAuthorized else {
+            return CalendarReadSummary(
+                authorizationStatus: authorizationStatusLabel,
+                calendarCount: 0,
+                sourceNames: [],
+                rawEventCount: 0,
+                visibleMeetingCount: 0
+            )
+        }
+
+        let calendars = store.calendars(for: .event)
+        let sourceNames = Array(Set(calendars.map { $0.source.title })).sorted()
+        let predicate = store.predicateForEvents(
+            withStart: interval.start,
+            end: interval.end,
+            calendars: nil
+        )
+        let events = store.events(matching: predicate)
+        let visible = events.filter { event in
+            guard !event.isAllDay,
+                  !(event.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return false
+            }
+            if let me = event.attendees?.first(where: { $0.isCurrentUser }),
+               me.participantStatus == .declined {
+                return false
+            }
+            return true
+        }
+
+        return CalendarReadSummary(
+            authorizationStatus: authorizationStatusLabel,
+            calendarCount: calendars.count,
+            sourceNames: sourceNames,
+            rawEventCount: events.count,
+            visibleMeetingCount: visible.count
+        )
+    }
+
+    private func meeting(from event: EKEvent) -> CalendarMeeting {
+        let attendees = (event.attendees ?? [])
+            .filter { !$0.isCurrentUser }
+            .compactMap { $0.name?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && !$0.contains("@") }
+            .prefix(Self.maxAttendees)
+
+        return CalendarMeeting(
+            id: event.eventIdentifier ?? "\(event.startDate.timeIntervalSince1970)-\(event.title ?? "")",
+            title: (event.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
+            calendarTitle: event.calendar.title,
+            startDate: event.startDate,
+            endDate: event.endDate,
+            location: event.location?.trimmingCharacters(in: .whitespacesAndNewlines),
+            attendees: Array(attendees),
+            meetingURL: meetingURL(from: event)
+        )
+    }
+
+    private func meetingURL(from event: EKEvent) -> URL? {
+        if let url = event.url, Self.isMeetingURL(url) {
+            return url
+        }
+
+        let candidates = [event.location, event.notes].compactMap { $0 }
+        var firstURL: URL?
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        for candidate in candidates {
+            let range = NSRange(candidate.startIndex..., in: candidate)
+            let matches = detector?.matches(in: candidate, options: [], range: range) ?? []
+            for match in matches {
+                guard let url = match.url else { continue }
+                if firstURL == nil { firstURL = url }
+                if Self.isMeetingURL(url) { return url }
+            }
+        }
+        return firstURL
+    }
+
+    private static func isMeetingURL(_ url: URL) -> Bool {
+        let text = url.absoluteString.lowercased()
+        return text.contains("meet.google.com")
+            || text.contains("zoom.us")
+            || text.contains("teams.microsoft.com")
+            || text.contains("webex.com")
     }
 }

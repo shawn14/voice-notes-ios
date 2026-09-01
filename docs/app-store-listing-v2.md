@@ -22,7 +22,7 @@ BUILT FOR THE APPLE SYSTEM
 
 - Record from the Action Button, Control Center, Lock Screen, Siri, or the app
 - Sync notes through your Apple account with private iCloud and CloudKit
-- Use Apple Calendar context so meeting notes can get the event title and attendees
+- Use Calendar context from iPhone Calendar, or connect Google Calendar directly
 - Send action items to Apple Reminders when you say "remind me"
 - Use widgets and shortcuts so capture is always close
 - Start free; no extra hardware, Bluetooth pairing, or third-party recorder account required

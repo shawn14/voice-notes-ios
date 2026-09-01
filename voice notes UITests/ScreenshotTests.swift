@@ -5,10 +5,10 @@
 //  App Store screenshot automation (fastlane snap). Five shots that tell the
 //  same story as eeon.com — your personal AI assistant:
 //    01 Home          private memory from the phone in your pocket
-//    02 Ask EEON      chat with notes, tasks, people, and projects
-//    03 Note detail   "Standup with Lena" — calendar row, decision, format chips
-//    04 Tasks         every to-do you said out loud, inline
-//    05 Connections   iCloud, Reminders, and AI connector status
+//    02 Calendar      meetings from iCloud, Google, and Outlook on the phone
+//    03 Ask EEON      chat with notes, tasks, people, and projects
+//    04 Note detail   "Standup with Lena" — calendar row, decision, format chips
+//    05 Tasks         every to-do you said out loud, inline
 //
 //  Backed by ScreenshotSeed (DEBUG-only, -SeedScreenshotData): the hero note
 //  with calendar context, its action item, and today's brief — no API calls.
@@ -44,9 +44,15 @@ final class ScreenshotTests: XCTestCase {
         sleep(2)
         shot("01_Home")
 
+        if tapSegment("Calendar") {
+            sleep(2)
+            shot("02_Calendar")
+            _ = tapSegment("Library")
+        }
+
         if tapAskEEON() {
             sleep(2)
-            shot("02_AskEEON")
+            shot("03_AskEEON")
             backFromPushedPage()
         }
 
@@ -56,19 +62,14 @@ final class ScreenshotTests: XCTestCase {
         if row.waitForExistence(timeout: 4) {
             row.tap()
             sleep(2)
-            shot("03_NoteDetail")
+            shot("04_NoteDetail")
             backFromPushedPage()
         }
 
         if tapSegment("Tasks") {
             sleep(2)
-            shot("04_Tasks")
+            shot("05_Tasks")
             _ = tapSegment("Library")
-        }
-
-        if tapSettings(), tapSettingsRow("Connections") {
-            sleep(2)
-            shot("05_Connections")
         }
     }
 
@@ -119,26 +120,8 @@ final class ScreenshotTests: XCTestCase {
     private func tapSegment(_ title: String) -> Bool {
         let segment = app.buttons[title]
         guard segment.waitForExistence(timeout: 3) else { return false }
+        if segment.isSelected { return true }
         segment.tap()
-        return true
-    }
-
-    private func tapSettings() -> Bool {
-        let settings = app.buttons["Settings"]
-        guard settings.waitForExistence(timeout: 3) else { return false }
-        settings.tap()
-        return true
-    }
-
-    private func tapSettingsRow(_ title: String) -> Bool {
-        let row = app.buttons[title]
-        if row.waitForExistence(timeout: 4) {
-            row.tap()
-            return true
-        }
-        let text = app.staticTexts[title]
-        guard text.waitForExistence(timeout: 2) else { return false }
-        text.tap()
         return true
     }
 

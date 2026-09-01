@@ -42,6 +42,27 @@ const NOTE_FIELDS = [
 
 const NOTE_PROBE_FIELDS = ['CD_id', 'CD_title', 'CD_createdAt', 'CD_updatedAt']
 
+const ARTICLE_FIELDS = [
+  'CD_id',
+  'CD_name',
+  'CD_articleTypeRaw',
+  'CD_createdAt',
+  'CD_updatedAt',
+  'CD_lastCompiledAt',
+  'CD_mentionCount',
+  'CD_lastMentionedAt',
+  'CD_summary',
+  'CD_openThreadsJSON',
+  'CD_timelineJSON',
+  'CD_connectionsJSON',
+  'CD_sentimentArc',
+  'CD_decisionsJSON',
+  'CD_relationshipContext',
+  'CD_thinkingEvolution',
+  'CD_linkedNoteIdsJSON',
+  'CD_aliasesJSON'
+]
+
 export type CloudKitEnvironment = 'development' | 'production'
 export type CloudKitDatabase = 'private' | 'public' | 'shared'
 
@@ -157,9 +178,17 @@ export async function loadCloudKitSnapshot(config: CloudKitConfig = cloudKitConf
   }
 
   try {
-    const records = await fetchAllNotes(config)
-    const notes = records.map(recordToMemoryDoc).filter((doc): doc is MemoryDoc => doc !== null)
-    const lastChange = notes
+    const noteRecords = await fetchAllNotes(config)
+    const notes = noteRecords.map(recordToMemoryDoc).filter((doc): doc is MemoryDoc => doc !== null)
+    let articles: MemoryDoc[] = []
+    try {
+      const articleRecords = await fetchAllArticles(config)
+      articles = articleRecords.map(recordToArticleDoc).filter((doc): doc is MemoryDoc => doc !== null)
+    } catch {
+      // Article reads are additive. A schema/token issue here should not hide notes.
+    }
+    const docs = [...notes, ...articles]
+    const lastChange = docs
       .map((doc) => doc.updated ?? doc.date)
       .filter((date): date is string => Boolean(date))
       .sort()
@@ -168,9 +197,9 @@ export async function loadCloudKitSnapshot(config: CloudKitConfig = cloudKitConf
     return {
       vault: source,
       source: 'cloudkit',
-      docs: notes,
+      docs,
       notes,
-      articles: [],
+      articles,
       legacyNotes: 0,
       icloudPlaceholders: 0,
       lastChange
@@ -269,10 +298,24 @@ function readTokenFile(tokenFile: string): StoredToken {
 }
 
 async function fetchAllNotes(config: CloudKitConfig): Promise<CloudKitRecord[]> {
+  return fetchAllRecords(config, 'CD_Note', NOTE_FIELDS, 200, 'CD_createdAt')
+}
+
+async function fetchAllArticles(config: CloudKitConfig): Promise<CloudKitRecord[]> {
+  return fetchAllRecords(config, 'CD_KnowledgeArticle', ARTICLE_FIELDS, 200, 'CD_updatedAt')
+}
+
+async function fetchAllRecords(
+  config: CloudKitConfig,
+  recordType: string,
+  fields: string[],
+  limit: number,
+  sortField: string
+): Promise<CloudKitRecord[]> {
   const records: CloudKitRecord[] = []
   let continuationToken: string | undefined
   do {
-    const page = await fetchNotePage(config, NOTE_FIELDS, 200, continuationToken)
+    const page = await fetchRecordPage(config, recordType, fields, limit, sortField, continuationToken)
     records.push(...page.records)
     continuationToken = page.continuationToken
   } while (continuationToken)
@@ -285,22 +328,35 @@ async function fetchNotePage(
   limit: number,
   continuationToken?: string
 ): Promise<CloudKitRecordPage> {
-  return config.apiToken
-    ? fetchNotePageWithWeb(config, requestedFields, limit, continuationToken)
-    : fetchNotePageWithCktool(config, requestedFields, limit, continuationToken)
+  return fetchRecordPage(config, 'CD_Note', requestedFields, limit, 'CD_createdAt', continuationToken)
 }
 
-async function fetchNotePageWithWeb(
+async function fetchRecordPage(
   config: CloudKitConfig,
+  recordType: string,
   requestedFields: string[],
   limit: number,
+  sortField: string,
+  continuationToken?: string
+): Promise<CloudKitRecordPage> {
+  return config.apiToken
+    ? fetchRecordPageWithWeb(config, recordType, requestedFields, limit, sortField, continuationToken)
+    : fetchRecordPageWithCktool(config, recordType, requestedFields, limit, continuationToken)
+}
+
+async function fetchRecordPageWithWeb(
+  config: CloudKitConfig,
+  recordType: string,
+  requestedFields: string[],
+  limit: number,
+  sortField: string,
   continuationToken?: string
 ): Promise<CloudKitRecordPage> {
   const body: Record<string, unknown> = {
     zoneID: { zoneName: config.zoneName },
     query: {
-      recordType: 'CD_Note',
-      sortBy: [{ fieldName: 'CD_createdAt', ascending: false }]
+      recordType,
+      sortBy: [{ fieldName: sortField, ascending: false }]
     },
     desiredKeys: requestedFields,
     resultsLimit: limit,
@@ -314,8 +370,9 @@ async function fetchNotePageWithWeb(
   }
 }
 
-async function fetchNotePageWithCktool(
+async function fetchRecordPageWithCktool(
   config: CloudKitConfig,
+  recordType: string,
   requestedFields: string[],
   limit: number,
   continuationToken?: string
@@ -333,7 +390,7 @@ async function fetchNotePageWithCktool(
     '--zone-name',
     config.zoneName,
     '--record-type',
-    'CD_Note',
+    recordType,
     '--filters',
     'CD_id != __eeon_mcp_never__',
     '--limit',
@@ -435,6 +492,7 @@ function cloudKitURL(config: CloudKitConfig, endpoint: string, includeWebAuthTok
 
 function recordToMemoryDoc(record: CloudKitRecord): MemoryDoc | null {
   if (record.deleted) return null
+  if (record.recordType && record.recordType !== 'CD_Note') return null
   if (truthyInt(field(record, 'CD_isArchived'))) return null
 
   const id = stringField(record, 'CD_id') ?? record.recordName
@@ -489,6 +547,64 @@ function recordToMemoryDoc(record: CloudKitRecord): MemoryDoc | null {
   }
 }
 
+function recordToArticleDoc(record: CloudKitRecord): MemoryDoc | null {
+  if (record.deleted) return null
+  if (record.recordType && record.recordType !== 'CD_KnowledgeArticle') return null
+
+  const id = stringField(record, 'CD_id') ?? record.recordName
+  const name = stringField(record, 'CD_name')
+  if (!id || !name) return null
+
+  const articleType = stringField(record, 'CD_articleTypeRaw') ?? 'topic'
+  const created = dateField(record, 'CD_createdAt') ?? timestampField(record.created?.timestamp)
+  const updated = dateField(record, 'CD_lastCompiledAt')
+    ?? dateField(record, 'CD_updatedAt')
+    ?? timestampField(record.modified?.timestamp)
+  const aliases = jsonStringArray(stringField(record, 'CD_aliasesJSON'))
+  const linkedNotes = jsonStringArray(stringField(record, 'CD_linkedNoteIdsJSON'))
+  const openThreads = openThreadItems(record)
+  const timeline = timelineItems(record)
+  const connections = connectionItems(record)
+  const decisions = articleDecisionItems(record)
+  const body = articleBody(record, openThreads, timeline, connections, decisions)
+  const frontmatter: Record<string, FrontmatterValue> = {
+    eeon: 1,
+    id,
+    kind: 'article',
+    article_type: articleType,
+    name,
+    mentions: numberField(record, 'CD_mentionCount') ?? 0
+  }
+  if (updated) frontmatter.updated = updated
+  const lastMentioned = dateField(record, 'CD_lastMentionedAt')
+  if (lastMentioned) frontmatter.last_mentioned = lastMentioned
+  if (aliases.length) frontmatter.aliases = aliases
+  if (linkedNotes.length) frontmatter.linked_notes = linkedNotes
+  if (openThreads.length) frontmatter.open_threads = openThreads
+  if (timeline.length) frontmatter.timeline = timeline
+  if (connections.length) frontmatter.connections = connections
+  if (decisions.length) frontmatter.decisions = decisions
+
+  return {
+    id,
+    kind: 'article',
+    title: name,
+    name,
+    file: `cloudkit/articles/${articleType}-${slug(name)}-${id.slice(0, 4).toLowerCase()}.md`,
+    date: created,
+    updated,
+    articleType,
+    project: articleType === 'project' ? name : undefined,
+    people: articleType === 'person' ? [name] : [],
+    topics: articleType === 'topic' || articleType === 'reference' ? [name] : [],
+    aliases,
+    body,
+    frontmatter,
+    legacy: false,
+    contents: markdownFromArticleDoc(frontmatter, name, body)
+  }
+}
+
 function noteBody(record: CloudKitRecord): string {
   const enhanced = stringField(record, 'CD_enhancedNoteText')
   if (enhanced) return enhanced
@@ -508,6 +624,16 @@ function markdownFromDoc(
   if (transcript && transcript !== body) {
     lines.push('', '---', '', '**Original transcript**', '', transcript)
   }
+  return `${lines.join('\n')}\n`
+}
+
+function markdownFromArticleDoc(
+  frontmatter: Record<string, FrontmatterValue>,
+  name: string,
+  body: string
+): string {
+  const lines = ['---', ...Object.entries(frontmatter).map(([key, value]) => yamlLine(key, value)), '---', '', `# ${name}`]
+  if (body) lines.push('', body)
   return `${lines.join('\n')}\n`
 }
 
@@ -535,6 +661,16 @@ function quoteYaml(value: string): string {
 
 function field(record: CloudKitRecord, name: string): unknown {
   return record.fields?.[name]?.value
+}
+
+function numberField(record: CloudKitRecord, name: string): number | undefined {
+  const value = field(record, name)
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
 }
 
 function stringField(record: CloudKitRecord, name: string): string | undefined {
@@ -568,6 +704,111 @@ function jsonStringArray(value: string | undefined): string[] {
   } catch {
     return []
   }
+}
+
+function jsonObjectArray(value: string | undefined): Array<Record<string, unknown>> {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+      : []
+  } catch {
+    return []
+  }
+}
+
+function openThreadItems(record: CloudKitRecord): Record<string, string>[] {
+  return jsonObjectArray(stringField(record, 'CD_openThreadsJSON')).flatMap((item) => {
+    const thread = stringValue(item.thread)
+    if (!thread) return []
+    return [{
+      thread,
+      status: stringValue(item.status) ?? 'open',
+      days_open: stringValue(item.daysOpen) ?? stringValue(item.days_open) ?? ''
+    }].map(compactRecord)
+  })
+}
+
+function timelineItems(record: CloudKitRecord): Record<string, string>[] {
+  return jsonObjectArray(stringField(record, 'CD_timelineJSON')).flatMap((item) => {
+    const event = stringValue(item.event)
+    if (!event) return []
+    return [compactRecord({
+      date: stringValue(item.date) ?? '',
+      event
+    })]
+  })
+}
+
+function connectionItems(record: CloudKitRecord): Record<string, string>[] {
+  return jsonObjectArray(stringField(record, 'CD_connectionsJSON')).flatMap((item) => {
+    const article = stringValue(item.articleName) ?? stringValue(item.article)
+    if (!article) return []
+    return [compactRecord({
+      article,
+      reason: stringValue(item.reason) ?? ''
+    })]
+  })
+}
+
+function articleDecisionItems(record: CloudKitRecord): Record<string, string>[] {
+  return jsonObjectArray(stringField(record, 'CD_decisionsJSON')).flatMap((item) => {
+    const decision = stringValue(item.decision)
+    if (!decision) return []
+    return [compactRecord({
+      decision,
+      status: stringValue(item.status) ?? '',
+      date: stringValue(item.date) ?? ''
+    })]
+  })
+}
+
+function articleBody(
+  record: CloudKitRecord,
+  openThreads: Record<string, string>[],
+  timeline: Record<string, string>[],
+  connections: Record<string, string>[],
+  decisions: Record<string, string>[]
+): string {
+  const parts: string[] = []
+  const summary = stringField(record, 'CD_summary')
+  if (summary) parts.push(summary)
+  const relationship = stringField(record, 'CD_relationshipContext')
+  if (relationship) parts.push(`## Relationship Context\n\n${relationship}`)
+  const evolution = stringField(record, 'CD_thinkingEvolution')
+  if (evolution) parts.push(`## Thinking Evolution\n\n${evolution}`)
+  const sentiment = stringField(record, 'CD_sentimentArc')
+  if (sentiment) parts.push(`## Sentiment Arc\n\n${sentiment}`)
+  if (openThreads.length) {
+    parts.push(`## Open Threads\n\n${openThreads.map((item) => `- [${item.status ?? 'open'}] ${item.thread}${item.days_open ? ` (${item.days_open}d)` : ''}`).join('\n')}`)
+  }
+  if (timeline.length) {
+    parts.push(`## Timeline\n\n${timeline.map((item) => `- ${item.date ? `${item.date}: ` : ''}${item.event}`).join('\n')}`)
+  }
+  if (connections.length) {
+    parts.push(`## Connections\n\n${connections.map((item) => `- ${item.article}: ${item.reason ?? ''}`.trim()).join('\n')}`)
+  }
+  if (decisions.length) {
+    parts.push(`## Decisions\n\n${decisions.map((item) => `- [${item.status ?? ''}] ${item.decision}${item.date ? ` (${item.date})` : ''}`).join('\n')}`)
+  }
+  return parts.join('\n\n')
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (typeof value === 'boolean') return String(value)
+  return undefined
+}
+
+function compactRecord(record: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== ''))
+}
+
+function slug(value: string): string {
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return normalized || 'article'
 }
 
 function calendarContext(value: string | undefined): { title?: string; attendees?: string[] } | undefined {
