@@ -490,3 +490,27 @@ test('install command rewrites Claude EEON MCP config to CloudKit mode', () => {
   assert.equal(entry.env.EEON_VAULT, undefined)
   assert.equal(written.projects[appRoot].mcpServers.other.command, 'other')
 })
+
+test('CloudKit expired user token maps to actionable re-auth guidance', async () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'eeon-cloudkit-expired-'))
+  const config: CloudKitConfig = {
+    container: 'iCloud.aivoiceeeon',
+    environment: 'production',
+    database: 'private',
+    zoneName: 'com.apple.coredata.cloudkit.zone',
+    teamId: 'BYRK5RUS4U',
+    tokenFile: path.join(temp, 'cloudkit.json'),
+    baseURL: 'https://api.apple-cloudkit.com',
+    fetchImpl: fetch,
+    cktoolRunner: async () => {
+      throw new Error('Session has expired or is invalid. A new user token may be required.')
+    }
+  }
+
+  const snapshot = await loadCloudKitSnapshot(config)
+  assert.ok(snapshot.error, 'expected an error on the snapshot')
+  assert.match(snapshot.error ?? '', /missing or expired/i)
+  assert.match(snapshot.error ?? '', /save-token --type user/i)
+  // The raw cktool dump must NOT be what the user sees.
+  assert.doesNotMatch(snapshot.error ?? '', /cktool CloudKit query failed/i)
+})

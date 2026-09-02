@@ -9,6 +9,7 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import StoreKit
 import AVFoundation
 import PhotosUI
 import CloudKit
@@ -1797,6 +1798,7 @@ struct SettingsView: View {
     @State private var newProjectName = ""
     @State private var showingShareSheet = false
     @State private var showingPaywall = false
+    @State private var showingManageSubscriptions = false
     @State private var showingResetConfirm = false
     @State private var showingSignOutConfirm = false
     @State private var showingDeleteAllDataConfirm = false
@@ -2906,6 +2908,23 @@ struct SettingsView: View {
                 signedOutAccountPrompt
             }
             planSummaryRow
+            if usage.isPro {
+                // The #1 complaint across this category's App Store reviews is
+                // that cancellation is hidden. One tap to Apple's own manage /
+                // cancel screen (2026-09-02).
+                Button {
+                    showingManageSubscriptions = true
+                } label: {
+                    EEONSettingsRow(
+                        icon: "creditcard",
+                        title: "Manage Subscription",
+                        subtitle: "Change plan or cancel anytime"
+                    ) {
+                        EEONChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+            }
         } header: {
             Text("Account")
         }
@@ -2984,6 +3003,7 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .listSectionSpacing(.compact)
+            .manageSubscriptionsSheet(isPresented: $showingManageSubscriptions)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .task {

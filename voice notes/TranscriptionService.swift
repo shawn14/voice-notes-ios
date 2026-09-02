@@ -110,6 +110,7 @@ actor TranscriptionService {
         case invalidAudioFile
         case apiError(String)
         case networkError(Error)
+        case noSpeechDetected
 
         var errorDescription: String? {
             switch self {
@@ -121,6 +122,8 @@ actor TranscriptionService {
                 return "API Error: \(message)"
             case .networkError(let error):
                 return "Network Error: \(error.localizedDescription)"
+            case .noSpeechDetected:
+                return "No speech detected in the recording."
             }
         }
     }
@@ -135,8 +138,38 @@ actor TranscriptionService {
         self.prompt = prompt
     }
 
+    /// Strip Whisper's silence hallucinations from a verbose_json result.
+    /// A hallucinated segment ("Welcome everyone to the video", "Thank you for
+    /// watching") is confident there is no speech (high no_speech_prob) yet
+    /// emitted low-probability text (low avg_logprob), or is absurdly
+    /// repetitive (high compression_ratio). Real speech clears all three.
+    nonisolated static func cleanedTranscript(from result: TranscriptionResponse) -> String {
+        guard let segments = result.segments, !segments.isEmpty else {
+            return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let kept = segments.filter { seg in
+            let noSpeech = seg.noSpeechProb ?? 0
+            let logprob = seg.avgLogprob ?? 0
+            let compression = seg.compressionRatio ?? 0
+            let silentHallucination = noSpeech > 0.6 && logprob < -1.0
+            let repetitionHallucination = compression > 2.4 && logprob < -0.5
+            return !(silentHallucination || repetitionHallucination)
+        }
+        return kept.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     func transcribe(audioURL: URL) async throws -> String {
         let url = URL(string: "https://api.openai.com/v1/audio/transcriptions")!
+
+        // Skip clips too short to contain speech — a fraction-of-a-second
+        // tap is prime Whisper hallucination fuel ("Welcome everyone to the
+        // video" and friends only appear on near-empty audio).
+        if let dur = try? await AVURLAsset(url: audioURL).load(.duration) {
+            let seconds = CMTimeGetSeconds(dur)
+            if seconds.isFinite, seconds < 0.8 {
+                throw TranscriptionError.noSpeechDetected
+            }
+        }
 
         // Check file size - Whisper has 25MB limit
         let fileSizeMB = try fileSizeMB(for: audioURL)
@@ -180,6 +213,12 @@ actor TranscriptionService {
         body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
         body.append("whisper-1\r\n".data(using: .utf8)!)
 
+        // Ask for segments + per-segment confidence so we can drop silence
+        // hallucinations instead of returning them as if they were speech.
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
+        body.append("verbose_json\r\n".data(using: .utf8)!)
+
         // Add language field (if not auto-detect)
         if language != .auto {
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -210,7 +249,11 @@ actor TranscriptionService {
         }
 
         let result = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
-        return result.text
+        let cleaned = Self.cleanedTranscript(from: result)
+        if cleaned.isEmpty {
+            throw TranscriptionError.noSpeechDetected
+        }
+        return cleaned
     }
 
     private func fileSizeMB(for url: URL) throws -> Double {
@@ -320,7 +363,11 @@ actor TranscriptionService {
             return results.sorted { $0.0 < $1.0 }.map { $0.1 }
         }
 
-        return transcripts.joined(separator: " ")
+        let joined = transcripts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        if joined.isEmpty {
+            throw TranscriptionError.noSpeechDetected
+        }
+        return joined
     }
 
     private func exportAudioChunk(from sourceURL: URL, startTime: Double, endTime: Double, chunkIndex: Int) async throws -> URL {
@@ -368,6 +415,12 @@ actor TranscriptionService {
         body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
         body.append("whisper-1\r\n".data(using: .utf8)!)
 
+        // Ask for segments + per-segment confidence so we can drop silence
+        // hallucinations instead of returning them as if they were speech.
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
+        body.append("verbose_json\r\n".data(using: .utf8)!)
+
         // Add language field (if not auto-detect)
         if language != .auto {
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -394,10 +447,26 @@ actor TranscriptionService {
         }
 
         let result = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
-        return result.text
+        return Self.cleanedTranscript(from: result)
     }
 }
 
 nonisolated struct TranscriptionResponse: Codable, Sendable {
     let text: String
+    let duration: Double?
+    let segments: [Segment]?
+
+    nonisolated struct Segment: Codable, Sendable {
+        let text: String
+        let noSpeechProb: Double?
+        let avgLogprob: Double?
+        let compressionRatio: Double?
+
+        enum CodingKeys: String, CodingKey {
+            case text
+            case noSpeechProb = "no_speech_prob"
+            case avgLogprob = "avg_logprob"
+            case compressionRatio = "compression_ratio"
+        }
+    }
 }

@@ -414,18 +414,22 @@ async function fetchRecordPageWithCktool(
 }
 
 async function runCktool(config: CloudKitConfig, args: string[]): Promise<string> {
-  if (config.cktoolRunner) return config.cktoolRunner(args)
   try {
+    if (config.cktoolRunner) return await config.cktoolRunner(args)
     const result = await execFile('xcrun', ['cktool', ...args], { maxBuffer: 32 * 1024 * 1024 })
     return result.stdout
   } catch (error) {
     const message = commandErrorMessage(error)
-    if (message.includes('No user token found')) {
+    // Both "no token" and "token expired / invalid / session expired" mean the
+    // same thing to a user: private reads are locked until they re-authorize.
+    // The expired-session case used to fall through to a raw cktool dump, so
+    // the common failure had no guidance (2026-09-01).
+    if (/No user token found|Session has expired|token .*expired|expired|invalid|A new user token may be required|Could not read token from keychain/i.test(message)) {
       throw new Error(
         [
-          'CloudKit user-token access is not set up for cktool.',
-          'Save a user token with `xcrun cktool save-token --type user`, or set CLOUDKIT_USER_TOKEN.',
-          'The existing management token can manage CloudKit schema but cannot read your private notes.'
+          'CloudKit private-note access is not available: the user token is missing or expired.',
+          'Re-authorize this Apple ID for cktool: run `xcrun cktool save-token --type user` (or set CLOUDKIT_USER_TOKEN / EEON_CLOUDKIT_WEB_AUTH_TOKEN), then retry.',
+          'The management token can manage CloudKit schema but cannot read private notes.'
         ].join(' ')
       )
     }

@@ -1053,7 +1053,7 @@ struct AIHomeView: View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(.orange)
-            Text("\(remaining) free note\(remaining == 1 ? "" : "s") left")
+            Text("\(remaining) of \(UsageService.freeNoteLimit) free notes left")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.orange)
             Spacer()
@@ -2262,6 +2262,18 @@ struct AIHomeView: View {
                         }
                     }
                 }
+            } catch TranscriptionService.TranscriptionError.noSpeechDetected {
+                // Silent / near-silent audio. Never fabricate a note from it
+                // (that is where "Welcome everyone to the video" came from).
+                await MainActor.run {
+                    if let fileName = currentAudioFileName {
+                        audioRecorder.deleteRecording(fileName: fileName)
+                    }
+                    currentAudioFileName = nil
+                    isTranscribing = false
+                    errorMessage = "No speech detected. Nothing was saved — try recording again."
+                    showingError = true
+                }
             } catch {
                 await MainActor.run {
                     _ = saveNote(transcript: nil, pending: true, isImport: isImport)
@@ -2269,6 +2281,7 @@ struct AIHomeView: View {
             }
         }
     }
+
 
     private func importAudioFile(from sourceURL: URL) {
         guard sourceURL.startAccessingSecurityScopedResource() else {

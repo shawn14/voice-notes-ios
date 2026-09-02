@@ -278,6 +278,15 @@ final class BackgroundCaptureService {
                 intent: note.intentType
             )
             WidgetCenter.shared.reloadAllTimelines()
+        } catch TranscriptionService.TranscriptionError.noSpeechDetected {
+            // Genuinely silent capture — do not loop it through the foreground
+            // drain forever. Mark it done with no text rather than inventing any.
+            note.transcript = ""
+            note.content = ""
+            note.transcriptionStatus = "completed"
+            note.updatedAt = Date()
+            try? context.save()
+            print("🎙️ Background capture had no speech; saved empty.")
         } catch {
             // Release the claim so the note goes back with its audio to the
             // foreground drain, which retries it. Nothing is lost.
