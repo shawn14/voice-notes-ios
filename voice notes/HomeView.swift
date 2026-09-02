@@ -2047,13 +2047,16 @@ struct SettingsView: View {
 
     private var aiConnectorSubtitle: String {
         if iCloudStatus == .available {
-            return "Authorize from each AI workspace"
+            return "Add it in your AI tool on your computer — not a switch here"
         }
         return "Turn on iCloud to make notes available"
     }
 
     private var aiConnectorStatusBadge: String {
-        iCloudStatus == .available ? "Available" : "Needs iCloud"
+        // "Available" read as "it's on" (Shawn, 2026-09-02). Nothing is
+        // connected until the user adds the connector in their AI tool, and
+        // the app can't detect that — so the honest state is "ready to connect".
+        iCloudStatus == .available ? "Ready to connect" : "Needs iCloud"
     }
 
     /// Auto-format every new note in the style the user's profession preset
@@ -2898,6 +2901,9 @@ struct SettingsView: View {
 
     private var accountSettingsSection: some View {
         Section {
+            // Plan first — the status a user checks most, prominent like Stock
+            // Alarm's membership card, not a buried row (Shawn, 2026-09-02).
+            planSummaryRow
             if authService.isSignedIn {
                 NavigationLink {
                     accountDetail
@@ -2907,7 +2913,6 @@ struct SettingsView: View {
             } else {
                 signedOutAccountPrompt
             }
-            planSummaryRow
             if usage.isPro {
                 // The #1 complaint across this category's App Store reviews is
                 // that cancellation is hidden. One tap to Apple's own manage /
@@ -2930,14 +2935,25 @@ struct SettingsView: View {
         }
     }
 
-    private var coreSettingsSection: some View {
+    private var assistantSettingsSection: some View {
         Section {
-            captureSettingsRow
-            askSettingsRow
+            // Ask answer-style used to be a whole sub-screen for one picker.
+            // Inline it (Shawn, 2026-09-02: "everything's in a sub-menu").
+            Picker(selection: $askModelPreferenceRaw) {
+                ForEach(AskModelPreference.allCases) { preference in
+                    Text(preference.title).tag(preference.rawValue)
+                }
+            } label: {
+                Label("Answer style", systemImage: "sparkle.magnifyingglass")
+            }
+            .pickerStyle(.menu)
+
+            autoSummarizeRow
             personalizationSettingsRow
+            captureSettingsRow
             peopleSpeakersSettingsRow
         } header: {
-            Text("Core")
+            Text("Assistant")
         }
     }
 
@@ -2951,18 +2967,18 @@ struct SettingsView: View {
             googleCalendarRow
             remindersSyncRow
             NavigationLink {
-                connectionsDetail
+                AIAccessSetupView()
             } label: {
                 EEONSettingsRow(
                     icon: "sparkle.magnifyingglass",
-                    title: "AI access & iCloud",
-                    subtitle: iCloudStatus == .available ? "iCloud on · AI ready" : "Needs iCloud"
+                    title: "Set up AI access",
+                    subtitle: AIAccessService.shared.isConnected ? "Connected · manage" : "Connect Claude, Cursor, or ChatGPT"
                 )
             }
         } header: {
             Text("Connections")
         } footer: {
-            Text("Calendar and Reminders are read-only meeting context. AI access needs CloudKit authorization.")
+            Text("Calendar and Reminders are read-only meeting context. AI access is set up inside each AI tool on your computer — it is not a switch here.")
         }
     }
 
@@ -2983,6 +2999,10 @@ struct SettingsView: View {
             #endif
         } header: {
             Text("Help")
+        } footer: {
+            Text(Self.buildDescription)
+                .font(EEONType.meta)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
@@ -2993,7 +3013,7 @@ struct SettingsView: View {
             // tap deeper so the root stays scannable.
             List {
                 accountSettingsSection
-                coreSettingsSection
+                assistantSettingsSection
                 connectionsSettingsSection
                 NotificationSettingsSection()
                 dataSettingsSection
