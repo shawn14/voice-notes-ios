@@ -2248,6 +2248,48 @@ struct SettingsView: View {
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextPrimary)
                 }
+
+                // The store can silently fall back to local-only when CloudKit
+                // init fails, and the iCloud row above only reflects ACCOUNT
+                // status — so it stays green while nothing syncs. Surfaced in
+                // every build (2026-09-03) after production stopped receiving
+                // notes on 06-16 with no visible symptom.
+                HStack {
+                    Text("Store")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                    Spacer()
+                    Text(diagInitOutcome)
+                        .font(EEONType.meta)
+                        .foregroundStyle(diagInitOutcome == "cloudKit" ? .eeonTextPrimary : .orange)
+                }
+
+                if let error = diagInitError, !error.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Store error")
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                        Text(error)
+                            .font(EEONType.meta)
+                            .foregroundStyle(.orange)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                let events = CloudKitEventLog.recent().suffix(4)
+                if !events.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Recent CloudKit events")
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                        ForEach(Array(events)) { event in
+                            Text("\(event.type) · \(event.succeeded ? "ok" : "FAILED")\(event.errorDescription.map { " · \($0)" } ?? "")")
+                                .font(EEONType.meta)
+                                .foregroundStyle(event.succeeded ? .eeonTextSecondary : .orange)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
             }
             .padding(.vertical, 4)
         } header: {
