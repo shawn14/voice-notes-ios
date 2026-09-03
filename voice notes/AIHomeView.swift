@@ -65,6 +65,8 @@ struct AIHomeView: View {
     @State private var showingWhyThisHome = false
     @State private var showPaywall = false
     @State private var driftStatus: DriftStatus = .fresh
+    /// Set when iCloud uploads are persistently failing — drives syncFailureBanner.
+    @State private var syncFailure: (since: Date, message: String)?
     @AppStorage("tuneBannerDismissedAt") private var tuneBannerDismissedRaw: Double = 0
     @AppStorage("homeOnboardingChecklistDismissedAt") private var onboardingChecklistDismissedRaw: Double = 0
     @AppStorage(EventKitSyncService.enabledKey) private var remindersSyncEnabled = false
@@ -374,6 +376,38 @@ struct AIHomeView: View {
         }
     }
 
+    /// Warns that notes are not reaching iCloud. Silent unless
+    /// `CloudKitEventLog.exportFailure()` sees two consecutive genuine
+    /// failures, so it cannot become background noise the user learns to
+    /// ignore. States the consequence ("only on this iPhone") rather than the
+    /// mechanism, because the consequence is what the user needs to act on.
+    @ViewBuilder
+    private var syncFailureBanner: some View {
+        if let failure = syncFailure {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.icloud.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Notes aren't reaching iCloud")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.eeonTextPrimary)
+                    Text("New notes since \(failure.since.formatted(date: .abbreviated, time: .shortened)) are only on this iPhone. Open Settings › iCloud & Sync.")
+                        .font(.caption)
+                        .foregroundStyle(.eeonTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.orange.opacity(0.12))
+            )
+            .accessibilityElement(children: .combine)
+        }
+    }
+
     // MARK: - Adaptive bodies
 
     /// iPad / Mac Catalyst layout: sidebar-first split view.
@@ -406,6 +440,17 @@ struct AIHomeView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             // 1. Greeting bar
                             greetingBar
+                                .padding(.horizontal)
+
+                            // Sync is broken and the user would otherwise never
+                            // know. Home deliberately isn't a nag surface (the
+                            // drift banner was removed for exactly that reason),
+                            // but this is different in kind: it means notes are
+                            // NOT backed up and would be lost with the phone.
+                            // CloudKitEventLog.exportFailure() only fires after
+                            // two consecutive real failures, so it stays quiet
+                            // for transient hiccups.
+                            syncFailureBanner
                                 .padding(.horizontal)
 
                             // Lens switcher removed 2026-08-21. Notes /
@@ -664,6 +709,9 @@ struct AIHomeView: View {
             }
             .onAppear {
                 trackSession()
+                // Cheap UserDefaults read; no network. Refreshed on every
+                // appearance so the banner clears as soon as an export succeeds.
+                syncFailure = CloudKitEventLog.exportFailure()
                 // Sync free note counter with actual database count
                 let actualCount = visibleLibraryNotes.count
                 UsageService.shared.syncNoteCount(actualCount: actualCount)

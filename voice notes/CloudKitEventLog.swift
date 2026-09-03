@@ -77,6 +77,31 @@ enum CloudKitEventLog {
         UserDefaults.standard.removeObject(forKey: key)
     }
 
+    /// Whether uploads to iCloud are persistently failing, and since when.
+    ///
+    /// EEON shipped for two and a half months with every export rejected by
+    /// CloudKit and told the user nothing: no alert, no badge, no crash. Notes
+    /// lived only on the device that recorded them, one lost phone away from
+    /// being gone for good, while Settings said "Synced". The schema gap that
+    /// caused it is now blocked before a build can ship, but that only covers
+    /// the cause we already know about. Sync can still stop in the field —
+    /// account trouble, full iCloud storage, a field some future build adds —
+    /// so the app needs to notice on its own and say so.
+    ///
+    /// Deliberately conservative, because a sync warning that cries wolf gets
+    /// ignored exactly when it is finally right: it requires the two most
+    /// recent exports to have BOTH genuinely failed (carrying a real CloudKit
+    /// error), and any success in between clears it. A single transient
+    /// failure — offline, backgrounded mid-export — never triggers it.
+    static func exportFailure() -> (since: Date, message: String)? {
+        let exports = recent().filter { $0.type == "export" }
+        guard exports.count >= 2 else { return nil }
+        let latest = exports.suffix(2)
+        guard latest.allSatisfy({ !$0.succeeded && $0.errorDescription != nil }),
+              let first = latest.first, let last = latest.last else { return nil }
+        return (since: first.date, message: last.errorDescription ?? "iCloud rejected the upload")
+    }
+
     private static func formatError(_ error: Error?) -> String? {
         guard let error else { return nil }
         let nsError = error as NSError
