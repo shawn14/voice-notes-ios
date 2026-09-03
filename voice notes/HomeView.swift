@@ -2241,6 +2241,31 @@ struct SettingsView: View {
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextPrimary)
                 }
+                // The count that actually answers "is my sync working". It was
+                // being computed by loadDiagnostics() and then never rendered,
+                // so the only visible number was the device count — which looks
+                // healthy no matter how broken the export queue is.
+                HStack {
+                    Text("Notes in iCloud")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                    Spacer()
+                    Text(diagCKNoteCount)
+                        .font(EEONType.meta)
+                        .foregroundStyle(iCloudCountIsBehind ? .orange : .eeonTextPrimary)
+                }
+                if iCloudCountIsBehind {
+                    Text("iCloud is behind this device. Tap Sync Now; if it stays behind, the export is failing.")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let ckError = diagCKNoteError, !ckError.isEmpty {
+                    Text(ckError)
+                        .font(EEONType.meta)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 HStack {
                     Text("Build")
                         .font(EEONType.meta)
@@ -2432,6 +2457,14 @@ struct SettingsView: View {
             diagEvents = events
             diagIsLoading = false
         }
+    }
+
+    /// True when CloudKit holds fewer notes than this device — i.e. the export
+    /// queue is behind. Only meaningful once loadDiagnostics() has produced a
+    /// real number; "—" and "error" are not comparisons.
+    private var iCloudCountIsBehind: Bool {
+        guard let remote = Int(diagCKNoteCount) else { return false }
+        return remote < notes.count
     }
 
     /// Sync Now's label colour: grey while working, orange when the result is

@@ -23,6 +23,21 @@ enum CloudKitEventLog {
             guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
                 as? NSPersistentCloudKitContainer.Event else { return }
 
+            // Record COMPLETED events only.
+            //
+            // This notification fires twice per event: once when it starts and
+            // once when it finishes. A started event has no endDate and reports
+            // `succeeded == false` with a nil error — so logging it rendered a
+            // perfectly healthy sync as "export · FAILED" with no explanation,
+            // immediately followed by "export · ok". Shawn hit Sync Now on
+            // 2026-09-03 and reasonably read that as the sync still being
+            // broken, hours after it had actually been fixed.
+            //
+            // Dropping in-flight events makes `succeeded` mean what the
+            // Diagnostics row claims it means, so FAILED is only ever a real
+            // failure worth acting on.
+            guard let endDate = event.endDate else { return }
+
             let typeString: String
             switch event.type {
             case .setup:  typeString = "setup"
@@ -33,7 +48,7 @@ enum CloudKitEventLog {
 
             let entry = CloudKitEventLogEntry(
                 id: UUID(),
-                date: event.endDate ?? event.startDate,
+                date: endDate,
                 type: typeString,
                 succeeded: event.succeeded,
                 errorDescription: formatError(event.error)
