@@ -62,7 +62,15 @@ enum CloudKitEventLog {
               let decoded = try? JSONDecoder().decode([CloudKitEventLogEntry].self, from: data) else {
             return []
         }
-        return decoded
+        // Drop legacy start-of-event rows written before we filtered them out.
+        // Those carry succeeded == false with NO error, and rendered as
+        // "export · FAILED" next to the completion they belong to — the exact
+        // display that made a working sync look broken. A genuine failure
+        // always carries an error (formatError only returns nil for a nil
+        // error), so this cannot hide a real problem. Without it the stale
+        // rows would linger in UserDefaults until ten new events pushed them
+        // out, and an upgrading user would keep seeing the old lie.
+        return decoded.filter { $0.succeeded || $0.errorDescription != nil }
     }
 
     static func clear() {
