@@ -2200,8 +2200,10 @@ struct SettingsView: View {
                     EEONSettingsIcon(systemName: "arrow.triangle.2.circlepath")
                     Text(isSyncing ? "Syncing…" : (syncFeedback ?? "Sync Now"))
                         .font(.body)
-                        .foregroundStyle(isSyncing ? .secondary : Color("EEONAccent"))
-                    Spacer()
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundStyle(syncStatusColor)
+                    Spacer(minLength: 8)
                     if isSyncing {
                         ProgressView()
                     }
@@ -2410,37 +2412,10 @@ struct SettingsView: View {
             zonesError = error.localizedDescription
         }
 
-        // Live count of CD_Note records in CloudKit — walks the zone via
-        // recordZoneChanges instead of CKQuery so the count works regardless
-        // of whether `recordName` has a queryable index in the Production
-        // schema. This is the same primitive NSPersistentCloudKitContainer
-        // uses for sync, so the count reflects what SwiftData would actually
-        // pull on this device.
         var ckNoteCount = "—"
         var ckNoteError: String?
-        let swiftDataZoneID = CKRecordZone.ID(
-            zoneName: "com.apple.coredata.cloudkit.zone",
-            ownerName: CKCurrentUserDefaultName
-        )
         do {
-            var count = 0
-            var token: CKServerChangeToken? = nil
-            var more = true
-            while more {
-                let result = try await container.privateCloudDatabase.recordZoneChanges(
-                    inZoneWith: swiftDataZoneID,
-                    since: token
-                )
-                for (_, modResult) in result.modificationResultsByID {
-                    if case .success(let mod) = modResult,
-                       mod.record.recordType == "CD_Note" {
-                        count += 1
-                    }
-                }
-                token = result.changeToken
-                more = result.moreComing
-            }
-            ckNoteCount = "\(count)"
+            ckNoteCount = "\(try await cloudKitNoteCount())"
         } catch {
             ckNoteCount = "error"
             ckNoteError = error.localizedDescription
@@ -2459,23 +2434,127 @@ struct SettingsView: View {
         }
     }
 
+    /// Sync Now's label colour: grey while working, orange when the result is
+    /// something the user should act on, accent otherwise. A stalled or
+    /// rejected export must never read the same as a healthy one.
+    private var syncStatusColor: Color {
+        if isSyncing { return .secondary }
+        guard let syncFeedback else { return Color("EEONAccent") }
+        let bad = syncFeedback.contains("rejected")
+            || syncFeedback.contains("Couldn't")
+            || syncFeedback.contains("still uploading")
+        return bad ? .orange : Color("EEONAccent")
+    }
+
+    /// Live count of CD_Note records in CloudKit — walks the zone via
+    /// recordZoneChanges instead of CKQuery so the count works regardless of
+    /// whether `recordName` has a queryable index in the Production schema.
+    /// This is the same primitive NSPersistentCloudKitContainer uses for sync,
+    /// so the count reflects what SwiftData would actually pull on this device.
+    private func cloudKitNoteCount() async throws -> Int {
+        let container = CKContainer(identifier: "iCloud.aivoiceeeon")
+        let swiftDataZoneID = CKRecordZone.ID(
+            zoneName: "com.apple.coredata.cloudkit.zone",
+            ownerName: CKCurrentUserDefaultName
+        )
+        var count = 0
+        var token: CKServerChangeToken? = nil
+        var more = true
+        while more {
+            let result = try await container.privateCloudDatabase.recordZoneChanges(
+                inZoneWith: swiftDataZoneID,
+                since: token
+            )
+            for (_, modResult) in result.modificationResultsByID {
+                if case .success(let mod) = modResult,
+                   mod.record.recordType == "CD_Note" {
+                    count += 1
+                }
+            }
+            token = result.changeToken
+            more = result.moreComing
+        }
+        return count
+    }
+
+    /// Sync Now, but honest.
+    ///
+    /// This used to save the context, confirm only that the iCloud *account*
+    /// was reachable, sleep 700ms, and then say "Synced". That is a fail-open
+    /// report: it says the same thing whether the export queue is healthy or
+    /// completely stalled. It said "Synced" every time for the 2.5 months
+    /// (2026-06-16 → 2026-09-03) that Production CloudKit was rejecting every
+    /// export over a missing-field schema gap, which is a large part of why
+    /// nobody noticed 15 notes were stranded on the device.
+    ///
+    /// Now it verifies: save to queue the export, give CloudKit a window to
+    /// actually attempt one, then count the CD_Note records really in the
+    /// zone and compare with what's on device. It only claims success when
+    /// iCloud holds at least as many notes as this device does, and otherwise
+    /// says how far behind iCloud is. A failed export event wins over the
+    /// count, because that is the specific, actionable message.
     private func syncNow() {
         isSyncing = true
         syncFeedback = nil
         Task {
+            let before = CloudKitEventLog.recent().last?.id
+            let localCount = notes.count
+
             try? modelContext.save()
             await refreshiCloudStatus()
-            try? await Task.sleep(nanoseconds: 700_000_000)
-            await MainActor.run {
-                isSyncing = false
-                if iCloudStatus == .available {
-                    lastSyncedAt = Date()
-                    syncFeedback = "Synced"
-                } else {
+
+            guard iCloudStatus == .available else {
+                await MainActor.run {
+                    isSyncing = false
                     syncFeedback = "Couldn't reach iCloud"
                 }
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                await MainActor.run { syncFeedback = nil }
+                return
             }
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
+
+            // Wait for CloudKit to actually run an export, up to ~12s. Polling
+            // the event log is the only signal available: there is no public
+            // API to force an export or await one.
+            var exportFailure: String?
+            for _ in 0..<24 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                let events = CloudKitEventLog.recent()
+                guard let latest = events.last, latest.id != before else { continue }
+                if latest.type == "export" {
+                    if !latest.succeeded {
+                        exportFailure = latest.errorDescription ?? "export failed"
+                    }
+                    break
+                }
+            }
+
+            var remoteCount: Int?
+            var countError: String?
+            do {
+                remoteCount = try await cloudKitNoteCount()
+            } catch {
+                countError = error.localizedDescription
+            }
+
+            await MainActor.run {
+                isSyncing = false
+                if let exportFailure {
+                    // Keep it short for the row; the full text is in Diagnostics.
+                    syncFeedback = "iCloud rejected the upload — see Diagnostics"
+                    print("[SyncNow] export failed: \(exportFailure)")
+                } else if let remoteCount {
+                    if remoteCount >= localCount {
+                        lastSyncedAt = Date()
+                        syncFeedback = "Synced · \(remoteCount) in iCloud"
+                    } else {
+                        syncFeedback = "\(localCount) here, \(remoteCount) in iCloud — still uploading"
+                    }
+                } else {
+                    syncFeedback = "Couldn't verify: \(countError ?? "unknown error")"
+                }
+            }
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
             await MainActor.run { syncFeedback = nil }
         }
     }
