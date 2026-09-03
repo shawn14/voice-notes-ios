@@ -102,7 +102,10 @@ final class AIAccessService: NSObject {
                 }
             }
             session.presentationContextProvider = contextProvider
-            session.prefersEphemeralWebBrowserSession = false
+            // Clean session each time. A shared Safari session can carry stale
+            // Apple sign-in state that makes CloudKit report "session has timed
+            // out"; ephemeral avoids that at the cost of a full sign-in.
+            session.prefersEphemeralWebBrowserSession = true
             authSession = session
             if !session.start() {
                 continuation.resume(throwing: ASWebAuthenticationSessionError(.presentationContextInvalid))
