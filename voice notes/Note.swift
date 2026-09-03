@@ -345,6 +345,15 @@ final class Note {
         }
     }
 
+    var shouldPreserveExplicitCommandIntent: Bool {
+        switch intent {
+        case .order, .orderDone, .reminder:
+            return true
+        case .action, .decision, .idea, .update, .unknown:
+            return false
+        }
+    }
+
     var extractedSubject: ExtractedSubject? {
         get {
             ExtractedSubject.fromJSON(extractedSubjectJSON)

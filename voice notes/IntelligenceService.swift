@@ -88,8 +88,12 @@ final class IntelligenceService {
 
             await MainActor.run {
                 // Apply extraction to note
-                note.intentType = result.intent
-                note.intentConfidence = result.intentConfidence
+                if note.shouldPreserveExplicitCommandIntent {
+                    note.intentConfidence = max(note.intentConfidence, 1.0)
+                } else {
+                    note.intentType = result.intent
+                    note.intentConfidence = result.intentConfidence
+                }
 
                 if isSpokenCapture {
                     if let subject = result.subject {
@@ -361,8 +365,12 @@ final class IntelligenceService {
             let preserved = clearReprocessableItems(for: note.id, context: context)
 
             // 2. Apply scalar extraction fields.
-            note.intentType = result.intent
-            note.intentConfidence = result.intentConfidence
+            if note.shouldPreserveExplicitCommandIntent {
+                note.intentConfidence = max(note.intentConfidence, 1.0)
+            } else {
+                note.intentType = result.intent
+                note.intentConfidence = result.intentConfidence
+            }
             if let subject = result.subject {
                 note.extractedSubject = ExtractedSubject(topic: subject.topic, action: subject.action)
             }

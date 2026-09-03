@@ -2270,7 +2270,11 @@ struct AIHomeView: View {
 
     private func transcribeAndSave(url: URL, isImport: Bool = false) {
         guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
-            saveNote(transcript: nil, isImport: isImport)
+            let forcedIntent: NoteIntent? = capturingOrder ? .order : nil
+            saveNote(transcript: nil, isImport: isImport, forcedIntent: forcedIntent)
+            if forcedIntent == .order {
+                capturingOrder = false
+            }
             return
         }
 
@@ -2320,13 +2324,10 @@ struct AIHomeView: View {
                         isTranscribing = false
                         pendingAnswerQuery = AnswerQuery(query: transcript)
                     case .newNote:
-                        let note = saveNote(transcript: transcript, isImport: isImport)
-                        if isOrder {
-                            note.intentType = NoteIntent.order.rawValue
-                            capturingOrder = false
-                        }
+                        let forcedIntent: NoteIntent? = isOrder ? .order : (reminderCommand != nil ? .reminder : nil)
+                        let note = saveNote(transcript: transcript, isImport: isImport, forcedIntent: forcedIntent)
+                        if isOrder { capturingOrder = false }
                         if let reminderCommand {
-                            note.intentType = NoteIntent.reminder.rawValue
                             // Whatever the user decides in the sheet, the
                             // extraction pass must not push a second copy.
                             EventKitSyncService.shared.markHandledByCommand(note.id)
@@ -2349,9 +2350,13 @@ struct AIHomeView: View {
                 }
             } catch {
                 await MainActor.run {
-                    let note = saveNote(transcript: nil, pending: true, isImport: isImport)
+                    _ = saveNote(
+                        transcript: nil,
+                        pending: true,
+                        isImport: isImport,
+                        forcedIntent: capturingOrder ? .order : nil
+                    )
                     if capturingOrder {
-                        note.intentType = NoteIntent.order.rawValue
                         capturingOrder = false
                     }
                 }
@@ -2393,13 +2398,22 @@ struct AIHomeView: View {
     }
 
     @discardableResult
-    private func saveNote(transcript: String?, pending: Bool = false, isImport: Bool = false) -> Note {
+    private func saveNote(
+        transcript: String?,
+        pending: Bool = false,
+        isImport: Bool = false,
+        forcedIntent: NoteIntent? = nil
+    ) -> Note {
         let note = Note(
             title: "",
             content: transcript ?? "",
             transcript: transcript,
             audioFileName: currentAudioFileName
         )
+        if let forcedIntent {
+            note.intentType = forcedIntent.rawValue
+            note.intentConfidence = 1.0
+        }
         modelContext.insert(note)
         if pending {
             note.transcriptionStatus = "pending"
