@@ -73,6 +73,9 @@ struct AIHomeView: View {
     // Recording state
     @State private var audioRecorder = AudioRecorder()
     @State private var isRecording = false
+    /// True while capturing an Order (an instruction for an agent) rather than
+    /// a note. Set by the Order button before recording starts.
+    @State private var capturingOrder = false
     @State private var isTranscribing = false
     @State private var currentAudioFileName: String?
     @State private var errorMessage: String?
@@ -1183,6 +1186,21 @@ struct AIHomeView: View {
             .accessibilityLabel(isRecording ? "Stop recording" : "Record memory")
 
             Button {
+                capturingOrder = true
+                toggleRecording()
+            } label: {
+                Image(systemName: "paperplane.fill")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: 56, height: 56)
+                    .background(Color.eeonAccentAI)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Record an order for an agent")
+            .disabled(isRecording || isTranscribing)
+
+            Button {
                 showingAskSheet = true
             } label: {
                 Image(systemName: "sparkle.magnifyingglass")
@@ -2224,13 +2242,15 @@ struct AIHomeView: View {
                 // "Remind me…" is decided on-device before any classifier call:
                 // it is a note (the capture is kept) plus a confirmation sheet.
                 // Imports are exempt — an old recording is not a command.
-                let reminderCommand = isImport ? nil : ReminderCommandParser.parse(transcript)
+                let isOrder = capturingOrder
+                let reminderCommand = (isImport || isOrder) ? nil : ReminderCommandParser.parse(transcript)
 
                 // Classify intent: question routes to AnswerSheet, note saves as usual.
                 // On classifier failure we fall back to .newNote — the safer default is
                 // "your speech became a note" rather than swallowing it into a Q&A.
                 let intent: IntentType
-                if reminderCommand != nil {
+                if isOrder || reminderCommand != nil {
+                    // Orders are always saved, never answered as a question.
                     intent = .newNote
                 } else {
                     do {
@@ -2253,6 +2273,10 @@ struct AIHomeView: View {
                         pendingAnswerQuery = AnswerQuery(query: transcript)
                     case .newNote:
                         let note = saveNote(transcript: transcript, isImport: isImport)
+                        if isOrder {
+                            note.intentType = NoteIntent.order.rawValue
+                            capturingOrder = false
+                        }
                         if let reminderCommand {
                             note.intentType = NoteIntent.reminder.rawValue
                             // Whatever the user decides in the sheet, the
@@ -2263,6 +2287,7 @@ struct AIHomeView: View {
                     }
                 }
             } catch TranscriptionService.TranscriptionError.noSpeechDetected {
+                await MainActor.run { capturingOrder = false }
                 // Silent / near-silent audio. Never fabricate a note from it
                 // (that is where "Welcome everyone to the video" came from).
                 await MainActor.run {
@@ -2276,7 +2301,11 @@ struct AIHomeView: View {
                 }
             } catch {
                 await MainActor.run {
-                    _ = saveNote(transcript: nil, pending: true, isImport: isImport)
+                    let note = saveNote(transcript: nil, pending: true, isImport: isImport)
+                    if capturingOrder {
+                        note.intentType = NoteIntent.order.rawValue
+                        capturingOrder = false
+                    }
                 }
             }
         }

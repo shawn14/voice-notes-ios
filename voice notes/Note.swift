@@ -15,6 +15,12 @@ enum NoteIntent: String, CaseIterable, Codable {
     case idea = "Idea"
     case update = "Update"
     case reminder = "Reminder"
+    /// A spoken instruction for an agent to carry out. Explicitly chosen by
+    /// tapping Order, never inferred — acting on a misread note is expensive.
+    case order = "Order"
+    /// An order an agent has completed. Flipping the same field avoids a new
+    /// CloudKit field (and the production schema deploy that would require).
+    case orderDone = "OrderDone"
     case unknown = "Unknown"
 
     var icon: String {
@@ -24,6 +30,8 @@ enum NoteIntent: String, CaseIterable, Codable {
         case .idea: return "lightbulb"
         case .update: return "arrow.triangle.2.circlepath"
         case .reminder: return "bell"
+        case .order: return "paperplane"
+        case .orderDone: return "checkmark.seal.fill"
         case .unknown: return "questionmark.circle"
         }
     }
@@ -35,6 +43,8 @@ enum NoteIntent: String, CaseIterable, Codable {
         case .idea: return .blue
         case .update: return .blue
         case .reminder: return .red
+        case .order: return .eeonAccentAI
+        case .orderDone: return .green
         case .unknown: return .gray
         }
     }
