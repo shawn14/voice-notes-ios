@@ -405,6 +405,9 @@ struct voice_notesApp: App {
     @MainActor
     private func triggerAppActiveRefresh() async {
         let context = container.mainContext
+        Task {
+            await AIAccessService.shared.refreshCloudKitAccessIfPossible()
+        }
 
         // Process any pending ingests from share extension
         print("[App] triggerAppActiveRefresh called — checking pending ingests")

@@ -30,7 +30,7 @@ enum NoteIntent: String, CaseIterable, Codable {
         case .idea: return "lightbulb"
         case .update: return "arrow.triangle.2.circlepath"
         case .reminder: return "bell"
-        case .order: return "paperplane"
+        case .order: return "brain.head.profile"
         case .orderDone: return "checkmark.seal.fill"
         case .unknown: return "questionmark.circle"
         }

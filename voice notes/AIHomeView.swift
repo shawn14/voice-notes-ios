@@ -1237,7 +1237,7 @@ struct AIHomeView: View {
                 capturingOrder = true
                 toggleRecording()
             } label: {
-                Image(systemName: "paperplane.fill")
+                Image(systemName: "brain.head.profile")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.white)
                     .frame(width: 56, height: 56)
@@ -1245,7 +1245,7 @@ struct AIHomeView: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Record an order for an agent")
+            .accessibilityLabel("Record an AI order")
             .disabled(isRecording || isTranscribing)
 
             Button {
@@ -2431,6 +2431,9 @@ struct AIHomeView: View {
         }
         UsageService.shared.incrementNoteCount()
         try? modelContext.save()
+        if note.intentType == NoteIntent.order.rawValue {
+            mirrorAIOrder(note)
+        }
 
         // Update widget
         let preview = transcript ?? note.displayTitle
@@ -2484,6 +2487,9 @@ struct AIHomeView: View {
                             intent: note.intentType
                         )
                         WidgetKit.WidgetCenter.shared.reloadAllTimelines()
+                        if note.intentType == NoteIntent.order.rawValue {
+                            mirrorAIOrder(note)
+                        }
                     }
 
                     await intelligenceService.processNoteSave(
@@ -2493,6 +2499,11 @@ struct AIHomeView: View {
                         tags: existingTags,
                         context: context
                     )
+                    await MainActor.run {
+                        if note.intentType == NoteIntent.order.rawValue {
+                            mirrorAIOrder(note)
+                        }
+                    }
 
                     Task {
                         await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
@@ -2511,6 +2522,31 @@ struct AIHomeView: View {
             StatusCounters.shared.markSessionStale()
         }
         return note
+    }
+
+    private func mirrorAIOrder(_ note: Note) {
+        let instructionCandidates: [String?] = [
+            note.content.trimmingCharacters(in: .whitespacesAndNewlines),
+            note.transcript?.trimmingCharacters(in: .whitespacesAndNewlines)
+        ]
+        let instructions = instructionCandidates
+            .compactMap { $0 }
+            .first(where: { !$0.isEmpty }) ?? note.displayTitle
+        let id = note.id
+        let title = note.displayTitle
+        let createdAt = note.createdAt
+        let project = note.inferredProjectName
+
+        Task {
+            await AIAccessService.shared.enqueueOrder(
+                id: id,
+                title: title,
+                instructions: instructions,
+                createdAt: createdAt,
+                project: project
+            )
+            await AIAccessService.shared.refreshCloudKitAccessIfPossible()
+        }
     }
 
     // MARK: - Create Typed Note
