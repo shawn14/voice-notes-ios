@@ -108,6 +108,8 @@ struct CalendarMeetingsView: View {
         VStack(alignment: .leading, spacing: embedded ? EEONLayout.snug : EEONLayout.standard) {
             calendarRangeHeader
 
+            googleReauthBanner
+
             if !isCalendarReady {
                 connectState
             } else if shouldShowFullLoadingState {
@@ -142,6 +144,41 @@ struct CalendarMeetingsView: View {
         }
         .onChange(of: includeIPhoneCalendars) { _, _ in
             Task { await refreshMeetings(force: true) }
+        }
+    }
+
+    /// Shown whenever Google has permanently rejected our token. It survives
+    /// refreshes (unlike `errorMessage`, which clears as soon as we stop calling
+    /// Google) so a dead connection cannot quietly disappear behind iPhone
+    /// Calendar results.
+    @ViewBuilder
+    private var googleReauthBanner: some View {
+        if googleCalendarService.needsReauth {
+            HStack(alignment: .firstTextBaseline, spacing: EEONLayout.tight) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(EEONType.badge)
+                    .foregroundStyle(Color.orange)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Google Calendar sign-in expired")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                    if CalendarContextService.shared.isAuthorized, calendarContextEnabled {
+                        Text("Showing iPhone Calendar until you reconnect.")
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextTertiary)
+                    }
+                }
+
+                Spacer(minLength: EEONLayout.tight)
+
+                Button("Reconnect") { connectGoogle() }
+                    .font(EEONType.control)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(Color.eeonAccent)
+            }
+            .padding(.vertical, 6)
         }
     }
 
@@ -712,6 +749,15 @@ struct CalendarMeetingsView: View {
             } catch {
                 googleSummary = nil
                 errorMessage = error.localizedDescription
+                // Google just dropped out. If iPhone Calendar is available, read it
+                // now rather than showing an empty day until the next refresh —
+                // `shouldReadIPhoneCalendar` skipped it while Google looked healthy.
+                if combined.isEmpty,
+                   calendarContextEnabled,
+                   CalendarContextService.shared.isAuthorized {
+                    readSummary = CalendarContextService.shared.readSummary(in: interval)
+                    combined.append(contentsOf: CalendarContextService.shared.meetings(in: interval))
+                }
             }
         } else {
             googleSummary = nil

@@ -36,6 +36,7 @@ final class GoogleCalendarService {
 
     private static let tokenService = "com.eeon.google-calendar"
     private static let tokenAccount = "oauth-token"
+    private static let needsReauthKey = "googleCalendarNeedsReauthSince"
     private static let scopes = ["https://www.googleapis.com/auth/calendar.readonly"]
 
     private let encoder = JSONEncoder()
@@ -43,7 +44,15 @@ final class GoogleCalendarService {
     private var authSession: ASWebAuthenticationSession?
     private var presentationContextProvider = GoogleCalendarPresentationContextProvider()
 
-    private init() {}
+    /// Set when Google permanently rejects our refresh token (`invalid_grant`).
+    /// Only a fresh sign-in clears it, so the UI must stop reporting "Connected"
+    /// and stop retrying a credential that can never work again.
+    private(set) var needsReauthSince: Date?
+
+    private init() {
+        let stamp = UserDefaults.standard.double(forKey: Self.needsReauthKey)
+        needsReauthSince = stamp > 0 ? Date(timeIntervalSince1970: stamp) : nil
+    }
 
     var isConfigured: Bool {
         guard clientID != nil,
@@ -51,8 +60,20 @@ final class GoogleCalendarService {
         return true
     }
 
+    /// A usable connection: we hold a credential and Google has not rejected it.
+    /// Deliberately false while `needsReauth` is set so callers fall back to
+    /// iPhone Calendar instead of showing an empty day.
     var isConnected: Bool {
+        hasStoredCredential && !needsReauth
+    }
+
+    /// A credential blob exists in the Keychain — working or not.
+    var hasStoredCredential: Bool {
         storedToken() != nil
+    }
+
+    var needsReauth: Bool {
+        needsReauthSince != nil && hasStoredCredential
     }
 
     var configurationStatus: String {
@@ -97,17 +118,50 @@ final class GoogleCalendarService {
 
         let token = try await exchangeCode(code, verifier: verifier)
         try saveToken(token)
+        clearNeedsReauth()
     }
 
     func disconnect() {
         deleteToken()
+        clearNeedsReauth()
+    }
+
+    private func markNeedsReauth() {
+        let since = needsReauthSince ?? Date()
+        needsReauthSince = since
+        UserDefaults.standard.set(since.timeIntervalSince1970, forKey: Self.needsReauthKey)
+    }
+
+    private func clearNeedsReauth() {
+        needsReauthSince = nil
+        UserDefaults.standard.removeObject(forKey: Self.needsReauthKey)
     }
 
     func meetings(
         in interval: DateInterval,
         includeSharedCalendars: Bool = false
     ) async throws -> (summary: GoogleCalendarReadSummary, meetings: [CalendarMeeting]) {
-        let token = try await validAccessToken()
+        do {
+            return try await loadMeetings(in: interval, includeSharedCalendars: includeSharedCalendars, forceRefresh: false)
+        } catch GoogleCalendarError.accessUnauthorized {
+            // The access token looked unexpired but Google rejected it — this is
+            // what a server-side revoke looks like. Force one refresh; if the
+            // refresh token is dead too, refreshToken() flags us for reauth.
+            do {
+                return try await loadMeetings(in: interval, includeSharedCalendars: includeSharedCalendars, forceRefresh: true)
+            } catch GoogleCalendarError.accessUnauthorized {
+                markNeedsReauth()
+                throw GoogleCalendarError.authExpired
+            }
+        }
+    }
+
+    private func loadMeetings(
+        in interval: DateInterval,
+        includeSharedCalendars: Bool,
+        forceRefresh: Bool
+    ) async throws -> (summary: GoogleCalendarReadSummary, meetings: [CalendarMeeting]) {
+        let token = try await validAccessToken(forceRefresh: forceRefresh)
         let allCalendars = try await calendarList(accessToken: token)
         let visibleCalendars = allCalendars.filter { $0.selected != false }
         let calendars = includeSharedCalendars ? visibleCalendars : visibleCalendars.filter(\.isPersonal)
@@ -203,12 +257,23 @@ final class GoogleCalendarService {
     }
 
     private func refreshToken(_ token: StoredGoogleToken) async throws -> StoredGoogleToken {
-        guard let refreshToken = token.refreshToken else { throw GoogleCalendarError.notConnected }
-        let response = try await tokenRequest([
-            "client_id": clientID ?? "",
-            "grant_type": "refresh_token",
-            "refresh_token": refreshToken
-        ])
+        guard let refreshToken = token.refreshToken else {
+            markNeedsReauth()
+            throw GoogleCalendarError.authExpired
+        }
+        let response: GoogleTokenResponse
+        do {
+            response = try await tokenRequest([
+                "client_id": clientID ?? "",
+                "grant_type": "refresh_token",
+                "refresh_token": refreshToken
+            ])
+        } catch GoogleCalendarError.authExpired {
+            // Google returned invalid_grant. This refresh token will never work
+            // again, so stop retrying it and ask the user to reconnect once.
+            markNeedsReauth()
+            throw GoogleCalendarError.authExpired
+        }
 
         guard let accessToken = response.accessToken,
               let expiresIn = response.expiresIn else {
@@ -225,9 +290,9 @@ final class GoogleCalendarService {
         return updated
     }
 
-    private func validAccessToken() async throws -> String {
+    private func validAccessToken(forceRefresh: Bool = false) async throws -> String {
         guard let token = storedToken() else { throw GoogleCalendarError.notConnected }
-        if token.expiresAt.timeIntervalSinceNow > 60 {
+        if !forceRefresh, token.expiresAt.timeIntervalSinceNow > 60 {
             return token.accessToken
         }
         return try await refreshToken(token).accessToken
@@ -243,6 +308,7 @@ final class GoogleCalendarService {
         guard let http = response as? HTTPURLResponse else { throw GoogleCalendarError.badResponse }
         let decoded = try decoder.decode(GoogleTokenResponse.self, from: data)
         guard (200..<300).contains(http.statusCode) else {
+            if decoded.error == "invalid_grant" { throw GoogleCalendarError.authExpired }
             throw GoogleCalendarError.oauth(decoded.errorDescription ?? decoded.error ?? "HTTP \(http.statusCode)")
         }
         return decoded
@@ -305,6 +371,7 @@ final class GoogleCalendarService {
     private func validateGoogleResponse(_ response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse else { throw GoogleCalendarError.badResponse }
         guard (200..<300).contains(http.statusCode) else {
+            if http.statusCode == 401 { throw GoogleCalendarError.accessUnauthorized }
             let error = (try? decoder.decode(GoogleAPIError.self, from: data).error.message) ?? "HTTP \(http.statusCode)"
             throw GoogleCalendarError.oauth(error)
         }
@@ -327,16 +394,22 @@ final class GoogleCalendarService {
 
     private func saveToken(_ token: StoredGoogleToken) throws {
         let data = try encoder.encode(token)
-        deleteToken()
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.tokenService,
-            kSecAttrAccount as String: Self.tokenAccount,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecAttrAccount as String: Self.tokenAccount
         ]
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else { throw GoogleCalendarError.keychain(status) }
+        // Update in place. The old delete-then-add lost the connection entirely
+        // whenever SecItemAdd failed.
+        let updateStatus = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if updateStatus == errSecSuccess { return }
+        guard updateStatus == errSecItemNotFound else { throw GoogleCalendarError.keychain(updateStatus) }
+
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        guard addStatus == errSecSuccess else { throw GoogleCalendarError.keychain(addStatus) }
     }
 
     private func deleteToken() {
@@ -614,6 +687,8 @@ enum GoogleCalendarError: LocalizedError {
     case missingURLScheme
     case notConnected
     case badResponse
+    case authExpired
+    case accessUnauthorized
     case oauth(String)
     case keychain(OSStatus)
 
@@ -637,6 +712,10 @@ enum GoogleCalendarError: LocalizedError {
             return "Google Calendar is not connected."
         case .badResponse:
             return "Google Calendar returned an invalid response."
+        case .authExpired:
+            return "Google Calendar sign-in expired. Reconnect to keep pulling meetings."
+        case .accessUnauthorized:
+            return "Google Calendar refused the request. Reconnect to continue."
         case .oauth(let message):
             return message
         case .keychain(let status):

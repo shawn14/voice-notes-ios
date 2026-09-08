@@ -1964,6 +1964,9 @@ struct SettingsView: View {
         if googleCalendarService.isConnected {
             return "Direct read-only Google Calendar is connected"
         }
+        if googleCalendarService.needsReauth {
+            return "Sign-in expired - tap to reconnect"
+        }
         if googleCalendarService.isConfigured {
             return "Connect directly when Google events are not on this phone"
         }
@@ -1973,11 +1976,13 @@ struct SettingsView: View {
     private var googleCalendarStatus: String {
         if isConnectingGoogleCalendar { return "Opening..." }
         if googleCalendarService.isConnected { return "Connected" }
+        if googleCalendarService.needsReauth { return "Reconnect" }
         return "Connect"
     }
 
     private var googleCalendarStatusColor: Color {
         if googleCalendarService.isConnected { return Color.secondary }
+        if googleCalendarService.needsReauth { return Color.orange }
         return googleCalendarService.isConfigured ? Color.eeonAccent : Color.orange
     }
 
