@@ -1818,8 +1818,8 @@ struct SettingsView: View {
     @State private var showingResetConfirm = false
     @State private var showingSignOutConfirm = false
     @State private var showingDeleteAllDataConfirm = false
-    @State private var showingEditName = false
     @State private var editedName = ""
+    @FocusState private var nameFieldFocused: Bool
     @State private var signInError: String?
     @State private var documentExportConfirmation: String?
     @State private var googleCalendarFeedback: String?
@@ -2661,6 +2661,15 @@ struct SettingsView: View {
         cleaned(authService.userName) ?? "Add Name"
     }
 
+    private func commitEditedName() {
+        let trimmed = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            if authService.userName != nil { authService.userName = nil }
+        } else if trimmed != authService.userName {
+            authService.userName = trimmed
+        }
+    }
+
     private func cleaned(_ value: String?) -> String? {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? nil : trimmed
@@ -2670,15 +2679,24 @@ struct SettingsView: View {
         List {
             if authService.isSignedIn {
                 Section {
+                    // Inline, not a pop-up (Shawn, 2026-09-10): tap the row,
+                    // type, Done. Saved on Done, on losing focus, and on
+                    // leaving the page. Home's greeting picks it up live.
                     LabeledContent("Name") {
-                        Button {
-                            editedName = cleaned(authService.userName) ?? ""
-                            showingEditName = true
-                        } label: {
-                            Text(accountNameText)
-                                .foregroundStyle(cleaned(authService.userName) == nil ? Color("EEONAccentAI") : .secondary)
-                        }
+                        TextField("Add name", text: $editedName)
+                            .multilineTextAlignment(.trailing)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .focused($nameFieldFocused)
+                            .onSubmit { commitEditedName() }
+                            .accessibilityLabel("Name")
                     }
+                    .onAppear { editedName = cleaned(authService.userName) ?? "" }
+                    .onChange(of: nameFieldFocused) { _, focused in
+                        if !focused { commitEditedName() }
+                    }
+                    .onDisappear { commitEditedName() }
 
                     LabeledContent("Email", value: accountEmailText)
 
@@ -3249,19 +3267,6 @@ struct SettingsView: View {
                         newProjectName = ""
                     }
                 }
-            }
-            .alert("Edit Name", isPresented: $showingEditName) {
-                TextField("Your name", text: $editedName)
-                Button("Cancel", role: .cancel) { editedName = "" }
-                Button("Save") {
-                    let trimmed = editedName.trimmingCharacters(in: .whitespaces)
-                    if !trimmed.isEmpty {
-                        authService.userName = trimmed
-                    }
-                    editedName = ""
-                }
-            } message: {
-                Text("This name will be shown in the app and used for your avatar initials.")
             }
             .alert("Sign In Error", isPresented: Binding(
                 get: { signInError != nil },
