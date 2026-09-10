@@ -188,3 +188,4 @@
 - **Loop 2 unblocked and committed (07:33).** Disk rose to 3.0 GB on its own; the project has no SwiftPM packages, so the rebuild was 41 s, exit 0, no warnings in `AIHomeView`. Sweep committed. Disk back to ~600 MB free after build products; later loops are incremental.
 - Loop 3 done: `CalendarMeetingsView` is embedded-only (933 → 671 lines); dead full-screen mode removed, header collapsed to title + one menu, compact connect/empty states. Build exit 0.
 - Loop 4 done: `TasksView` single-mode pushed list (550 → 449), one toolbar menu, rows aligned with Home's preview. Build exit 0.
+- Loop 5 done: bottom bar = Note · AI Prompt · Ask, capture kind carried through recording bar + overlays, `capturingOrder` leak on cancel/paywall fixed, long-press Note restores type/import/link inputs. Build exit 0.

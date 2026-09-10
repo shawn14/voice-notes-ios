@@ -241,13 +241,14 @@ struct AIHomeView: View {
                                 showingFullRecorder = false
                             }
                         },
-                        audioRecorder: audioRecorder
+                        audioRecorder: audioRecorder,
+                        captureNoun: captureNoun
                     )
                 }
 
                 // Transcribing overlay
                 if isTranscribing {
-                    HomeTranscribingOverlay()
+                    HomeTranscribingOverlay(isAIPrompt: capturingOrder)
                 }
             }
             .navigationBarHidden(true)
@@ -527,7 +528,7 @@ struct AIHomeView: View {
                     .frame(width: 9, height: 9)
                     .opacity(audioRecorder.isPaused ? 0.4 : 1)
 
-                Text(audioRecorder.recordingStatusText)
+                Text(audioRecorder.isPaused ? audioRecorder.recordingStatusText : "Recording \(captureNoun)")
                     .font(EEONType.control)
                     .foregroundStyle(.eeonTextPrimary)
 
@@ -551,59 +552,62 @@ struct AIHomeView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - 3. Bottom Bar (Mic / New Note / Search)
+    // MARK: - 3. Bottom Bar (Note / AI Prompt / Ask)
 
+    /// What the active capture will become, for every label that names it.
+    private var captureNoun: String { capturingOrder ? "AI prompt" : "note" }
+
+    /// Two labelled recorders and Ask. Note is the wide primary; AI Prompt is
+    /// the same shape in the AI colour so nobody has to guess what a bare
+    /// brain icon does. While one records, the other dims; while
+    /// transcribing, the one that recorded says "Working…".
     private var bottomBar: some View {
         HStack(spacing: EEONLayout.snug) {
-            Button(action: {
+            captureButton(
+                icon: "waveform",
+                title: "Note",
+                idleBackground: Color.eeonAccent,
+                isOrderButton: false,
+                accessibilityLabel: "Record a note"
+            ) {
                 toggleRecording()
-            }) {
-                HStack(spacing: EEONLayout.snug) {
-                    if isTranscribing {
-                        ProgressView()
-                            .tint(.white)
-                    } else if isRecording {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.white)
-                            .frame(width: 16, height: 16)
-                    } else {
-                        Image(systemName: "waveform")
-                            .font(.body.weight(.semibold))
-                    }
-
-                    Text(isTranscribing ? "Working…" : isRecording ? "Stop" : "Record")
-                        .font(EEONType.control)
-
-                    if isRecording {
-                        Text(audioRecorder.formattedTime)
-                            .font(EEONType.control)
-                            .opacity(0.85)
-                    }
+            }
+            .frame(maxWidth: .infinity)
+            .contextMenu {
+                Button {
+                    showingTypeNote = true
+                } label: {
+                    Label("Type a note", systemImage: "square.and.pencil")
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, EEONLayout.loose)
-                .frame(minHeight: 56)
-                .frame(maxWidth: .infinity)
-                .background(isRecording ? recordingRed : Color.eeonAccent)
-                .clipShape(Capsule())
+                Button {
+                    showingAudioImporter = true
+                } label: {
+                    Label("Import a recording", systemImage: "square.and.arrow.down")
+                }
+                Button {
+                    showingSourcePicker = true
+                } label: {
+                    Label("Add a link or document", systemImage: "doc.badge.plus")
+                }
             }
-            .disabled(isTranscribing)
-            .accessibilityLabel(isRecording ? "Stop recording" : "Record memory")
 
-            Button {
-                capturingOrder = true
-                toggleRecording()
-            } label: {
-                Image(systemName: "brain.head.profile")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.white)
-                    .frame(width: 56, height: 56)
-                    .background(Color.eeonAccentAI)
-                    .clipShape(Circle())
+            captureButton(
+                icon: "brain.head.profile",
+                title: "AI Prompt",
+                idleBackground: Color.eeonAccentAI,
+                isOrderButton: true,
+                accessibilityLabel: "Record an AI prompt"
+            ) {
+                if isRecording {
+                    toggleRecording()
+                } else {
+                    capturingOrder = true
+                    toggleRecording()
+                    // Paywall, background capture, or a mic error: nothing
+                    // started, so the next Note must not become an order.
+                    if !isRecording { capturingOrder = false }
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Record an AI order")
-            .disabled(isRecording || isTranscribing)
 
             Button {
                 showingAskSheet = true
@@ -626,6 +630,55 @@ struct AIHomeView: View {
                 .ignoresSafeArea(edges: .bottom)
                 .shadow(color: Color.eeonTextPrimary.opacity(0.08), radius: 4, y: -2)
         )
+    }
+
+    private func captureButton(
+        icon: String,
+        title: String,
+        idleBackground: Color,
+        isOrderButton: Bool,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        let isMine = capturingOrder == isOrderButton
+        let isActive = isRecording && isMine
+        let isWorking = isTranscribing && isMine
+        let isEnabled = !(isRecording || isTranscribing) || isActive
+        return Button(action: action) {
+            HStack(spacing: EEONLayout.tight) {
+                if isWorking {
+                    ProgressView()
+                        .tint(.white)
+                } else if isActive {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white)
+                        .frame(width: 16, height: 16)
+                } else {
+                    Image(systemName: icon)
+                        .font(.body.weight(.semibold))
+                }
+
+                Text(isWorking ? "Working…" : isActive ? "Stop" : title)
+                    .font(EEONType.control)
+                    .lineLimit(1)
+
+                if isActive {
+                    Text(audioRecorder.formattedTime)
+                        .font(EEONType.control)
+                        .monospacedDigit()
+                        .opacity(0.85)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, EEONLayout.standard)
+            .frame(minHeight: 56)
+            .background(isActive ? recordingRed : idleBackground)
+            .clipShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.45)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityLabel(isActive ? "Stop recording" : accessibilityLabel)
     }
 
     // MARK: - Home stack
@@ -1230,6 +1283,7 @@ struct AIHomeView: View {
         }
         currentAudioFileName = nil
         isRecording = false
+        capturingOrder = false
     }
 
     private func transcribeAndSave(url: URL, isImport: Bool = false) {

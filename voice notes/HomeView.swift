@@ -1201,6 +1201,8 @@ struct HomeRecordingOverlay: View {
     /// Live transcription stops here; audio capture does not.
     var onMinimize: (() -> Void)?
     let audioRecorder: AudioRecorder
+    /// "note" or "AI prompt" — names the capture in the title and hints.
+    var captureNoun: String = "note"
 
     private let barCount = 28
     @State private var barLevels: [CGFloat] = Array(repeating: 0.15, count: 28)
@@ -1308,7 +1310,7 @@ struct HomeRecordingOverlay: View {
                     .frame(width: 78, height: 1)
             }
 
-            Text("Recording")
+            Text(captureNoun == "note" ? "Recording" : "Recording AI prompt")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white)
         }
@@ -1334,7 +1336,7 @@ struct HomeRecordingOverlay: View {
                 .minimumScaleFactor(0.72)
                 .foregroundStyle(.white)
 
-            Text(audioRecorder.isPaused ? "Tap Resume to continue." : "Tap Finish to save this note.")
+            Text(audioRecorder.isPaused ? "Tap Resume to continue." : "Tap Finish to save this \(captureNoun).")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.white.opacity(0.58))
         }
@@ -1398,7 +1400,7 @@ struct HomeRecordingOverlay: View {
                                 Text(audioRecorder.isPaused ? "Recording is paused." : "Start talking.")
                                     .font(.system(size: 20, weight: .semibold))
                                     .foregroundStyle(.white.opacity(0.82))
-                                Text(audioRecorder.isPaused ? "Your note will continue when you resume." : "Words will appear here while EEON listens.")
+                                Text(audioRecorder.isPaused ? "Your \(captureNoun) will continue when you resume." : "Words will appear here while EEON listens.")
                                     .font(.system(size: 16))
                                     .foregroundStyle(.white.opacity(0.50))
                             }
@@ -1578,15 +1580,27 @@ struct HomeRecordingOverlay: View {
 // MARK: - Transcribing Overlay
 
 struct HomeTranscribingOverlay: View {
+    /// An AI prompt is transcribed and queued for agents; it does not become
+    /// memory, tasks, or Ask context, so the steps say so.
+    var isAIPrompt: Bool = false
+
     @State private var activeStep = 0
     @State private var stepTimer: Timer?
 
-    private let steps: [MemoryProcessingStep] = [
-        MemoryProcessingStep(icon: "waveform", title: "Writing the note", subtitle: "Turning your voice into clean text"),
-        MemoryProcessingStep(icon: "sparkles", title: "Finding what matters", subtitle: "Pulling out decisions, people, and projects"),
-        MemoryProcessingStep(icon: "checklist", title: "Preparing follow-ups", subtitle: "Finding action items for Reminders"),
-        MemoryProcessingStep(icon: "sparkle.magnifyingglass", title: "Ready for Ask EEON", subtitle: "Adding this context to your searchable memory")
-    ]
+    private var steps: [MemoryProcessingStep] {
+        if isAIPrompt {
+            return [
+                MemoryProcessingStep(icon: "waveform", title: "Writing the prompt", subtitle: "Turning your voice into clean text"),
+                MemoryProcessingStep(icon: "brain.head.profile", title: "Queuing for your AI agents", subtitle: "Agents connected to EEON can pick it up")
+            ]
+        }
+        return [
+            MemoryProcessingStep(icon: "waveform", title: "Writing the note", subtitle: "Turning your voice into clean text"),
+            MemoryProcessingStep(icon: "sparkles", title: "Finding what matters", subtitle: "Pulling out decisions, people, and projects"),
+            MemoryProcessingStep(icon: "checklist", title: "Preparing follow-ups", subtitle: "Finding action items for Reminders"),
+            MemoryProcessingStep(icon: "sparkle.magnifyingglass", title: "Ready for Ask EEON", subtitle: "Adding this context to your searchable memory")
+        ]
+    }
 
     var body: some View {
         ZStack {
@@ -1620,11 +1634,13 @@ struct HomeTranscribingOverlay: View {
                 }
 
                 VStack(spacing: 8) {
-                    Text("Building your memory")
+                    Text(isAIPrompt ? "Sending your AI prompt" : "Building your memory")
                         .font(.system(size: 30, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
 
-                    Text("EEON is turning this recording into notes, tasks, and AI-searchable context.")
+                    Text(isAIPrompt
+                         ? "EEON is transcribing this prompt and queuing it for your AI agents."
+                         : "EEON is turning this recording into notes, tasks, and AI-searchable context.")
                         .font(.subheadline.weight(.medium))
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.58))

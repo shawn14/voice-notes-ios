@@ -26,7 +26,7 @@ kill list (repo convention); never delete user notes; no schema changes.
       the embedded view; meeting rows tap → record about this meeting.
 - [x] 4. Tasks: home preview + `TasksView` share one row style; clear
       complete / due / open-note affordances; "All" → Tasks screen.
-- [ ] 5. Bottom bar + recording: "Note" / "AI prompt" labels, distinct
+- [x] 5. Bottom bar + recording: "Note" / "AI prompt" labels, distinct
       AI-prompt recording state, recording bar copy.
 - [ ] 6. Settings: regroup to Account · Calendar · Reminders · AI access ·
       Subscription · Data; move Tune EEON / Knowledge / vocabulary / templates
@@ -86,6 +86,20 @@ kill list (repo convention); never delete user notes; no schema changes.
   due / owner / priority · chevron when tapping opens the note); the "From a note"
   / "Note" chips are gone on both screens, the chevron says it. Home's Tasks link
   reads "See All" like Notes. Build exit 0, no warnings in touched files.
+
+- **Loop 5 (08:02–08:14)** Bottom bar is now `Note` (wide, accent) · `AI Prompt`
+  (same capsule shape, AI colour, labelled — the bare brain circle is gone) · Ask.
+  While one records the other dims; the recorder that ran says "Working…" while
+  transcribing. The recording bar reads "Recording note" / "Recording AI prompt";
+  `HomeRecordingOverlay` titles and hints name the capture (`captureNoun`);
+  `HomeTranscribingOverlay(isAIPrompt:)` shows two honest steps for a prompt
+  ("Writing the prompt", "Queuing for your AI agents") instead of the four memory
+  steps. Bug fixed: cancelling an AI prompt (Discard) or bouncing off the paywall
+  left `capturingOrder = true`, so the NEXT Note would have saved as an Order.
+  Restored a route to the non-voice inputs: long-press Note → Type a note / Import
+  a recording / Add a link or document (the SourcePickerSheet had no entry point
+  at all before these loops, and loop 1 removed the last route to audio import).
+  Build exit 0; only pre-existing `Text +` deprecation warnings in HomeView.swift.
 
 ## Resume protocol (if the disk fills again)
 
