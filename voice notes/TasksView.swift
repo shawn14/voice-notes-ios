@@ -6,8 +6,9 @@
 //  grouped by day, each carrying a link back to the note it came from —
 //  you never lose the "why" behind the "what".
 //
-//  Data already exists: ExtractedAction.sourceNoteId is set by the
-//  extraction pipeline. This is the surface that was missing.
+//  Pushed from Home's Tasks header inside Home's NavigationStack. The former
+//  `embedded` mode and the nested NavigationStack were removed in the
+//  2026-09-10 UX simplification; Home renders its own three-row preview.
 //
 
 import SwiftUI
@@ -15,22 +16,15 @@ import SwiftData
 
 struct TasksView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
 
     @Query(sort: \ExtractedAction.createdAt, order: .reverse)
     private var actions: [ExtractedAction]
     @Query private var notes: [Note]
 
-    /// Inline on the main screen (feed dropdown → Tasks): no NavigationStack,
-    /// no toolbar, no inner ScrollView — home already scrolls. Default is the
-    /// standalone sheet.
-    var embedded: Bool = false
-
     @State private var showingCompleted = false
     @State private var showingAddTask = false
     @State private var showingCompleteVisibleConfirm = false
     @State private var newTaskText = ""
-    @State private var navigateToNote: Note?
     @State private var editingAction: ExtractedAction?
     @State private var editTaskText = ""
     @State private var sharePayload: EEONSharePayload?
@@ -103,74 +97,70 @@ struct TasksView: View {
     // MARK: - Body
 
     var body: some View {
-        if embedded {
-            embeddedBody
-        } else {
-            standaloneBody
-        }
-    }
+        ZStack {
+            Color.eeonBackground.ignoresSafeArea()
 
-    /// Rows only. Rows link to their source note through the enclosing
-    /// NavigationStack (AIHomeView's), the same way feed cards do.
-    private var embeddedBody: some View {
-        VStack(alignment: .leading, spacing: 0) {
             if visibleActions.isEmpty {
                 emptyState
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 32)
             } else {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(grouped, id: \.0) { day, dayActions in
-                        dayHeader(day, count: dayActions.count)
-                        ForEach(dayActions) { action in
-                            taskSwipeRow(action)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(grouped, id: \.0) { day, dayActions in
+                            dayHeader(day, count: dayActions.count)
+                            ForEach(dayActions) { action in
+                                taskSwipeRow(action)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
+                        Color.clear.frame(height: 80)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            HStack {
-                Button {
-                    showingAddTask = true
-                } label: {
-                    Label("Add task", systemImage: "plus")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.eeonAccent)
-                        .frame(minHeight: EEONLayout.minTarget)
-                }
-
-                if !visibleActions.isEmpty {
-                    ShareLink(item: visibleTasksShareText) {
-                        Label("Share", systemImage: "square.and.arrow.up")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.eeonAccent)
-                            .frame(minHeight: EEONLayout.minTarget)
+        }
+        .navigationTitle("Tasks")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            // One menu, not three icons. Add is the primary action and
+            // stays as the capsule at the bottom.
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button {
+                        withAnimation { showingCompleted.toggle() }
+                    } label: {
+                        Label(showingCompleted ? "Hide completed" : "Show completed",
+                              systemImage: showingCompleted ? "eye.slash" : "eye")
                     }
-                }
 
-                if hasOpenVisibleActions {
+                    ShareLink(item: visibleTasksShareText) {
+                        Label("Share list", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(visibleActions.isEmpty)
+
+                    Divider()
+
                     Button {
                         showingCompleteVisibleConfirm = true
                     } label: {
-                        Label("Complete visible", systemImage: "checkmark.circle")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.eeonAccent)
-                            .frame(minHeight: EEONLayout.minTarget)
+                        Label("Complete all shown", systemImage: "checkmark.circle")
                     }
-                }
+                    .disabled(!hasOpenVisibleActions)
 
-                Spacer()
-                Button(showingCompleted ? "Hide completed" : "Show completed") {
-                    withAnimation { showingCompleted.toggle() }
+                    Button {
+                        reopenVisible()
+                    } label: {
+                        Label("Reopen all shown", systemImage: "arrow.uturn.backward.circle")
+                    }
+                    .disabled(!hasCompletedVisibleActions)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
-                .font(.subheadline)
-                .foregroundStyle(.eeonTextSecondary)
-                .frame(minHeight: EEONLayout.minTarget)
+                .accessibilityLabel("Task options")
             }
-            .padding(.horizontal)
-            .padding(.top, 4)
+        }
+        .safeAreaInset(edge: .bottom) {
+            addTaskBar
         }
         .alert("New task", isPresented: $showingAddTask) {
             TextField("What needs doing?", text: $newTaskText)
@@ -188,113 +178,13 @@ struct TasksView: View {
         .sheet(item: $sharePayload) { payload in
             ActivityViewControllerRepresentable(activityItems: [payload.text])
         }
-        .confirmationDialog("Complete Visible Tasks?", isPresented: $showingCompleteVisibleConfirm, titleVisibility: .visible) {
-            Button("Complete Visible Tasks") {
+        .confirmationDialog("Complete all shown tasks?", isPresented: $showingCompleteVisibleConfirm, titleVisibility: .visible) {
+            Button("Complete all shown") {
                 markVisibleComplete()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This marks the tasks currently shown as complete and updates any matching Apple Reminders.")
-        }
-    }
-
-    private var standaloneBody: some View {
-        NavigationStack {
-            ZStack {
-                Color.eeonBackground.ignoresSafeArea()
-
-                if visibleActions.isEmpty {
-                    emptyState
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(grouped, id: \.0) { day, dayActions in
-                                dayHeader(day, count: dayActions.count)
-                                ForEach(dayActions) { action in
-                                    taskSwipeRow(action)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                            Color.clear.frame(height: 80)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 8)
-                    }
-                }
-            }
-            .navigationTitle("Tasks")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-                ToolbarItemGroup(placement: .primaryAction) {
-                    ShareLink(item: visibleTasksShareText) {
-                        Image(systemName: "square.and.arrow.up")
-                    }
-                    .disabled(visibleActions.isEmpty)
-                    .accessibilityLabel("Share tasks")
-
-                    Button {
-                        showingCompleted.toggle()
-                    } label: {
-                        Image(systemName: showingCompleted
-                              ? "line.3.horizontal.decrease.circle.fill"
-                              : "line.3.horizontal.decrease.circle")
-                    }
-                    .accessibilityLabel(showingCompleted ? "Hide completed" : "Show completed")
-
-                    Menu {
-                        Button {
-                            showingCompleteVisibleConfirm = true
-                        } label: {
-                            Label("Mark Visible Complete", systemImage: "checkmark.circle")
-                        }
-                        .disabled(!hasOpenVisibleActions)
-
-                        Button {
-                            reopenVisible()
-                        } label: {
-                            Label("Reopen Visible", systemImage: "arrow.uturn.backward.circle")
-                        }
-                        .disabled(!hasCompletedVisibleActions)
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .disabled(visibleActions.isEmpty)
-                    .accessibilityLabel("Task actions")
-                }
-            }
-            .safeAreaInset(edge: .bottom) {
-                addTaskBar
-            }
-            .navigationDestination(item: $navigateToNote) { note in
-                NoteDetailView(note: note)
-            }
-            .alert("New task", isPresented: $showingAddTask) {
-                TextField("What needs doing?", text: $newTaskText)
-                Button("Cancel", role: .cancel) { newTaskText = "" }
-                Button("Add") { addTask() }
-            }
-            .alert("Edit task", isPresented: Binding(
-                get: { editingAction != nil },
-                set: { if !$0 { editingAction = nil } }
-            )) {
-                TextField("Task", text: $editTaskText)
-                Button("Cancel", role: .cancel) { editingAction = nil }
-                Button("Save") { renameTask() }
-            }
-            .sheet(item: $sharePayload) { payload in
-                ActivityViewControllerRepresentable(activityItems: [payload.text])
-            }
-            .confirmationDialog("Complete Visible Tasks?", isPresented: $showingCompleteVisibleConfirm, titleVisibility: .visible) {
-                Button("Complete Visible Tasks") {
-                    markVisibleComplete()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This marks the tasks currently shown as complete and updates any matching Apple Reminders.")
-            }
+            Text("Marks every task currently shown as complete and updates any matching Apple Reminders.")
         }
     }
 
@@ -328,16 +218,18 @@ struct TasksView: View {
         ) {
             if let note = sourceNote(for: action) {
                 NavigationLink(destination: NoteDetailView(note: note)) {
-                    taskRowContent(action)
+                    taskRowContent(action, opensNote: true)
                 }
                 .buttonStyle(.plain)
             } else {
-                taskRowContent(action)
+                taskRowContent(action, opensNote: false)
             }
         }
     }
 
-    private func taskRowContent(_ action: ExtractedAction) -> some View {
+    /// Same anatomy as Home's task preview rows: checkbox, text, due /
+    /// priority, and a chevron when tapping opens the source note.
+    private func taskRowContent(_ action: ExtractedAction, opensNote: Bool) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Button {
                 toggle(action)
@@ -362,6 +254,11 @@ struct TasksView: View {
                             .font(.caption2)
                             .foregroundStyle(.eeonTextSecondary)
                     }
+                    if !action.owner.isEmpty && action.owner.lowercased() != "me" {
+                        Label(action.owner, systemImage: "person")
+                            .font(.caption2)
+                            .foregroundStyle(.eeonTextSecondary)
+                    }
                     if action.priority == "Urgent" || action.priority == "High" {
                         Text(action.priority.uppercased())
                             .font(.caption2.weight(.bold))
@@ -371,15 +268,17 @@ struct TasksView: View {
                             .foregroundStyle(.orange)
                             .clipShape(Capsule())
                     }
-                    if sourceNote(for: action) != nil {
-                        Label("From a note", systemImage: "waveform")
-                            .font(.caption2)
-                            .foregroundStyle(.eeonTextTertiary)
-                    }
                 }
             }
 
             Spacer(minLength: 0)
+
+            if opensNote {
+                Image(systemName: "chevron.right")
+                    .font(EEONType.badge)
+                    .foregroundStyle(.eeonTextTertiary)
+                    .padding(.top, 4)
+            }
         }
         .padding(.horizontal)
         .padding(.vertical, 10)

@@ -24,7 +24,7 @@ kill list (repo convention); never delete user notes; no schema changes.
       tag sheets / AI tab / drift banner / why-this-home. Compiler is the gate.
 - [x] 3. Calendar section: one header row, no options/refresh icon clutter in
       the embedded view; meeting rows tap → record about this meeting.
-- [ ] 4. Tasks: home preview + `TasksView` share one row style; clear
+- [x] 4. Tasks: home preview + `TasksView` share one row style; clear
       complete / due / open-note affordances; "All" → Tasks screen.
 - [ ] 5. Bottom bar + recording: "Note" / "AI prompt" labels, distinct
       AI-prompt recording state, recording bar copy.
@@ -76,6 +76,16 @@ kill list (repo convention); never delete user notes; no schema changes.
   with a hint only when calendars are missing or events were filtered. Rows are
   tappable only when they have a call link. Build exit 0, no warnings in the two
   files. Not device-verified.
+
+- **Loop 4 (07:50–08:02)** `TasksView` 550 → 449 lines, single mode. The `embedded`
+  body was dead (Home renders its own 3-row preview) and the pushed screen wrapped
+  its own NavigationStack, so it showed a back button AND a Done button. Now a plain
+  pushed list: large title, ONE `ellipsis.circle` menu (show/hide completed, share
+  list, complete/reopen all shown) instead of three toolbar icons, Add Task capsule
+  kept as the primary action. Rows match Home's preview rows (checkbox · text ·
+  due / owner / priority · chevron when tapping opens the note); the "From a note"
+  / "Note" chips are gone on both screens, the chevron says it. Home's Tasks link
+  reads "See All" like Notes. Build exit 0, no warnings in touched files.
 
 ## Resume protocol (if the disk fills again)
 

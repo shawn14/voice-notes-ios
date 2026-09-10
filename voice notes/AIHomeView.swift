@@ -737,7 +737,7 @@ struct AIHomeView: View {
                 NavigationLink {
                     TasksView()
                 } label: {
-                    Label("All", systemImage: "checklist")
+                    Text("See All")
                         .font(EEONType.control)
                         .foregroundStyle(.eeonAccent)
                         .frame(minHeight: EEONLayout.minTarget)
@@ -802,9 +802,6 @@ struct AIHomeView: View {
                         Label(action.owner, systemImage: "person")
                     }
 
-                    if sourceNote(for: action) != nil {
-                        Label("Note", systemImage: "waveform")
-                    }
                 }
                 .font(EEONType.badge)
                 .foregroundStyle(.eeonTextSecondary)
