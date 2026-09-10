@@ -748,9 +748,7 @@ struct AIHomeView: View {
             } else {
                 ForEach(dayGroups(shown), id: \.0) { day, dayNotes in
                     dayHeader(day)
-                    ForEach(dayNotes) { note in
-                        noteRow(note, status: nil)
-                    }
+                    noteGroupCard(dayNotes, status: { _ in nil })
                 }
                 if homeNotes.count > shown.count {
                     NavigationLink(destination: AllNotesView()) {
@@ -764,6 +762,7 @@ struct AIHomeView: View {
                         }
                         .frame(minHeight: EEONLayout.minTarget)
                         .padding(.horizontal)
+                        .padding(.top, 6)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("All notes")
@@ -779,9 +778,7 @@ struct AIHomeView: View {
             } else {
                 ForEach(dayGroups(homePrompts), id: \.0) { day, dayNotes in
                     dayHeader(day)
-                    ForEach(dayNotes) { note in
-                        noteRow(note, status: note.intent == .orderDone ? "Done" : "Queued")
-                    }
+                    noteGroupCard(dayNotes, status: { $0.intent == .orderDone ? "Done" : "Queued" })
                 }
             }
         }
@@ -801,13 +798,40 @@ struct AIHomeView: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(.eeonTextSecondary)
             .textCase(.uppercase)
-            .padding(.horizontal)
+            .padding(.horizontal, EEONLayout.standard + 2)
             .padding(.top, 14)
-            .padding(.bottom, 4)
+            .padding(.bottom, 6)
     }
 
-    /// One row per note: title and time, nothing else. Swipe for Edit /
-    /// Share / Delete (no full swipe — a note goes only on that tap).
+    /// One day's notes as a single inset-grouped card: rows divided by
+    /// inset hairlines, the way Settings and Tasks read.
+    private func noteGroupCard(_ dayNotes: [Note], status: @escaping (Note) -> String?) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(dayNotes.enumerated()), id: \.element.id) { index, note in
+                noteRow(note, status: status(note))
+                if index < dayNotes.count - 1 {
+                    Divider().padding(.leading, 14)
+                }
+            }
+        }
+        .background(Color.eeonCard)
+        .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
+        .padding(.horizontal)
+    }
+
+    private func noteMetaLine(_ note: Note) -> String {
+        var parts = [note.createdAt.formatted(date: .omitted, time: .shortened)]
+        if let seconds = note.audioDuration, seconds > 0 {
+            parts.append(NoteFeedCard.durationText(seconds))
+        }
+        if let topic = note.topics.first, !topic.isEmpty {
+            parts.append(topic.capitalized)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Title on top, "time · length · topic" underneath, chevron. Swipe for
+    /// Edit / Share / Delete (no full swipe — a note goes only on that tap).
     private func noteRow(_ note: Note, status: String?) -> some View {
         EEONSwipeActionsRow(
             actions: [
@@ -815,16 +839,21 @@ struct AIHomeView: View {
                 .share { sharePayload = EEONSharePayload(text: noteShareText(note)) },
                 .delete { deleteNote(note) }
             ],
-            background: .eeonBackground,
             allowsFullSwipe: false
         ) {
             NavigationLink(destination: NoteDetailView(note: note)) {
-                HStack(alignment: .firstTextBaseline, spacing: EEONLayout.snug) {
-                    Text(note.displayTitle)
-                        .font(EEONType.preview)
-                        .foregroundStyle(.eeonTextPrimary)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(alignment: .center, spacing: EEONLayout.snug) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(note.displayTitle)
+                            .font(EEONType.itemTitle)
+                            .foregroundStyle(.eeonTextPrimary)
+                            .lineLimit(1)
+                        Text(noteMetaLine(note))
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     if let status {
                         Text(status)
@@ -835,16 +864,12 @@ struct AIHomeView: View {
                             .background(Capsule().fill((status == "Done" ? Color.eeonTextTertiary : Color.eeonAccentAI).opacity(0.12)))
                     }
 
-                    Text(note.createdAt.formatted(date: .omitted, time: .shortened))
-                        .font(EEONType.meta)
-                        .foregroundStyle(.eeonTextSecondary)
-                        .monospacedDigit()
+                    Image(systemName: "chevron.right")
+                        .font(EEONType.badge)
+                        .foregroundStyle(.eeonTextTertiary)
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 14)
                 .padding(.vertical, 11)
-                .overlay(alignment: .bottom) {
-                    Divider().padding(.leading, 16)
-                }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

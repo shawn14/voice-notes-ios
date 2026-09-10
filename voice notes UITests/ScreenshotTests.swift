@@ -56,6 +56,9 @@ final class ScreenshotTests: XCTestCase {
         if openCalendarScreen(selecting: "This Week") {
             sleep(2)
             shot("02_Calendar")
+            // The range persists across launches; put it back so Home's
+            // strip and later runs start on Today.
+            _ = selectCalendarRange("Today")
             relaunchHome()
         }
 
@@ -180,6 +183,11 @@ final class ScreenshotTests: XCTestCase {
         let strip = app.buttons["Calendar"]
         guard strip.waitForExistence(timeout: 3) else { return false }
         strip.tap()
+        return selectCalendarRange(title)
+    }
+
+    /// On the pushed Calendar screen: open the options menu and pick a range.
+    private func selectCalendarRange(_ title: String) -> Bool {
         let range = app.buttons["Calendar options"]
         guard range.waitForExistence(timeout: 3) else { return false }
         range.tap()

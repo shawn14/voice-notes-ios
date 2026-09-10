@@ -189,6 +189,15 @@ low-key. Chosen over a single Otter-style timeline (B) and a tab bar (C).
   Installed on Shawn's iPhone (install seq 7184); launch refused because the
   phone was locked — Shawn opens it. **Built, not verified** on device.
 
+- **Option A follow-ups (10:00–10:12).** (1) Calendar range persists —
+  `@AppStorage("calendarMeetingScope")` replaces the view-local scope, so
+  Today / Week / Month stays chosen across visits and launches, and Home's strip
+  follows it ("This Week · 12 meetings ›"; chips show weekday or date for other
+  days). ScreenshotTests resets it to Today. (2) Note rows reformatted: each day's
+  notes are one inset-grouped card with inset hairlines; row = bold title over
+  "time · length · topic", chevron; prompts keep the Queued/Done pill. Build exit 0;
+  installed on the phone (seq 7192) and launched. **Built, not verified** by Shawn.
+
 ## Resume protocol (if the disk fills again)
 
 Each cron fire: `df -h /System/Volumes/Data`; if free < 1 GB, say so in one line

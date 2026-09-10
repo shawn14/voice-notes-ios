@@ -74,7 +74,14 @@ struct CalendarMeetingsView: View {
         self.compact = compact
     }
 
-    @State private var scope: CalendarMeetingScope = .today
+    /// The chosen range persists across visits and launches (Shawn,
+    /// 2026-09-10: "if you pick day, week, or month, it stays that way"),
+    /// and Home's strip follows it.
+    @AppStorage("calendarMeetingScope") private var scopeRaw: String = CalendarMeetingScope.today.rawValue
+    private var scope: CalendarMeetingScope {
+        get { CalendarMeetingScope(rawValue: scopeRaw) ?? .today }
+        nonmutating set { scopeRaw = newValue.rawValue }
+    }
     @State private var meetings: [CalendarMeeting] = []
     @State private var readSummary: CalendarReadSummary?
     @State private var googleSummary: GoogleCalendarReadSummary?
@@ -122,7 +129,7 @@ struct CalendarMeetingsView: View {
         .padding(.horizontal)
         .padding(.top, compact ? 0 : 4)
         .task { await refreshMeetings() }
-        .onChange(of: scope) { _, _ in
+        .onChange(of: scopeRaw) { _, _ in
             Task { await refreshMeetings() }
         }
         .onChange(of: includeSharedGoogleCalendars) { _, _ in
@@ -137,11 +144,26 @@ struct CalendarMeetingsView: View {
 
     private var compactTitle: String {
         if !isCalendarReady { return "Calendar · not connected" }
-        if !hasLoadedOnce { return "Today" }
+        let range = scope.menuTitle
+        if !hasLoadedOnce { return range }
         switch meetings.count {
-        case 0: return "Today · no meetings"
-        case 1: return "Today · 1 meeting"
-        default: return "Today · \(meetings.count) meetings"
+        case 0: return "\(range) · no meetings"
+        case 1: return "\(range) · 1 meeting"
+        default: return "\(range) · \(meetings.count) meetings"
+        }
+    }
+
+    /// Chip time: today shows the time; other days in the week show the
+    /// weekday; the month shows the date.
+    private func chipTimeLabel(for meeting: CalendarMeeting) -> String {
+        if meeting.isHappeningNow { return "Now" }
+        let time = timeOnly(meeting.startDate)
+        if Calendar.current.isDateInToday(meeting.startDate) { return time }
+        switch scope {
+        case .today, .week:
+            return "\(meeting.startDate.formatted(.dateTime.weekday(.abbreviated))) \(time)"
+        case .month:
+            return "\(meeting.startDate.formatted(.dateTime.month(.abbreviated).day())) \(time)"
         }
     }
 
@@ -221,7 +243,7 @@ struct CalendarMeetingsView: View {
     private func meetingChipContent(_ meeting: CalendarMeeting) -> some View {
         let now = meeting.isHappeningNow
         return HStack(spacing: 6) {
-            Text(now ? "Now" : timeOnly(meeting.startDate))
+            Text(chipTimeLabel(for: meeting))
                 .font(EEONType.badge)
                 .foregroundStyle(now ? Color.eeonAccent : Color.eeonTextSecondary)
                 .monospacedDigit()
