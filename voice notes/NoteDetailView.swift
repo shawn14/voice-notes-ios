@@ -79,20 +79,12 @@ struct NoteDetailView: View {
     var autoTransform: AITransformType? = nil
 
     @Query private var allProjects: [Project]
-    @Query private var allDecisions: [ExtractedDecision]
     @Query private var allActions: [ExtractedAction]
-    @Query private var allExtractedURLs: [ExtractedURL]
-    @Query private var allCommitments: [ExtractedCommitment]
-
     @State private var audioRecorder = AudioRecorder()
     @State private var showingDeleteConfirm = false
     @State private var showingShareSheet = false
     @State private var showingTextShareSheet = false
     @State private var showingProjectPicker = false
-    @State private var isGeneratingSummary = false
-
-    // AI Transform state
-    @State private var showingAIMenu = false
     @State private var showingCustomPrompt = false
     @State private var customPromptText = ""
     @State private var isGeneratingAI = false
@@ -105,20 +97,11 @@ struct NoteDetailView: View {
     @State private var selectedImageForFullscreen: String?
     @State private var showingFullscreenImage = false
 
-    // Transcript collapsed state
-    @State private var showingTranscript = false
     @State private var showingSpeakerEditor = false
     @State private var speakerDrafts: [SpeakerLabel] = []
 
-    // Extraction collapsed state
-    @State private var showingExtractions = false
-
     // Tag picker
     @State private var showingTagPicker = false
-
-    // Navigation to AnswerSheet with pre-filled query
-    @State private var assistantQuery: String?
-    @State private var showingAssistant = false
 
     // Rewrite sheet state
     @State private var showingRewriteSheet = false
@@ -174,29 +157,6 @@ struct NoteDetailView: View {
         return parts.joined(separator: "\n\n")
     }
 
-    // Computed summary from transcript
-    private var summary: String {
-        var parts: [String] = []
-
-        if let subject = note.extractedSubject {
-            parts.append(subject.topic)
-            if let action = subject.action, !action.isEmpty {
-                parts.append(action)
-            }
-        }
-
-        if let nextStep = note.suggestedNextStep, !nextStep.isEmpty {
-            parts.append("Next: \(nextStep)")
-        }
-
-        if parts.isEmpty {
-            let text = !note.content.isEmpty ? note.content : (note.transcript ?? "")
-            return text.isEmpty ? "No summary available" : text
-        }
-
-        return parts.joined(separator: ". ")
-    }
-
     var body: some View {
         ZStack {
             // Background
@@ -237,7 +197,10 @@ struct NoteDetailView: View {
                         noteBodySection
                             .padding(.bottom, 20)
 
-                        recordingCleanupSection
+                        // 4a. The to-dos this note produced (2026-09-10) — the
+                        // link between a note and the Tasks screen. The old
+                        // collapsed "Extractions" section had no call site.
+                        noteTasksSection
                             .padding(.bottom, 20)
 
                         // 4b. Practice (2026-08-20). Deliberately a visible
@@ -270,11 +233,11 @@ struct NoteDetailView: View {
                             .padding(.bottom, 20)
 
                         // 5. AI generating indicator
-                        if isGeneratingAI || isRewriting {
+                        if isGeneratingAI || isRewriting || isSummarizingExcerpt {
                             HStack(spacing: 12) {
                                 ProgressView()
                                     .tint(.eeonAccentAI)
-                                Text(isRewriting ? "Rewriting..." : "Transforming...")
+                                Text(isSummarizingExcerpt ? "Writing cleaned note…" : isRewriting ? "Rewriting…" : "Transforming…")
                                     .font(.subheadline)
                                     .foregroundStyle(.eeonTextSecondary)
                             }
@@ -365,6 +328,20 @@ struct NoteDetailView: View {
                             Label(isProcessingImage ? "Processing..." : "Add Photo", systemImage: "photo.badge.plus")
                         }
                         .disabled(isProcessingImage)
+
+                        // Was a card under every note (2026-09-10): a niche
+                        // action belongs in the menu, not on the page.
+                        if let transcript = note.transcript ?? Optional(note.content),
+                           !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Button {
+                                excerptDraft = transcript
+                                excerptError = nil
+                                showingExcerptEditor = true
+                            } label: {
+                                Label("Clean Up Recording…", systemImage: "scissors")
+                            }
+                            .disabled(isSummarizingExcerpt || isRewriting || isReprocessing)
+                        }
 
                         Divider()
 
@@ -466,11 +443,6 @@ struct NoteDetailView: View {
                     sharedText: shareableText
                 )
             ])
-        }
-        .sheet(isPresented: $showingAssistant) {
-            if let query = assistantQuery, !query.isEmpty {
-                AnswerSheet(initialQuery: query)
-            }
         }
         .sheet(isPresented: $showingQuiz) {
             QuizView(note: note, questions: note.quizQuestions)
@@ -769,25 +741,8 @@ struct NoteDetailView: View {
 
     // MARK: - Computed Properties
 
-    private var noteDecisions: [ExtractedDecision] {
-        allDecisions.filter { $0.sourceNoteId == note.id }
-    }
-
     private var noteActions: [ExtractedAction] {
         allActions.filter { $0.sourceNoteId == note.id }
-    }
-
-    private var noteCommitments: [ExtractedCommitment] {
-        allCommitments.filter { $0.sourceNoteId == note.id }
-    }
-
-    private var noteURLs: [ExtractedURL] {
-        allExtractedURLs.filter { $0.sourceNoteId == note.id }
-    }
-
-    private var hasExtractions: Bool {
-        !noteDecisions.isEmpty || !noteActions.isEmpty || !noteCommitments.isEmpty ||
-        !note.mentionedPeople.isEmpty || !note.topics.isEmpty
     }
 
     // MARK: - Enhanced / Original Toggle
@@ -1023,6 +978,84 @@ struct NoteDetailView: View {
         }
     }
 
+    // MARK: - Tasks from this note
+
+    /// The to-dos EEON extracted from this recording, in the same checkbox
+    /// rows as the Tasks screen. Completion mirrors to Reminders and the
+    /// markdown export exactly as it does there.
+    @ViewBuilder
+    private var noteTasksSection: some View {
+        let tasks = noteActions.sorted { lhs, rhs in
+            if lhs.isCompleted != rhs.isCompleted { return !lhs.isCompleted }
+            return lhs.createdAt < rhs.createdAt
+        }
+        if !tasks.isEmpty {
+            let open = tasks.filter { !$0.isCompleted }.count
+            VStack(alignment: .leading, spacing: EEONLayout.snug) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Tasks")
+                        .font(.headline)
+                        .foregroundStyle(.eeonTextPrimary)
+                    Spacer()
+                    Text(open == 0 ? "All done" : open == 1 ? "1 open" : "\(open) open")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+
+                VStack(spacing: 0) {
+                    ForEach(tasks) { action in
+                        noteTaskRow(action)
+                        if action.id != tasks.last?.id {
+                            Divider().padding(.leading, 44)
+                        }
+                    }
+                }
+                .background(Color.eeonCard)
+                .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
+            }
+        }
+    }
+
+    private func noteTaskRow(_ action: ExtractedAction) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Button {
+                toggleTask(action)
+            } label: {
+                Image(systemName: action.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(action.isCompleted ? Color.eeonAccent : Color.eeonTextTertiary)
+                    .eeonTapTarget()
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(action.content)
+                    .font(EEONType.preview)
+                    .foregroundStyle(action.isCompleted ? .eeonTextTertiary : .eeonTextPrimary)
+                    .strikethrough(action.isCompleted, color: .eeonTextTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let due = EventKitSyncService.parseDate(from: action.deadline) {
+                    Label(due.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
+                        .font(EEONType.badge)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    private func toggleTask(_ action: ExtractedAction) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            action.isCompleted.toggle()
+            action.completedAt = action.isCompleted ? Date() : nil
+            try? modelContext.save()
+        }
+        DocumentExportService.shared.export(note: note, context: modelContext)
+        Task { await EventKitSyncService.shared.updateCompletion(for: action) }
+    }
+
     // MARK: - Quiz
 
     /// Entry point for flashcard practice. This is intentionally opt-in and
@@ -1232,247 +1265,6 @@ struct NoteDetailView: View {
             }
         }
         .padding(.top, 4)
-    }
-
-    @ViewBuilder
-    private var recordingCleanupSection: some View {
-        let transcript = note.transcript ?? note.content
-        if !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "text.viewfinder")
-                        .font(.subheadline)
-                        .foregroundStyle(.eeonAccentAI)
-                        .frame(width: 22)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Clean up recording")
-                            .font(EEONType.itemTitle)
-                            .foregroundStyle(.eeonTextPrimary)
-                        Text("Use only the part that matters and regenerate this note.")
-                            .font(EEONType.meta)
-                            .foregroundStyle(.eeonTextSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Spacer(minLength: EEONLayout.tight)
-                }
-
-                Button {
-                    excerptDraft = transcript
-                    excerptError = nil
-                    showingExcerptEditor = true
-                } label: {
-                    Label("Select excerpt", systemImage: "scissors")
-                        .font(EEONType.control)
-                        .foregroundStyle(Color.eeonAccentAI)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: EEONLayout.minTarget)
-                        .background(
-                            RoundedRectangle(cornerRadius: EEONLayout.chipRadius)
-                                .fill(Color.eeonAccentAI.opacity(0.09))
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(isSummarizingExcerpt || isRewriting || isReprocessing)
-
-                if isSummarizingExcerpt {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                        Text("Writing cleaned note...")
-                            .font(EEONType.meta)
-                            .foregroundStyle(.eeonTextSecondary)
-                    }
-                }
-
-                if let excerptError {
-                    Text(excerptError)
-                        .font(EEONType.meta)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(EEONLayout.standard)
-            .background(
-                RoundedRectangle(cornerRadius: EEONLayout.cardRadius)
-                    .fill(Color.eeonCard.opacity(0.8))
-            )
-        }
-    }
-
-    // MARK: - Transform Output Section
-
-    private func transformOutputSection(output: String, typeRaw: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                if let type = AITransformType(rawValue: typeRaw) {
-                    Image(systemName: type.icon)
-                        .foregroundStyle(.eeonAccentAI)
-                    Text(type.rawValue)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.eeonAccentAI)
-                }
-
-                Spacer()
-
-                Button {
-                    UIPasteboard.general.string = output
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "doc.on.doc")
-                        Text("Copy")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.eeonAccentAI)
-                }
-
-                Button {
-                    note.activeRewriteText = nil
-                    note.activeRewriteType = nil
-                    note.updatedAt = Date()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "xmark.circle")
-                        Text("Clear")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.red.opacity(0.7))
-                }
-            }
-
-            Text(output)
-                .font(.body)
-                .foregroundStyle(.eeonTextPrimary)
-                .textSelection(.enabled)
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.eeonCard)
-                .cornerRadius(12)
-                .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.06), radius: 8, y: 2)
-        }
-    }
-
-    // MARK: - Next Step Card
-
-    private func nextStepCard(nextStep: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "arrow.right.circle.fill")
-                .font(.title3)
-                .foregroundStyle(.eeonAccentAI)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Next Step")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.eeonTextSecondary)
-                Text(nextStep)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.eeonTextPrimary)
-            }
-
-            Spacer()
-
-            Button {
-                note.resolveNextStep(with: "Completed")
-            } label: {
-                Image(systemName: "checkmark.circle")
-                    .font(.title2)
-                    .foregroundStyle(.eeonAccentAI)
-            }
-        }
-        .padding()
-        .background(Color.eeonAccentAI.opacity(0.1))
-        .cornerRadius(12)
-    }
-
-    // MARK: - Extraction Section (Collapsed by Default)
-
-    private var extractionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    showingExtractions.toggle()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: showingExtractions ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                    Text("Extractions")
-                        .font(.subheadline.weight(.medium))
-
-                    Spacer()
-
-                    // Count badge
-                    let count = noteDecisions.count + noteActions.count + noteCommitments.count + note.mentionedPeople.count + note.topics.count
-                    Text("\(count) items")
-                        .font(.caption)
-                        .foregroundStyle(.eeonTextSecondary)
-                }
-                .foregroundStyle(.eeonTextSecondary)
-            }
-
-            if showingExtractions {
-                ExtractionChipsSection(
-                    decisions: noteDecisions,
-                    actions: noteActions,
-                    commitments: noteCommitments,
-                    people: note.mentionedPeople,
-                    topics: note.topics,
-                    onChipTap: { query in
-                        assistantQuery = query
-                        showingAssistant = true
-                    },
-                    onActionToggle: { action in
-                        if action.isCompleted {
-                            action.markIncomplete()
-                        } else {
-                            action.markComplete()
-                        }
-                    }
-                )
-                .padding()
-                .background(Color.eeonCard)
-                .cornerRadius(12)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-
-    // MARK: - Transcript Section (Collapsed)
-
-    private func transcriptSection(transcript: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    showingTranscript.toggle()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: showingTranscript ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                    Text("Show what I said")
-                        .font(.subheadline.weight(.medium))
-                    Spacer()
-                    Text("\(transcript.split(separator: " ").count) words")
-                        .font(.caption)
-                        .foregroundStyle(.eeonTextSecondary)
-                }
-                .foregroundStyle(.eeonTextSecondary)
-            }
-
-            if showingTranscript {
-                Text(transcript)
-                    .font(.body)
-                    .foregroundStyle(.eeonTextPrimary.opacity(0.8))
-                    .lineSpacing(4)
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.eeonCard)
-                    .cornerRadius(12)
-                    .textSelection(.enabled)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
     }
 
     private func copyNoteText() {

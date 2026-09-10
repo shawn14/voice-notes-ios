@@ -190,3 +190,4 @@
 - Loop 4 done: `TasksView` single-mode pushed list (550 → 449), one toolbar menu, rows aligned with Home's preview. Build exit 0.
 - Loop 5 done: bottom bar = Note · AI Prompt · Ask, capture kind carried through recording bar + overlays, `capturingOrder` leak on cancel/paywall fixed, long-press Note restores type/import/link inputs. Build exit 0.
 - Loop 6 done: Settings regrouped (Account · Assistant · Connections · Advanced · Data · Help), Notifications folded into Assistant, Knowledge row restored under Advanced. Build exit 0.
+- Loop 7 done: note detail shows its own Tasks (new card), dead extraction/transcript/next-step sections + 3 queries removed, cleanup card moved to the menu (2324 → 2116). Build exit 0.

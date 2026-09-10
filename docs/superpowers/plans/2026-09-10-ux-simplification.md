@@ -31,7 +31,7 @@ kill list (repo convention); never delete user notes; no schema changes.
 - [x] 6. Settings: regroup to Account · Calendar · Reminders · AI access ·
       Subscription · Data; move Tune EEON / Knowledge / vocabulary / templates
       under one "Advanced" group.
-- [ ] 7. Note detail: trim toolbar and chips to transcript / enhanced /
+- [x] 7. Note detail: trim toolbar and chips to transcript / enhanced /
       tasks / share / delete; AI transforms behind one menu.
 - [ ] 8. Library ("See All"): plain chronological list + search, no
       collections carousel.
@@ -110,6 +110,17 @@ kill list (repo convention); never delete user notes; no schema changes.
   loop 1's carousel removal had left the knowledge base and Memory Map with no
   entry point at all. Subtitles and the Connections footer shortened; the footer
   also stops calling Reminders "read-only" (EEON writes tasks there). Build exit 0.
+
+- **Loop 7 (08:24–08:36)** `NoteDetailView` 2324 → 2116 lines. Found that the
+  "Extractions" chips, "Show what I said" transcript, Next Step card and transform
+  output sections were defined but never rendered — a note showed none of its own
+  to-dos. Added a **Tasks** card under the body (checkbox rows identical to the
+  Tasks screen; completion mirrors to Reminders + export) and deleted the dead
+  sections, their state, the Ask sheet they fed, and three SwiftData queries
+  (decisions, commitments, URLs). The "Clean up recording" card that sat under
+  EVERY note with a transcript is now a menu item ("Clean Up Recording…"); its
+  progress shows in the shared indicator. Practice/quiz card kept (it is gated to
+  study-like notes and was a deliberate 08-20 decision). Build exit 0, no warnings.
 
 ## Resume protocol (if the disk fills again)
 
