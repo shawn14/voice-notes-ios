@@ -179,3 +179,8 @@
   - Settings → Connections shows `Reconnect` in orange instead of `Connected`.
 - VERIFIED ON DEVICE, not just compiled. `xcodebuild -scheme "voice notes" -configuration Debug -destination "generic/platform=iOS"` succeeded with no new warnings in the three changed files and a clean `git diff --check`; installed + launched on Shawn's iPhone `F3C3794A-23F0-52DE-849D-AEB50EE743DD` at 15:54 local, where the Keychain still held the genuinely dead refresh token — an exact live reproduction. Shawn confirmed the fixed behavior ("worked"): banner appears, iPhone Calendar meetings show underneath, Reconnect re-auths.
 - Known and expected: reconnecting buys ~7 more days until Google approves the data-access review. The win is that expiry now costs one tap on a visible button instead of an empty calendar and a developer error string.
+
+## 2026-09-10
+
+- **UX simplification, autonomous 10-loop pass (Shawn: "much simpler and cleaner UX but maintain note recording and AI prompt recording plus calendar and to dos").** Plan + per-loop log: `docs/superpowers/plans/2026-09-10-ux-simplification.md`. Each loop = one cut → cached Debug build → local commit; **nothing pushed** (Shawn authorizes pushes).
+- Loop 1 done: home is a fixed Calendar → Tasks → Notes stack. Knowledge carousel, LLM persona sections, Tune hero card and the import-recording checklist row no longer render on home (views kept in codebase; Tune EEON + Knowledge still reachable from Settings). Build exit 0. Not yet run on device.

@@ -67,7 +67,6 @@ struct AIHomeView: View {
     @State private var driftStatus: DriftStatus = .fresh
     /// Set when iCloud uploads are persistently failing — drives syncFailureBanner.
     @State private var syncFailure: (since: Date, message: String)?
-    @AppStorage("tuneBannerDismissedAt") private var tuneBannerDismissedRaw: Double = 0
     @AppStorage("homeOnboardingChecklistDismissedAt") private var onboardingChecklistDismissedRaw: Double = 0
     @AppStorage(EventKitSyncService.enabledKey) private var remindersSyncEnabled = false
     @AppStorage(CalendarContextService.enabledKey) private var calendarContextEnabled = false
@@ -145,10 +144,6 @@ struct AIHomeView: View {
     private var todaysBrief: DailyBrief? {
         let today = Calendar.current.startOfDay(for: Date())
         return dailyBriefs.first { $0.briefDate >= today }
-    }
-
-    private var hasImportedRecording: Bool {
-        visibleLibraryNotes.contains { $0.sourceType == .audioImport }
     }
 
     /// Computed AI tab data (only built when AI tab is selected)
@@ -461,12 +456,6 @@ struct AIHomeView: View {
                             // the notes below re-filter in place. You never
                             // leave the main screen.
 
-                            // Tune EEON hero card — prominent until user has compiled a .purpose article
-                            if showTuneHeroCard {
-                                tuneHeroCard
-                                    .padding(.horizontal)
-                            }
-
                             if showOnboardingChecklist {
                                 onboardingChecklist
                                     .padding(.horizontal)
@@ -488,16 +477,13 @@ struct AIHomeView: View {
                                 }
                             }
 
-                            // Layout-driven sections — order determined by HomeLayout.decode,
-                            // which anchors knowledgeCarousel and recentNotes at indices 0 and 1
-                            // (platform-universal) and lets the LLM order persona-shaped sections
-                            // at index 2+. The case .knowledgeCarousel dispatch in
-                            // sectionView(for:section:) renders knowledgeCardsSection.
-                            ForEach(activeLayout.sections) { section in
-                                if let kind = section.kind {
-                                    sectionView(for: kind, section: section)
-                                }
-                            }
+                            // Home is three fixed sections (2026-09-10 simplification):
+                            // Calendar → Tasks → Notes. The LLM-ordered persona
+                            // sections (HomeLayout) and the Knowledge carousel no
+                            // longer render here; HomeSections.swift is kept — see
+                            // the MEMORY.md kill list. Tune EEON and Knowledge live
+                            // in Settings.
+                            homeStack
 
                             // Spacer so content doesn't show behind bottom bar
                             Color.clear.frame(height: 20)
@@ -1120,44 +1106,6 @@ struct AIHomeView: View {
         .cornerRadius(10)
     }
 
-    // MARK: - Knowledge Cards
-
-    @ViewBuilder
-    private var knowledgeCardsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Knowledge")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.eeonTextPrimary)
-
-                Spacer()
-
-                NavigationLink(destination: KnowledgeOverviewView()) {
-                    HStack(spacing: 4) {
-                        Text("\(visibleKnowledgeArticles.count) articles")
-                            .font(.caption)
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                    }
-                    .foregroundStyle(.eeonTextSecondary)
-                }
-            }
-            .padding(.horizontal)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(visibleKnowledgeArticles.prefix(10)) { article in
-                        NavigationLink(destination: KnowledgeArticleDetailView(article: article)) {
-                            KnowledgeCardView(article: article)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal)
-            }
-        }
-    }
-
     /// Slim, always-legible recording state. Tap to open the full recorder
     /// with waveform and live transcript; the mic button below stops.
     private var recordingBar: some View {
@@ -1273,9 +1221,8 @@ struct AIHomeView: View {
 
     // MARK: - Feed (search router)
 
-    /// Feed entry point: the search field, then either search results or the
-    /// normal tabbed browse feed depending on whether a query is active.
-    private var noteFeed: some View {
+    /// The whole home surface: Calendar → Tasks → Notes, fixed order.
+    private var homeStack: some View {
         calendarHome
     }
 
@@ -1471,10 +1418,10 @@ struct AIHomeView: View {
         VStack(alignment: .leading, spacing: EEONLayout.snug) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Recent")
+                    Text("Notes")
                         .font(.headline)
                         .foregroundStyle(.eeonTextPrimary)
-                    Text("Latest \(libraryPreviewNotes.count) of \(visibleLibraryNotes.count)")
+                    Text(libraryNoteCountLabel(visibleLibraryNotes.count))
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextSecondary)
                 }
@@ -1544,10 +1491,10 @@ struct AIHomeView: View {
         VStack(alignment: .leading, spacing: EEONLayout.snug) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Action Items")
+                    Text("Tasks")
                         .font(.headline)
                         .foregroundStyle(.eeonTextPrimary)
-                    Text(openTaskCount == 1 ? "1 open follow-up" : "\(openTaskCount) open follow-ups")
+                    Text(openTaskCount == 1 ? "1 open" : "\(openTaskCount) open")
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextSecondary)
                 }
@@ -1563,7 +1510,7 @@ struct AIHomeView: View {
                         .frame(minHeight: EEONLayout.minTarget)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("All action items")
+                .accessibilityLabel("All tasks")
             }
 
             VStack(spacing: EEONLayout.tight) {
@@ -1691,12 +1638,11 @@ struct AIHomeView: View {
 
     // MARK: - Personalization Hero Card
 
+    /// Shown until every row is done (or the user dismisses it). Three rows,
+    /// one per home section: a note, the calendar, the to-dos.
     private var showOnboardingChecklist: Bool {
         guard onboardingChecklistDismissedRaw == 0 else { return false }
-        if visibleLibraryNotes.count >= 3, hasCalendarSource, remindersSyncEnabled {
-            return false
-        }
-        return visibleLibraryNotes.count < 3 || !hasCalendarSource || !remindersSyncEnabled || !hasImportedRecording
+        return visibleLibraryNotes.isEmpty || !hasCalendarSource || !remindersSyncEnabled
     }
 
     private var onboardingChecklist: some View {
@@ -1706,7 +1652,7 @@ struct AIHomeView: View {
                     Text("Set up EEON")
                         .font(.headline)
                         .foregroundStyle(.eeonTextPrimary)
-                    Text("A few fast checks for meeting memory.")
+                    Text("Three quick steps.")
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextSecondary)
                 }
@@ -1759,17 +1705,6 @@ struct AIHomeView: View {
                         let granted = await EventKitSyncService.shared.requestAccess()
                         await MainActor.run { remindersSyncEnabled = granted }
                     }
-                }
-
-                Divider().padding(.leading, 44)
-
-                checklistRow(
-                    icon: "square.and.arrow.down",
-                    title: "Import a recording",
-                    subtitle: "Use Files or share from Voice Memos",
-                    isDone: hasImportedRecording
-                ) {
-                    showingAudioImporter = true
                 }
             }
             .background(Color.eeonCard)
@@ -1845,65 +1780,6 @@ struct AIHomeView: View {
                 }
             }
         }
-    }
-
-    /// Show the personalization hero card when the user hasn't set up their purpose yet.
-    /// Once the purpose is compiled (article has non-empty directive), the card disappears.
-    /// User can also dismiss manually; dismissals re-show after 14 days if still empty.
-    private var showTuneHeroCard: Bool {
-        let hasPurpose = (purposeArticles.first?.thinkingEvolution?.isEmpty == false)
-            || (purposeArticles.first?.summary.isEmpty == false)
-        if hasPurpose { return false }
-        let dismissed = Date(timeIntervalSince1970: tuneBannerDismissedRaw)
-        let daysSince = Calendar.current.dateComponents([.day], from: dismissed, to: Date()).day ?? 999
-        return daysSince >= 14
-    }
-
-    private var tuneHeroCard: some View {
-        Button {
-            showingIdentity = true
-        } label: {
-            HStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .fill(Color("EEONAccent").opacity(0.18))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: "scope")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color("EEONAccent"))
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Personalize EEON")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.eeonTextPrimary)
-                    Text("Tell it who you are, what it's for, and what to remember for you.")
-                        .font(.caption)
-                        .foregroundStyle(.eeonTextSecondary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                Button {
-                    tuneBannerDismissedRaw = Date().timeIntervalSince1970
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.eeonTextSecondary)
-                        .padding(6)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.eeonCard)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color("EEONAccent").opacity(0.35), lineWidth: 1.5)
-                    )
-            )
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Drift Banner
@@ -2013,65 +1889,6 @@ struct AIHomeView: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.ultraThinMaterial)
-    }
-
-    // MARK: - Layout-Driven Sections
-
-    /// Active home layout — compiled by KnowledgeCompiler on the .purpose article,
-    /// or the default layout if no purpose article has been compiled yet.
-    private var activeLayout: HomeLayout {
-        purposeArticles.first?.homeLayout ?? .default
-    }
-
-    /// Dispatch a section kind to its concrete view. Sections render themselves
-    /// or disappear entirely when they have no data — so the user never sees an
-    /// empty "Silent Projects" placeholder.
-    @ViewBuilder
-    private func sectionView(for kind: HomeSectionKind, section: HomeSection) -> some View {
-        let t = section.effectiveTitle
-        switch kind {
-        case .priorityProjects:
-            PriorityProjectsSection(projects: visibleProjects, title: t, rationale: section.rationale, limit: section.limit ?? 5)
-        case .silentProjects:
-            SilentProjectsSection(projects: visibleProjects, title: t, rationale: section.rationale, staleDays: section.staleDaysThreshold ?? 9)
-        case .openDecisions:
-            OpenDecisionsSection(decisions: visibleExtractedDecisions, notes: visibleLibraryNotes, title: t, rationale: section.rationale, limit: section.limit ?? 5)
-        case .ideaInbox:
-            IdeaInboxSection(notes: visibleLibraryNotes, title: t, rationale: section.rationale, limit: section.limit ?? 5)
-        case .clientRoster:
-            ClientRosterSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 8)
-        case .followUpsPerClient:
-            FollowUpsPerClientSection(commitments: visibleExtractedCommitments, notes: visibleLibraryNotes, title: t, rationale: section.rationale, limit: section.limit ?? 6)
-        case .recurringPatterns:
-            RecurringPatternsSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 8)
-        case .referenceResonance:
-            ReferenceResonanceSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
-        case .knowledgeCarousel:
-            if !visibleKnowledgeArticles.isEmpty { knowledgeCardsSection }
-        case .recentNotes:
-            noteFeed
-        case .todayThree:
-            EmptyView() // Today's 3 removed from home 2026-08-19
-        case .openThreads:
-            OpenThreadsSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
-        case .momentumPicture:
-            MomentumPictureSection(
-                title: t,
-                rationale: section.rationale,
-                focusItems: purposeArticles.first?.focusItems ?? [],
-                notes: visibleLibraryNotes
-            )
-        case .emotionalToneArc:
-            EmotionalToneArcSection(notes: visibleLibraryNotes, title: t, rationale: section.rationale, limit: section.limit ?? 14)
-        case .activeInquiries:
-            ActiveInquiriesSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
-        case .relationshipArcs:
-            RelationshipArcsSection(articles: visibleKnowledgeArticles, title: t, rationale: section.rationale, limit: section.limit ?? 5)
-        // Still stubs — captureHero is always rendered elsewhere; dailyBrief needs a DailyBrief model display;
-        // contradictionLedger needs persisted lint results (deferred, see plan).
-        case .captureHero, .contradictionLedger, .dailyBrief:
-            EmptyView()
-        }
     }
 
     // MARK: - Signed Out View
