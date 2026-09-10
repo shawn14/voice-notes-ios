@@ -635,10 +635,7 @@ struct AIHomeView: View {
     /// no lenses, tabs, filters, briefs, or persona sections live here.
     private var homeStack: some View {
         VStack(alignment: .leading, spacing: EEONLayout.standard) {
-            CalendarMeetingsView(embedded: true) {
-                guard !isRecording, !isTranscribing else { return }
-                toggleRecording()
-            }
+            CalendarMeetingsView()
 
             if !homeOpenActions.isEmpty {
                 homeActionItemsSection

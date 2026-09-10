@@ -22,7 +22,7 @@ kill list (repo convention); never delete user notes; no schema changes.
 - [x] 2. Dead-code sweep in `AIHomeView`: browseFeed / conversationsHeader /
       FeedMode / search field / category cards / week strip / date picker /
       tag sheets / AI tab / drift banner / why-this-home. Compiler is the gate.
-- [ ] 3. Calendar section: one header row, no options/refresh icon clutter in
+- [x] 3. Calendar section: one header row, no options/refresh icon clutter in
       the embedded view; meeting rows tap → record about this meeting.
 - [ ] 4. Tasks: home preview + `TasksView` share one row style; clear
       complete / due / open-note affordances; "All" → Tasks screen.
@@ -65,6 +65,17 @@ kill list (repo convention); never delete user notes; no schema changes.
   zero SwiftPM packages so the "full" build was cheap: `xcodebuild` exit 0, 0 errors,
   0 warnings in `AIHomeView`, ~41 s. Build products took the volume from 1.9 GB to
   597 MB free again — later loops are incremental, but the disk is still the risk.
+
+- **Loop 3 (07:36–07:50)** `CalendarMeetingsView` 933 → 671 lines, embedded-only.
+  It was only ever presented from Home, so the full-screen mode (split view,
+  meeting detail pane with related notes, selection state, `onRecord`, the `notes`
+  SwiftData query that fed it) was unreachable and is gone. Header now matches the
+  Tasks/Notes headers: title + date line, and ONE menu holding Today/Week/Month,
+  Refresh, and the Google/iPhone toggles (was three icons). Connect state is a
+  compact card without the "Permission: …" line; empty state is one quiet line
+  with a hint only when calendars are missing or events were filtered. Rows are
+  tappable only when they have a call link. Build exit 0, no warnings in the two
+  files. Not device-verified.
 
 ## Resume protocol (if the disk fills again)
 
