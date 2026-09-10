@@ -19,7 +19,7 @@ kill list (repo convention); never delete user notes; no schema changes.
       carousel, LLM persona sections (`HomeLayout` dispatch), Tune hero card,
       "Import a recording" checklist row. Rename "Action Items" → "Tasks",
       "Recent" → "Notes".
-- [ ] 2. Dead-code sweep in `AIHomeView`: browseFeed / conversationsHeader /
+- [x] 2. Dead-code sweep in `AIHomeView`: browseFeed / conversationsHeader /
       FeedMode / search field / category cards / week strip / date picker /
       tag sheets / AI tab / drift banner / why-this-home. Compiler is the gate.
 - [ ] 3. Calendar section: one header row, no options/refresh icon clutter in
@@ -46,3 +46,28 @@ kill list (repo convention); never delete user notes; no schema changes.
   Tasks → Notes → bottom bar. Removed from home: Knowledge carousel, `HomeLayout`
   persona-section dispatch, Tune hero card, "Import a recording" row. Build: cached
   Debug generic-iOS `xcodebuild` exit 0 (25s). Not device-verified.
+- **Loop 2 (00:15–00:45, verified 07:33 after ~6.5 h blocked on a full disk).** `AIHomeView`
+  2948 → 2067 lines (−881): removed the unreachable feed machinery (FeedTab/FeedMode
+  + segmented header, keyword search, category cards, week strip, date filter +
+  picker sheet, tag sheets, AI tab, library collections carousel, drift banner +
+  DriftDetector call, Tune/why-this-home sheets) and 9 `@Query`s home no longer
+  reads. The verifying build died on infrastructure, not code: `xcodebuild` exit 65
+  with `accessing build database … disk I/O error` — the Data volume had **805 MB
+  free (100 %)**. The failure also emptied this project's DerivedData
+  (`SourcePackages` and `Build/Products` gone, 39 MB left), so the next build is a
+  full one that re-resolves SwiftPM packages. Nothing safe to delete without Shawn:
+  every large `/private/tmp` workspace was written 2026-09-09 and two are held open
+  by other sessions; the rest is his caches/simulators/archives. Loop 2 was
+  un-committed (`git reset --soft`) so `main` carries only verified commits; the
+  change is staged in the working tree.
+
+- **Loop 2 verified 07:33.** Free space rose to 3.0 GB (not by me), the project has
+  zero SwiftPM packages so the "full" build was cheap: `xcodebuild` exit 0, 0 errors,
+  0 warnings in `AIHomeView`, ~41 s. Build products took the volume from 1.9 GB to
+  597 MB free again — later loops are incremental, but the disk is still the risk.
+
+## Resume protocol (if the disk fills again)
+
+Each cron fire: `df -h /System/Volumes/Data`; if free < 1 GB, say so in one line
+and stop (incremental builds need little, the products already exist). Otherwise
+build, commit the staged loop, continue. One infra failure = stop and report.

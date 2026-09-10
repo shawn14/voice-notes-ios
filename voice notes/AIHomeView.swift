@@ -20,11 +20,6 @@ fileprivate struct AnswerQuery: Identifiable {
     let query: String
 }
 
-enum NotesViewMode: String, CaseIterable {
-    case list = "List"
-    case mood = "Mood"
-}
-
 struct AIHomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) var colorScheme
@@ -33,18 +28,7 @@ struct AIHomeView: View {
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Query(sort: \Project.sortOrder) private var projects: [Project]
     @Query private var tags: [Tag]
-    @Query(sort: \DailyBrief.briefDate, order: .reverse) private var dailyBriefs: [DailyBrief]
-    @Query private var extractedCommitments: [ExtractedCommitment]
-    @Query private var kanbanItems: [KanbanItem]
-    @Query private var kanbanMovements: [KanbanMovement]
     @Query private var extractedActions: [ExtractedAction]
-    @Query private var extractedDecisions: [ExtractedDecision]
-    @Query private var mentionedPeople: [MentionedPerson]
-    @Query private var unresolvedItems: [UnresolvedItem]
-    @Query(sort: \KnowledgeArticle.lastMentionedAt, order: .reverse) private var knowledgeArticles: [KnowledgeArticle]
-    @Query(filter: #Predicate<KnowledgeArticle> { $0.articleTypeRaw == "purpose" })
-    private var purposeArticles: [KnowledgeArticle]
-
     @Binding var shouldStartRecording: Bool
 
     private var authService = AuthService.shared
@@ -61,10 +45,7 @@ struct AIHomeView: View {
     @State private var pendingAnswerQuery: AnswerQuery?
     /// "Remind me…" heard in a recording — confirmed in ReminderConfirmSheet.
     @State private var pendingReminder: ReminderCommandParser.Command?
-    @State private var showingIdentity = false
-    @State private var showingWhyThisHome = false
     @State private var showPaywall = false
-    @State private var driftStatus: DriftStatus = .fresh
     /// Set when iCloud uploads are persistently failing — drives syncFailureBanner.
     @State private var syncFailure: (since: Date, message: String)?
     @AppStorage("homeOnboardingChecklistDismissedAt") private var onboardingChecklistDismissedRaw: Double = 0
@@ -99,268 +80,22 @@ struct AIHomeView: View {
     /// Swipe "Share" on a note card or action item.
     @State private var sharePayload: EEONSharePayload?
 
-    // Daily brief expansion
-
-    // Feed tabs & sorting
-    enum FeedTab: String, CaseIterable {
-        case all = "All"
-        case notebooks = "Notebooks"
-        case ai = "AI"
-        case favorites = "Favorites"
-        case archive = "Archive"
-    }
-    @State private var selectedTab: FeedTab = .all
-    @State private var sortNewestFirst = true
-    @State private var viewMode: NotesViewMode = .list
-    @State private var selectedTagFilter: Tag?
-    @State private var showingTagManagement = false
-    @State private var showingTagFilter = false
-    /// What the feed shows under the Library header. Library is the default;
-    /// Tasks and Highlights render inline in the same place.
-    enum FeedMode: String, CaseIterable, Identifiable, Hashable {
-        case calendar = "Calendar"
-        case tasks = "Tasks"
-        case library = "Library"
-        case highlights = "Highlights"
-
-        var id: String { rawValue }
-    }
-    @State private var feedMode: FeedMode = .calendar
-    @State private var selectedCategory: String?
-    @State private var showingDatePicker = false
     @State private var showingFullRecorder = false
     @State private var showingAskSheet = false
     #if DEBUG
     @State private var didStartRecorderDemo = false
     @State private var didOpenAskDemo = false
     #endif
-    @State private var selectedDay: Date?
-    @State private var selectedIntents: Set<NoteIntent> = []
-
-    // Keyword search — global substring search across all notes
-    @State private var searchQuery = ""
-
-    // Today's daily brief
-    private var todaysBrief: DailyBrief? {
-        let today = Calendar.current.startOfDay(for: Date())
-        return dailyBriefs.first { $0.briefDate >= today }
-    }
-
-    /// Computed AI tab data (only built when AI tab is selected)
-    private var aiTabData: AITabData {
-        AITabBuilder.build(
-            notes: visibleLibraryNotes,
-            actions: visibleExtractedActions,
-            commitments: visibleExtractedCommitments,
-            decisions: visibleExtractedDecisions,
-            people: visibleMentionedPeople
-        )
-    }
-
-    /// Tags sorted by note count descending
-    private var sortedTags: [Tag] {
-        tags.sorted { (($0.notes ?? []).count) > (($1.notes ?? []).count) }
-    }
-
-    private func tagNoteCount(_ tag: Tag) -> Int {
-        (tag.notes ?? []).count
-    }
-
-    /// Filtered notes based on selected tab and optional tag filter
-    private var filteredNotes: [Note] {
-        var base: [Note]
-        // Always exclude Tune EEON seed notes — they're configuration, not memory.
-        // They live inside Tune EEON; showing them in the feed would inflate counts,
-        // pollute search, and let users accidentally delete their own config.
-        let visible = librarySearchableNotes(notes)
-        switch selectedTab {
-        case .all:
-            base = visible.filter { !$0.isArchived }
-        case .notebooks:
-            base = visible.filter { !$0.isArchived }
-        case .ai:
-            base = visible.filter { !$0.isArchived }
-        case .favorites:
-            base = visible.filter { $0.isFavorite && !$0.isArchived }
-        case .archive:
-            base = visible.filter { $0.isArchived }
-        }
-        // Apply tag filter if selected
-        if let tag = selectedTagFilter {
-            base = base.filter { $0.tags.contains(where: { $0.id == tag.id }) }
-        }
-
-        // Category card selection (Pocket-style top row)
-        if let category = selectedCategory {
-            base = base.filter { note in
-                (note.topics.first?.capitalized ?? "Unfiled") == category
-            }
-        }
-
-        // Week-strip day selection
-        if let day = selectedDay {
-            base = base.filter { Calendar.current.isDate($0.createdAt, inSameDayAs: day) }
-        }
-        // Apply intent filter if any selected
-        base = NotesReorgHelpers.filterByIntents(notes: base, selected: selectedIntents)
-        if sortNewestFirst {
-            return base // Already sorted newest first by @Query
-        } else {
-            return base.reversed()
-        }
-    }
-
-    /// The query with surrounding whitespace removed. Empty when search is inactive.
-    private var activeSearchQuery: String {
-        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// True while the user has a non-empty search query entered.
-    private var isSearching: Bool {
-        !activeSearchQuery.isEmpty
-    }
-
-    /// Global keyword search results across every note (including archived),
-    /// excluding only the Tune EEON seed notes — which are configuration, not
-    /// memory, and must never appear in the feed or search (see `filteredNotes`).
-    private var searchResults: [Note] {
-        NoteKeywordSearch.match(query: activeSearchQuery, in: librarySearchableNotes(notes))
-    }
-
     private var visibleLibraryNotes: [Note] {
         libraryVisibleNotes(notes)
-    }
-
-    private var visibleProjects: [Project] {
-        libraryVisibleProjects(projects)
-    }
-
-    private var visibleKnowledgeArticles: [KnowledgeArticle] {
-        libraryVisibleArticles(knowledgeArticles)
-    }
-
-    private var visibleMentionedPeople: [MentionedPerson] {
-        libraryVisiblePeople(mentionedPeople)
     }
 
     private var visibleExtractedActions: [ExtractedAction] {
         extractedActions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
     }
 
-    private var visibleExtractedCommitments: [ExtractedCommitment] {
-        extractedCommitments.filter { !libraryIsSchemaSeedName($0.who) && !libraryIsSchemaSeedName($0.what) }
-    }
-
-    private var visibleExtractedDecisions: [ExtractedDecision] {
-        extractedDecisions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.affects) }
-    }
-
     private var libraryPreviewNotes: [Note] {
         Array(visibleLibraryNotes.prefix(8))
-    }
-
-    private var librarySummaries: [LibraryCollectionSummary] {
-        libraryCollectionSummaries(
-            notes: notes,
-            projects: visibleProjects
-        )
-    }
-
-    private var libraryHomeCollections: [LibraryCollectionSummary] {
-        librarySummaries.filter { $0.kind != .recent }
-    }
-
-    /// Group notes by month for section headers
-    private var notesByDay: [(String, [Note])] {
-        // Chronological, day-grouped feed: Today / Yesterday / "Tuesday, Mar 4".
-        let calendar = Calendar.current
-        let thisYear = DateFormatter()
-        thisYear.dateFormat = "EEEE, MMM d"
-        let otherYear = DateFormatter()
-        otherYear.dateFormat = "EEEE, MMM d, yyyy"
-
-        func label(for date: Date) -> String {
-            if calendar.isDateInToday(date) { return "Today" }
-            if calendar.isDateInYesterday(date) { return "Yesterday" }
-            if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
-                return thisYear.string(from: date)
-            }
-            return otherYear.string(from: date)
-        }
-
-        var grouped: [(String, [Note])] = []
-        var currentDay = ""
-        var currentGroup: [Note] = []
-
-        for note in filteredNotes {
-            let day = label(for: note.createdAt)
-            if day != currentDay {
-                if !currentGroup.isEmpty {
-                    grouped.append((currentDay, currentGroup))
-                }
-                currentDay = day
-                currentGroup = [note]
-            } else {
-                currentGroup.append(note)
-            }
-        }
-        if !currentGroup.isEmpty {
-            grouped.append((currentDay, currentGroup))
-        }
-        return grouped
-    }
-
-    /// Notebooks: notes auto-filed by what they are — the matched project's
-    /// name when ProjectMatcher assigned one, else the note's first topic,
-    /// else "Unfiled". Zero manual filing. Groups ordered by most recent note.
-    private var notesByNotebook: [(String, [Note])] {
-        var groups: [String: [Note]] = [:]
-        for note in filteredNotes {
-            let name: String
-            if let pid = note.projectId,
-               let project = projects.first(where: { $0.id == pid }),
-               !project.name.isEmpty {
-                name = project.name
-            } else if let topic = note.topics.first, !topic.isEmpty {
-                name = topic.capitalized
-            } else {
-                name = "Unfiled"
-            }
-            groups[name, default: []].append(note)
-        }
-        return groups.sorted {
-            ($0.value.first?.createdAt ?? .distantPast) > ($1.value.first?.createdAt ?? .distantPast)
-        }.map { ($0.key, $0.value) }
-    }
-
-    private var emptyStateIcon: String {
-        switch selectedTab {
-        case .all: return "waveform.circle"
-        case .notebooks: return "books.vertical"
-        case .ai: return "sparkles"
-        case .favorites: return "heart.circle"
-        case .archive: return "archivebox"
-        }
-    }
-
-    private var emptyStateTitle: String {
-        switch selectedTab {
-        case .all: return "Your memory starts here"
-        case .notebooks: return "Nothing filed yet"
-        case .ai: return "Almost there"
-        case .favorites: return "Your greatest hits"
-        case .archive: return "Clean slate"
-        }
-    }
-
-    private var emptyStateSubtitle: String {
-        switch selectedTab {
-        case .all: return "Hit the mic and say what's on your mind. EEON will remember it for you."
-        case .notebooks: return "Record notes and they'll file themselves into notebooks by project and topic."
-        case .ai: return "Record a few more notes and EEON will start connecting the dots."
-        case .favorites: return "Tap the heart on any note to pin it here."
-        case .archive: return "Archived notes live here. Out of sight, never out of reach."
-        }
     }
 
     var body: some View {
@@ -448,25 +183,10 @@ struct AIHomeView: View {
                             syncFailureBanner
                                 .padding(.horizontal)
 
-                            // Lens switcher removed 2026-08-21. Notes /
-                            // Calendar / Categories were whole-screen views
-                            // you switched INTO to perform a filter and back
-                            // out of afterwards. Both are now dropdowns on
-                            // the feed header: pick a category or a date and
-                            // the notes below re-filter in place. You never
-                            // leave the main screen.
-
                             if showOnboardingChecklist {
                                 onboardingChecklist
                                     .padding(.horizontal)
                             }
-
-                            // Drift / staleness "Re-tune" banner removed from home
-                            // (2026-08-19 simplification — home is the capture
-                            // stream, not a nag surface). driftBanner view kept
-                            // in codebase; re-tune lives in Settings / Tune EEON.
-
-                            // Daily brief is "Highlights" in the feed dropdown (2026-08-25), not a card here.
 
                             // Free tier warning
                             if !UsageService.shared.isPro {
@@ -535,14 +255,6 @@ struct AIHomeView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
-            .sheet(isPresented: $showingIdentity) {
-                TuneConversationView()
-            }
-            .sheet(isPresented: $showingWhyThisHome) {
-                WhyThisHomeSheet(onTune: {
-                    showingIdentity = true
-                })
-            }
             .onAppear {
                 #if DEBUG
                 // Screenshot automation (fastlane snap, -ShowReminderDemo):
@@ -589,29 +301,6 @@ struct AIHomeView: View {
                     showingTypeNote = false
                 })
             }
-            .sheet(isPresented: $showingTagManagement) {
-                TagManagementSheet()
-            }
-            .sheet(isPresented: $showingTagFilter) {
-                TagFilterSheet(selectedTagFilter: $selectedTagFilter)
-                    .presentationDetents([.medium])
-            }
-            .sheet(isPresented: $showingDatePicker) {
-            NavigationStack {
-                ScrollView {
-                    CalendarLensView(notesByDayCount: notesByDayCount, selectedDay: $selectedDay)
-                        .padding(.horizontal)
-                }
-                .navigationTitle("Pick a date")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Done") { showingDatePicker = false }
-                    }
-                }
-            }
-            .presentationDetents([.medium, .large])
-        }
             // Stop pressed on the lock-screen indicator while the in-app
             // recorder owns the session.
             .onChange(of: backgroundCapture.inAppStopRequested) { _, requested in
@@ -701,8 +390,6 @@ struct AIHomeView: View {
                 // Sync free note counter with actual database count
                 let actualCount = visibleLibraryNotes.count
                 UsageService.shared.syncNoteCount(actualCount: actualCount)
-                // Run drift check (local-only, throttled inside the service)
-                driftStatus = DriftDetector.shared.check(in: modelContext)
 
                 // Check for pending share extension ingests
                 Task {
@@ -720,219 +407,6 @@ struct AIHomeView: View {
 
     // MARK: - 1. Greeting Bar
 
-    /// True once the .purpose article has a compiled directive — used to gate the
-    /// "Tuned for you" chip so pre-tune users don't see it.
-    private var hasCompiledPurpose: Bool {
-        guard let article = purposeArticles.first else { return false }
-        return (article.thinkingEvolution?.isEmpty == false) || !article.summary.isEmpty
-    }
-
-    // MARK: - Lenses (one at a time, never stacked)
-
-    /// Note counts keyed by start-of-day, for the calendar's dots.
-    private var notesByDayCount: [Date: Int] {
-        var out: [Date: Int] = [:]
-        let calendar = Calendar.current
-        for note in visibleLibraryNotes {
-            let day = calendar.startOfDay(for: note.createdAt)
-            out[day, default: 0] += 1
-        }
-        return out
-    }
-
-    /// Human label for the active date filter.
-    private var dateFilterLabel: String {
-        guard let selectedDay else { return "All dates" }
-        let calendar = Calendar.current
-        if calendar.isDateInToday(selectedDay) { return "Today" }
-        if calendar.isDateInYesterday(selectedDay) { return "Yesterday" }
-        return selectedDay.formatted(.dateTime.month(.abbreviated).day())
-    }
-
-    /// Date filter as a dropdown, matching the category one. The month grid
-    /// still exists for browsing, but it now opens in a half-height sheet
-    /// instead of taking over the screen as a tab.
-    private var dateFilterMenu: some View {
-        Menu {
-            Button {
-                withAnimation { selectedDay = nil }
-            } label: {
-                if selectedDay == nil {
-                    Label("All dates", systemImage: "checkmark")
-                } else {
-                    Text("All dates")
-                }
-            }
-
-            Divider()
-
-            Button {
-                withAnimation { selectedDay = Calendar.current.startOfDay(for: Date()) }
-            } label: { Text("Today") }
-
-            Button {
-                let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())
-                withAnimation {
-                    selectedDay = yesterday.map { Calendar.current.startOfDay(for: $0) }
-                }
-            } label: { Text("Yesterday") }
-
-            Divider()
-
-            Button {
-                showingDatePicker = true
-            } label: { Label("Pick a date…", systemImage: "calendar") }
-        } label: {
-            HStack(spacing: 5) {
-                Text(dateFilterLabel)
-                    .font(EEONType.meta)
-                    .foregroundStyle(selectedDay == nil ? Color.eeonTextSecondary : Color.eeonAccent)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(selectedDay == nil ? Color.eeonTextSecondary : Color.eeonAccent)
-            }
-            .frame(minHeight: EEONLayout.minTarget)
-            .contentShape(Rectangle())
-        }
-    }
-
-    // Filter sheet removed 2026-08-25: category and day are the two dropdowns
-    // on the feed header (conversationsHeader). Two controls, one job.
-
-    // MARK: - Capture-stream header (category cards + week strip)
-
-    /// Top categories by note count, as tappable cards. Built from the same
-    /// auto-filing rule as notebooks: matched project name, else first topic.
-    private var topCategories: [(String, Int)] {
-        var counts: [String: Int] = [:]
-        for note in visibleLibraryNotes {
-            let topic = note.topics.first { !libraryIsSchemaSeedName($0) }
-            let name = topic?.capitalized ?? "Unfiled"
-            counts[name, default: 0] += 1
-        }
-        return counts.sorted { $0.value > $1.value }.prefix(8).map { ($0.key, $0.value) }
-    }
-
-    private var categoryCardsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(topCategories, id: \.0) { name, count in
-                    categoryCard(name: name, count: count)
-                }
-            }
-            .padding(.horizontal)
-        }
-    }
-
-    private func categoryCard(name: String, count: Int) -> some View {
-        let isSelected = selectedCategory == name
-        return Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedCategory = isSelected ? nil : name
-            }
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.eeonAccent.opacity(0.85), Color("EEONAccentAI").opacity(0.7)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 34, height: 34)
-                    .overlay(
-                        Text(String(name.prefix(1)))
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                    )
-                Text(name)
-                    .font(EEONType.control)
-                    .foregroundStyle(.eeonTextPrimary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("\(count)")
-                    .font(EEONType.meta)
-                    .foregroundStyle(.eeonTextSecondary)
-            }
-            .padding(EEONLayout.snug)
-            .frame(minWidth: 112, maxWidth: 168, alignment: .leading)
-            .background(isSelected ? Color.eeonAccent.opacity(0.18) : Color.eeonCard)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// The last 14 days as a scrollable strip — tap a day to filter the feed
-    /// to it, tap again to clear.
-    private var weekStrip: some View {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let days: [Date] = (0..<14).compactMap {
-            calendar.date(byAdding: .day, value: -$0, to: today)
-        }.reversed()
-        return ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(days, id: \.self) { day in
-                        dayChip(day)
-                            .id(day)
-                    }
-                }
-                .padding(.horizontal)
-            }
-            .onAppear { proxy.scrollTo(today, anchor: .trailing) }
-        }
-    }
-
-    private func dayChip(_ day: Date) -> some View {
-        let calendar = Calendar.current
-        let isSelected = selectedDay.map { calendar.isDate($0, inSameDayAs: day) } ?? false
-        let isToday = calendar.isDateInToday(day)
-        let weekday = day.formatted(.dateTime.weekday(.narrow))
-        let number = calendar.component(.day, from: day)
-        return Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedDay = isSelected ? nil : day
-            }
-        } label: {
-            VStack(spacing: 4) {
-                Text(weekday)
-                    .font(.caption2)
-                    .foregroundStyle(.eeonTextSecondary)
-                Text("\(number)")
-                    .font(.subheadline.weight(isToday ? .bold : .regular))
-                    .foregroundStyle(isSelected ? .white : (isToday ? Color.eeonAccent : Color.eeonTextPrimary))
-            }
-            .frame(width: 40, height: 52)
-            .background(isSelected ? Color.eeonAccent : Color.eeonCard)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var feedTitle: String {
-        switch feedMode {
-        case .library: return "Library"
-        case .calendar: return "Calendar"
-        case .tasks: return "Tasks"
-        case .highlights: return "Highlights"
-        }
-    }
-
-    private var feedSubtitle: String {
-        switch feedMode {
-        case .library:
-            return libraryNoteCountLabel(visibleLibraryNotes.count)
-        case .calendar:
-            return "Today, week, month"
-        case .tasks:
-            return openTaskCount == 1 ? "1 open task" : "\(openTaskCount) open tasks"
-        case .highlights:
-            return "Today"
-        }
-    }
-
     private var openTaskCount: Int {
         visibleExtractedActions.filter { !$0.isCompleted }.count
     }
@@ -940,41 +414,6 @@ struct AIHomeView: View {
     private var hasCalendarSource: Bool {
         googleCalendarService.isConnected
             || (calendarContextEnabled && CalendarContextService.shared.isAuthorized)
-    }
-
-    private var conversationsHeader: some View {
-        VStack(alignment: .leading, spacing: EEONLayout.snug) {
-            Picker("View", selection: $feedMode) {
-                ForEach(FeedMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-
-            HStack(alignment: .firstTextBaseline, spacing: EEONLayout.tight) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(feedTitle)
-                        .font(.headline)
-                        .foregroundStyle(.eeonTextPrimary)
-                    Text(feedSubtitle)
-                        .font(EEONType.meta)
-                        .foregroundStyle(.eeonTextSecondary)
-                }
-
-                Spacer(minLength: EEONLayout.tight)
-
-                if feedMode == .library {
-                    NavigationLink(destination: LibraryView()) {
-                        Label("See All", systemImage: "rectangle.stack")
-                            .font(EEONType.control)
-                            .foregroundStyle(.eeonAccent)
-                            .frame(minHeight: EEONLayout.minTarget)
-                    }
-                }
-            }
-            .padding(.horizontal)
-        }
     }
 
     private var greetingBar: some View {
@@ -1032,32 +471,6 @@ struct AIHomeView: View {
         .contentShape(Circle())
     }
 
-    /// Small chip shown under the greeting once the user has a compiled .purpose article.
-    /// Tapping opens the "Why this home?" sheet so the magic is legible, not opaque.
-    private var tunedForYouChip: some View {
-        Button {
-            showingWhyThisHome = true
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "scope")
-                    .font(.system(size: 11, weight: .semibold))
-                Text("Personalized")
-                    .font(.caption.weight(.semibold))
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .bold))
-                    .opacity(0.7)
-            }
-            .foregroundStyle(Color("EEONAccent"))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(Color("EEONAccent").opacity(0.12))
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
         let timeGreeting: String
@@ -1079,10 +492,6 @@ struct AIHomeView: View {
         formatter.dateFormat = "EEEE, MMMM d"
         return formatter.string(from: Date())
     }
-
-    // dailyBriefCard removed 2026-08-25 — it was dead code since the 08-19
-    // home simplification. Today's brief renders as "Highlights" in the feed
-    // dropdown (TodayHighlightsView).
 
     // MARK: - Free Notes Warning
 
@@ -1219,154 +628,12 @@ struct AIHomeView: View {
         )
     }
 
-    // MARK: - Feed (search router)
+    // MARK: - Home stack
 
-    /// The whole home surface: Calendar → Tasks → Notes, fixed order.
+    /// The whole home surface, fixed order: Calendar → Tasks → Notes.
+    /// Home is not a dashboard and not a nag surface (2026-08-19, 2026-09-10):
+    /// no lenses, tabs, filters, briefs, or persona sections live here.
     private var homeStack: some View {
-        calendarHome
-    }
-
-    /// Global keyword search input. Manual TextField (not `.searchable()`) so it
-    /// fits AIHomeView's custom in-feed layout.
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14))
-                .foregroundStyle(.eeonTextSecondary)
-
-            TextField("Search Library", text: $searchQuery)
-                .font(.subheadline)
-                .foregroundStyle(.eeonTextPrimary)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-
-            if !searchQuery.isEmpty {
-                Button {
-                    searchQuery = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.body)
-                        .foregroundStyle(.eeonTextSecondary)
-                        .eeonTapTarget()
-                }
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.eeonCard)
-        .cornerRadius(10)
-    }
-
-    /// Flat grid of keyword-search results, or an empty state. Replaces the
-    /// tabbed browse feed while a query is active.
-    @ViewBuilder
-    private var searchResultsSection: some View {
-        if searchResults.isEmpty {
-            VStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.eeonTextTertiary)
-                Text("No notes match \u{201C}\(activeSearchQuery)\u{201D}")
-                    .font(.subheadline)
-                    .foregroundStyle(.eeonTextSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(searchResults.count == 1 ? "1 result" : "\(searchResults.count) results")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.eeonTextSecondary)
-                    .textCase(.uppercase)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-
-                // Single-column, notepad-style list (2026-08-19 simplification)
-                let columns = [GridItem(.flexible())]
-                LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(searchResults) { note in
-                        noteFeedLink(note)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 16)
-            }
-        }
-    }
-
-    // MARK: - 4. Note Feed (Tabbed, Grouped by Month)
-
-    private var browseFeed: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Tab row (All/Notebooks/AI/Favorites/Archive) + sort removed
-            // 2026-08-19 (Shawn): home is search + the chronological notes,
-            // nothing else. selectedTab stays .all; the other tab views are
-            // unreachable but intact. NOTE: archived notes currently have no
-            // UI surface — see session notes.
-
-            // Tag chip strip removed 2026-08-19 — notepad simplification.
-            // Tag filtering still available via the toolbar tag sheet.
-
-            // Intent filter chips removed 2026-08-19 — notepad simplification.
-
-            // Mood sparkline removed with the view-mode picker (2026-08-19).
-
-            // Active tag-filter chip removed 2026-08-19 with its entry point.
-
-            // Loose Ends lane removed from the All tab (2026-08-19
-            // simplification): with 60+ open items it buried the
-            // chronological feed entirely. Unresolved items still surface
-            // via the AI tab and proactive alerts.
-
-            // Calendar is the default Home surface. Library and Highlights
-            // stay one tap away without making Home read like a dashboard.
-            conversationsHeader
-                .padding(.bottom, 8)
-
-            if feedMode == .calendar {
-                calendarHome
-            } else if feedMode == .tasks {
-                TasksView(embedded: true)
-            } else if feedMode == .highlights {
-                TodayHighlightsView(
-                    brief: todaysBrief,
-                    isRefreshing: intelligenceService.isRefreshingDaily,
-                    sessionBrief: intelligenceService.sessionBrief
-                )
-            } else if selectedTab == .ai {
-                // AI-organized view
-                AITabView(data: aiTabData, noteCount: visibleLibraryNotes.count)
-            } else if librarySearchableNotes(notes).isEmpty {
-                // Empty state
-                VStack(spacing: 12) {
-                    Image(systemName: emptyStateIcon)
-                        .font(.system(size: 48))
-                        .foregroundStyle(.eeonTextTertiary)
-
-                    Text(emptyStateTitle)
-                        .font(.headline)
-                        .foregroundStyle(.eeonTextSecondary)
-
-                    Text(emptyStateSubtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.eeonTextTertiary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, EEONLayout.screenMargin)
-                .padding(.vertical, 40)
-            } else {
-                libraryHome
-            }
-        }
-    }
-
-    private var calendarHome: some View {
         VStack(alignment: .leading, spacing: EEONLayout.standard) {
             CalendarMeetingsView(embedded: true) {
                 guard !isRecording, !isTranscribing else { return }
@@ -1379,37 +646,6 @@ struct AIHomeView: View {
 
             if !visibleLibraryNotes.isEmpty {
                 recentLibrarySection
-            }
-        }
-    }
-
-    private var libraryHome: some View {
-        VStack(alignment: .leading, spacing: EEONLayout.snug) {
-            if !libraryHomeCollections.isEmpty {
-                libraryCollectionsSection
-            }
-
-            if !visibleLibraryNotes.isEmpty {
-                recentLibrarySection
-            }
-        }
-        .padding(.bottom, EEONLayout.standard)
-    }
-
-    private var libraryCollectionsSection: some View {
-        VStack(alignment: .leading, spacing: EEONLayout.snug) {
-            HomeSectionHeader("Collections", subtitle: "Auto-organized")
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: EEONLayout.snug) {
-                    ForEach(libraryHomeCollections) { summary in
-                        NavigationLink(destination: LibraryCollectionView(kind: summary.kind)) {
-                            LibraryCollectionCompactCard(summary: summary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal)
             }
         }
     }
@@ -1779,89 +1015,6 @@ struct AIHomeView: View {
                     }
                 }
             }
-        }
-    }
-
-    // MARK: - Drift Banner
-
-    /// Gentle prompt when the purpose article is stale or when recent captures
-    /// don't match the declared role. Tap to re-tune; tap × to dismiss for 14 days.
-    private var driftBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "scope")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.indigo)
-                .frame(width: 36, height: 36)
-                .background(Color.indigo.opacity(0.15))
-                .cornerRadius(10)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(driftBannerTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.eeonTextPrimary)
-                Text(driftBannerBody)
-                    .font(.caption)
-                    .foregroundStyle(.eeonTextSecondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Button {
-                showingIdentity = true
-            } label: {
-                Text("Update")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.indigo)
-                    .cornerRadius(8)
-            }
-            Button {
-                DriftDetector.shared.dismissBanner()
-                withAnimation { driftStatus = .fresh }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.eeonTextSecondary)
-                    .padding(6)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(12)
-        .background(Color.indigo.opacity(0.08))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.indigo.opacity(0.25), lineWidth: 1)
-        )
-        .cornerRadius(12)
-    }
-
-    private var driftBannerTitle: String {
-        switch driftStatus {
-        case .stale: return "It's been a while since you tuned EEON"
-        case .drifted: return "Your captures are telling a different story"
-        case .fresh: return ""
-        }
-    }
-
-    private var driftBannerBody: String {
-        switch driftStatus {
-        case .stale:
-            return "EEON's lens is over a month old. Update it to match how you think today."
-        case .drifted(let role, _):
-            let roleName: String = {
-                switch role {
-                case .founder: return "founder"
-                case .coach: return "coach"
-                case .interpreter: return "dream interpreter"
-                case .researcher: return "researcher"
-                case .journaler: return "journaler"
-                case .unknown: return "your lens"
-                }
-            }()
-            return "You told EEON you're a \(roleName), but recent notes don't match. Want to re-tune?"
-        case .fresh:
-            return ""
         }
     }
 
@@ -2694,41 +1847,7 @@ struct WelcomeFeatureRow: View {
     }
 }
 
-// MARK: - Note Feed Card (compact for 2-column grid)
-
-private struct LibraryCollectionCompactCard: View {
-    let summary: LibraryCollectionSummary
-
-    var body: some View {
-        HStack(spacing: EEONLayout.tight) {
-            Image(systemName: summary.kind.icon)
-                .font(EEONType.control)
-                .foregroundStyle(summary.kind.tint)
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(summary.kind.tint.opacity(0.14)))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(summary.title)
-                    .font(EEONType.control)
-                    .foregroundStyle(.eeonTextPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-
-                Text(summary.subtitle)
-                    .font(EEONType.meta)
-                    .foregroundStyle(.eeonTextSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-        }
-        .frame(width: 148, alignment: .leading)
-        .frame(minHeight: EEONLayout.minTarget)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.eeonCard)
-        .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
-    }
-}
+// MARK: - Note Feed Card
 
 struct NoteFeedCard: View {
     /// "1h 24m" / "8m" / "42s" — matches how a capture stream reads a length.
