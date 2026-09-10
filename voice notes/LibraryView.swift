@@ -376,6 +376,109 @@ struct LibraryCollectionView: View {
     }
 }
 
+/// Home › Notes › "See All" (2026-09-10 simplification): every note, newest
+/// first, grouped by month, with search and one scope menu. Favorites and
+/// Archived live here, which gives archived notes a surface again — the
+/// collections library (`LibraryView`) is no longer reachable.
+struct AllNotesView: View {
+    private enum Scope: String, CaseIterable, Identifiable {
+        case all = "All notes"
+        case favorites = "Favorites"
+        case archived = "Archived"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .all: return "doc.text"
+            case .favorites: return "heart"
+            case .archived: return "archivebox"
+            }
+        }
+    }
+
+    @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
+    @State private var scope: Scope = .all
+    @State private var query = ""
+    @State private var editingNote: Note?
+
+    private var scopedNotes: [Note] {
+        switch scope {
+        case .all: return libraryVisibleNotes(notes)
+        case .favorites: return libraryVisibleNotes(notes).filter { $0.isFavorite }
+        case .archived: return libraryArchivedNotes(notes)
+        }
+    }
+
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var shownNotes: [Note] {
+        guard !trimmedQuery.isEmpty else { return scopedNotes }
+        return NoteKeywordSearch.match(query: trimmedQuery, in: scopedNotes)
+    }
+
+    var body: some View {
+        List {
+            if shownNotes.isEmpty {
+                if !trimmedQuery.isEmpty {
+                    ContentUnavailableView.search(text: trimmedQuery)
+                } else {
+                    ContentUnavailableView(
+                        emptyTitle,
+                        systemImage: scope.icon,
+                        description: Text(emptyMessage)
+                    )
+                }
+            } else {
+                LibraryNoteSections(notes: shownNotes, editingNote: $editingNote)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(scope == .all ? "Notes" : scope.rawValue)
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $query, prompt: "Search notes")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Picker("Show", selection: $scope) {
+                        ForEach(Scope.allCases) { item in
+                            Label(item.rawValue, systemImage: item.icon).tag(item)
+                        }
+                    }
+                } label: {
+                    Image(systemName: scope == .all
+                          ? "line.3.horizontal.decrease.circle"
+                          : "line.3.horizontal.decrease.circle.fill")
+                }
+                .accessibilityLabel("Filter notes")
+                .accessibilityValue(scope.rawValue)
+            }
+        }
+        .navigationDestination(item: $editingNote) { note in
+            NoteDetailView(note: note, startEditing: true)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    private var emptyTitle: String {
+        switch scope {
+        case .all: return "No notes yet"
+        case .favorites: return "No favorites"
+        case .archived: return "Nothing archived"
+        }
+    }
+
+    private var emptyMessage: String {
+        switch scope {
+        case .all: return "Tap Note on the home screen and start talking."
+        case .favorites: return "Favorite a note from its menu to pin it here."
+        case .archived: return "Archived notes stay searchable here."
+        }
+    }
+}
+
 struct LibraryFilteredNotesView: View {
     @State private var editingNote: Note?
     let title: String

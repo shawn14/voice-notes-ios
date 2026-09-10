@@ -33,7 +33,7 @@ kill list (repo convention); never delete user notes; no schema changes.
       under one "Advanced" group.
 - [x] 7. Note detail: trim toolbar and chips to transcript / enhanced /
       tasks / share / delete; AI transforms behind one menu.
-- [ ] 8. Library ("See All"): plain chronological list + search, no
+- [x] 8. Library ("See All"): plain chronological list + search, no
       collections carousel.
 - [ ] 9. Onboarding: cut to sign-in + permissions + first record.
 - [ ] 10. Final: full build, docs (CLAUDE.md + AGENTS.md mirror, MEMORY.md
@@ -121,6 +121,13 @@ kill list (repo convention); never delete user notes; no schema changes.
   EVERY note with a transcript is now a menu item ("Clean Up Recording…"); its
   progress shows in the shared indicator. Practice/quiz card kept (it is gated to
   study-like notes and was a deliberate 08-20 decision). Build exit 0, no warnings.
+
+- **Loop 8 (08:36–08:46)** New `AllNotesView` behind Home › Notes › See All (and
+  the iPad sidebar link): every note newest-first in month sections, `.searchable`,
+  one filter menu (All notes / Favorites / Archived). Archived notes have a surface
+  again — the old collections library (`LibraryView`, projects/people/topics
+  cards) lost its only entry point in loop 2 and is left in the file unreachable.
+  Reuses the existing month sections and swipe rows. Build exit 0, no warnings.
 
 ## Resume protocol (if the disk fills again)
 

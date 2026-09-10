@@ -714,7 +714,7 @@ struct AIHomeView: View {
 
                 Spacer()
 
-                NavigationLink(destination: LibraryCollectionView(kind: .recent)) {
+                NavigationLink(destination: AllNotesView()) {
                     Text("See All")
                         .font(EEONType.control)
                         .foregroundStyle(.eeonAccent)
@@ -2022,7 +2022,7 @@ fileprivate struct RecentNotesSidebar: View {
                 }
 
                 if notes.count > 8 {
-                    NavigationLink(destination: LibraryCollectionView(kind: .recent)) {
+                    NavigationLink(destination: AllNotesView()) {
                         Label("All Recent", systemImage: "clock")
                     }
                 }
