@@ -198,6 +198,17 @@ low-key. Chosen over a single Otter-style timeline (B) and a tab bar (C).
   "time · length · topic", chevron; prompts keep the Queued/Done pill. Build exit 0;
   installed on the phone (seq 7192) and launched. **Built, not verified** by Shawn.
 
+- **Option A follow-ups, second round (10:12–10:30).** Calendar on Home is a
+  vertical inset-grouped card (time column · title · Now pill or call icon) —
+  Shawn: "horizontal is strange". Everything shows three then a "More N ›" row
+  (Shawn: "only show the recent three and then a More button"): 3 meetings → the
+  Calendar screen; 3 notes → `AllNotesView(kind: .notes)`; 3 prompts →
+  `AllNotesView(kind: .prompts)`. `AllNotesView` gained the `kind` so the full
+  notes list no longer mixes prompts in (prompts have no Favorites/Archived menu).
+  Home note rows lost their day headers; the meta line carries the day when it is
+  not today ("Yesterday · 4:12 PM · 3m · Pricing"). Build exit 0; installed (seq
+  7208) and launched. **Built, not verified** by Shawn.
+
 ## Resume protocol (if the disk fills again)
 
 Each cron fire: `df -h /System/Volumes/Data`; if free < 1 GB, say so in one line

@@ -715,7 +715,7 @@ struct AIHomeView: View {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    private static let homeNoteLimit = 20
+    private static let homeNoteLimit = 3
 
     private func dayLabel(for date: Date) -> String {
         let calendar = Calendar.current
@@ -727,58 +727,27 @@ struct AIHomeView: View {
         return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year())
     }
 
-    private func dayGroups(_ notes: [Note]) -> [(String, [Note])] {
-        var out: [(String, [Note])] = []
-        for note in notes {
-            let key = dayLabel(for: note.createdAt)
-            if let last = out.last, last.0 == key {
-                out[out.count - 1].1.append(note)
-            } else {
-                out.append((key, [note]))
-            }
-        }
-        return out
-    }
-
     private var notesList: some View {
         let shown = Array(homeNotes.prefix(Self.homeNoteLimit))
         return VStack(alignment: .leading, spacing: 0) {
             if shown.isEmpty {
                 quietLine("No notes yet. Tap Record and start talking.")
             } else {
-                ForEach(dayGroups(shown), id: \.0) { day, dayNotes in
-                    dayHeader(day)
-                    noteGroupCard(dayNotes, status: { _ in nil })
-                }
-                if homeNotes.count > shown.count {
-                    NavigationLink(destination: AllNotesView()) {
-                        HStack(spacing: EEONLayout.tight) {
-                            Text("All \(homeNotes.count) notes")
-                                .font(EEONType.control)
-                                .foregroundStyle(.eeonAccent)
-                            Image(systemName: "chevron.right")
-                                .font(EEONType.badge)
-                                .foregroundStyle(.eeonAccent)
-                        }
-                        .frame(minHeight: EEONLayout.minTarget)
-                        .padding(.horizontal)
-                        .padding(.top, 6)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("All notes")
+                noteGroupCard(shown, status: { _ in nil }, moreCount: homeNotes.count - shown.count) {
+                    AllNotesView(kind: .notes)
                 }
             }
         }
     }
 
     private var promptsList: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if homePrompts.isEmpty {
+        let shown = Array(homePrompts.prefix(Self.homeNoteLimit))
+        return VStack(alignment: .leading, spacing: 0) {
+            if shown.isEmpty {
                 quietLine("No AI prompts yet. Tap Record AI prompt and tell your agents what to build.")
             } else {
-                ForEach(dayGroups(homePrompts), id: \.0) { day, dayNotes in
-                    dayHeader(day)
-                    noteGroupCard(dayNotes, status: { $0.intent == .orderDone ? "Done" : "Queued" })
+                noteGroupCard(shown, status: { $0.intent == .orderDone ? "Done" : "Queued" }, moreCount: homePrompts.count - shown.count) {
+                    AllNotesView(kind: .prompts)
                 }
             }
         }
@@ -793,34 +762,57 @@ struct AIHomeView: View {
             .padding(.vertical, 12)
     }
 
-    private func dayHeader(_ day: String) -> some View {
-        Text(day)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.eeonTextSecondary)
-            .textCase(.uppercase)
-            .padding(.horizontal, EEONLayout.standard + 2)
-            .padding(.top, 14)
-            .padding(.bottom, 6)
-    }
-
-    /// One day's notes as a single inset-grouped card: rows divided by
-    /// inset hairlines, the way Settings and Tasks read.
-    private func noteGroupCard(_ dayNotes: [Note], status: @escaping (Note) -> String?) -> some View {
+    /// The three most recent as one inset-grouped card, then a "More" row
+    /// that opens the full list (Shawn, 2026-09-10: "only show the recent
+    /// three and then a More button").
+    private func noteGroupCard<Destination: View>(
+        _ shown: [Note],
+        status: @escaping (Note) -> String?,
+        moreCount: Int,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) -> some View {
         VStack(spacing: 0) {
-            ForEach(Array(dayNotes.enumerated()), id: \.element.id) { index, note in
+            ForEach(Array(shown.enumerated()), id: \.element.id) { index, note in
                 noteRow(note, status: status(note))
-                if index < dayNotes.count - 1 {
+                if index < shown.count - 1 {
                     Divider().padding(.leading, 14)
                 }
+            }
+            if moreCount > 0 {
+                Divider().padding(.leading, 14)
+                NavigationLink(destination: destination()) {
+                    HStack(spacing: EEONLayout.tight) {
+                        Text("More")
+                            .font(EEONType.control)
+                            .foregroundStyle(.eeonAccent)
+                        Text("\(moreCount)")
+                            .font(EEONType.meta)
+                            .foregroundStyle(.eeonTextSecondary)
+                        Image(systemName: "chevron.right")
+                            .font(EEONType.badge)
+                            .foregroundStyle(.eeonAccent)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 40)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("More")
             }
         }
         .background(Color.eeonCard)
         .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
         .padding(.horizontal)
+        .padding(.top, 6)
     }
 
     private func noteMetaLine(_ note: Note) -> String {
-        var parts = [note.createdAt.formatted(date: .omitted, time: .shortened)]
+        var parts: [String] = []
+        if !Calendar.current.isDateInToday(note.createdAt) {
+            parts.append(dayLabel(for: note.createdAt))
+        }
+        parts.append(note.createdAt.formatted(date: .omitted, time: .shortened))
         if let seconds = note.audioDuration, seconds > 0 {
             parts.append(NoteFeedCard.durationText(seconds))
         }

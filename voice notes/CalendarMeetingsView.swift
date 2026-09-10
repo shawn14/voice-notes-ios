@@ -153,20 +153,6 @@ struct CalendarMeetingsView: View {
         }
     }
 
-    /// Chip time: today shows the time; other days in the week show the
-    /// weekday; the month shows the date.
-    private func chipTimeLabel(for meeting: CalendarMeeting) -> String {
-        if meeting.isHappeningNow { return "Now" }
-        let time = timeOnly(meeting.startDate)
-        if Calendar.current.isDateInToday(meeting.startDate) { return time }
-        switch scope {
-        case .today, .week:
-            return "\(meeting.startDate.formatted(.dateTime.weekday(.abbreviated))) \(time)"
-        case .month:
-            return "\(meeting.startDate.formatted(.dateTime.month(.abbreviated).day())) \(time)"
-        }
-    }
-
     private var compactStrip: some View {
         VStack(alignment: .leading, spacing: EEONLayout.tight) {
             NavigationLink {
@@ -214,54 +200,111 @@ struct CalendarMeetingsView: View {
             }
 
             if !meetings.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: EEONLayout.tight) {
-                        ForEach(meetings) { meeting in
-                            meetingChip(meeting)
+                let shown = Array(meetings.prefix(Self.compactRowLimit))
+                VStack(spacing: 0) {
+                    ForEach(Array(shown.enumerated()), id: \.element.id) { index, meeting in
+                        compactRow(meeting)
+                        if index < shown.count - 1 {
+                            Divider().padding(.leading, 14)
                         }
                     }
+                    if meetings.count > shown.count {
+                        Divider().padding(.leading, 14)
+                        NavigationLink {
+                            CalendarScreen()
+                        } label: {
+                            HStack(spacing: EEONLayout.tight) {
+                                Text("More")
+                                    .font(EEONType.control)
+                                    .foregroundStyle(.eeonAccent)
+                                Text("\(meetings.count - shown.count)")
+                                    .font(EEONType.meta)
+                                    .foregroundStyle(.eeonTextSecondary)
+                                Image(systemName: "chevron.right")
+                                    .font(EEONType.badge)
+                                    .foregroundStyle(.eeonAccent)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 40)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
+                .background(Color.eeonCard)
+                .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
             }
         }
     }
 
+    private static let compactRowLimit = 3
+
+    /// Day for a meeting that is not today: weekday in Week, date in Month.
+    private func compactDayLabel(for meeting: CalendarMeeting) -> String? {
+        if Calendar.current.isDateInToday(meeting.startDate) { return nil }
+        switch scope {
+        case .today, .week:
+            return meeting.startDate.formatted(.dateTime.weekday(.abbreviated))
+        case .month:
+            return meeting.startDate.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+
+    /// A row is tappable only when it has somewhere to go (a call link).
     @ViewBuilder
-    private func meetingChip(_ meeting: CalendarMeeting) -> some View {
+    private func compactRow(_ meeting: CalendarMeeting) -> some View {
         if let meetingURL = meeting.meetingURL {
             Button {
                 openURL(meetingURL)
             } label: {
-                meetingChipContent(meeting)
+                compactRowContent(meeting)
             }
             .buttonStyle(.plain)
             .accessibilityHint("Opens the call")
         } else {
-            meetingChipContent(meeting)
+            compactRowContent(meeting)
         }
     }
 
-    private func meetingChipContent(_ meeting: CalendarMeeting) -> some View {
+    private func compactRowContent(_ meeting: CalendarMeeting) -> some View {
         let now = meeting.isHappeningNow
-        return HStack(spacing: 6) {
-            Text(chipTimeLabel(for: meeting))
-                .font(EEONType.badge)
-                .foregroundStyle(now ? Color.eeonAccent : Color.eeonTextSecondary)
-                .monospacedDigit()
+        return HStack(alignment: .center, spacing: EEONLayout.snug) {
+            VStack(alignment: .leading, spacing: 1) {
+                if let day = compactDayLabel(for: meeting) {
+                    Text(day)
+                        .font(EEONType.badge)
+                        .foregroundStyle(.eeonTextTertiary)
+                }
+                Text(timeOnly(meeting.startDate))
+                    .font(EEONType.meta)
+                    .foregroundStyle(now ? Color.eeonAccent : Color.eeonTextSecondary)
+                    .monospacedDigit()
+            }
+            .frame(width: 74, alignment: .leading)
+
             Text(meeting.title)
-                .font(EEONType.control)
+                .font(EEONType.itemTitle)
                 .foregroundStyle(.eeonTextPrimary)
                 .lineLimit(1)
-            if meeting.meetingURL != nil {
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if now {
+                Text("Now")
+                    .font(EEONType.badge)
+                    .foregroundStyle(Color.eeonAccent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.eeonAccent.opacity(0.13)))
+            } else if meeting.meetingURL != nil {
                 Image(systemName: "video")
                     .font(EEONType.badge)
                     .foregroundStyle(Color.eeonAccent)
             }
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
-        .frame(maxWidth: 220)
-        .background(now ? Color.eeonAccent.opacity(0.12) : Color.eeonCard)
-        .clipShape(Capsule())
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 
     // MARK: - Header

@@ -381,6 +381,18 @@ struct LibraryCollectionView: View {
 /// Archived live here, which gives archived notes a surface again — the
 /// collections library (`LibraryView`) is no longer reachable.
 struct AllNotesView: View {
+    enum Kind {
+        case notes
+        case prompts
+    }
+
+    /// Notes and AI prompts are separate lists everywhere (Option A).
+    var kind: Kind = .notes
+
+    init(kind: Kind = .notes) {
+        self.kind = kind
+    }
+
     private enum Scope: String, CaseIterable, Identifiable {
         case all = "All notes"
         case favorites = "Favorites"
@@ -402,11 +414,18 @@ struct AllNotesView: View {
     @State private var query = ""
     @State private var editingNote: Note?
 
+    private func isPrompt(_ note: Note) -> Bool {
+        note.intent == .order || note.intent == .orderDone
+    }
+
     private var scopedNotes: [Note] {
+        if kind == .prompts {
+            return librarySearchableNotes(notes).filter { isPrompt($0) }.sorted { $0.createdAt > $1.createdAt }
+        }
         switch scope {
-        case .all: return libraryVisibleNotes(notes)
-        case .favorites: return libraryVisibleNotes(notes).filter { $0.isFavorite }
-        case .archived: return libraryArchivedNotes(notes)
+        case .all: return libraryVisibleNotes(notes).filter { !isPrompt($0) }
+        case .favorites: return libraryVisibleNotes(notes).filter { $0.isFavorite && !isPrompt($0) }
+        case .archived: return libraryArchivedNotes(notes).filter { !isPrompt($0) }
         }
     }
 
@@ -436,24 +455,26 @@ struct AllNotesView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(scope == .all ? "Notes" : scope.rawValue)
+        .navigationTitle(kind == .prompts ? "AI Prompts" : (scope == .all ? "Notes" : scope.rawValue))
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $query, prompt: "Search notes")
+        .searchable(text: $query, prompt: kind == .prompts ? "Search prompts" : "Search notes")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Menu {
+                if kind == .notes {
+                    Menu {
                     Picker("Show", selection: $scope) {
                         ForEach(Scope.allCases) { item in
                             Label(item.rawValue, systemImage: item.icon).tag(item)
                         }
                     }
-                } label: {
-                    Image(systemName: scope == .all
-                          ? "line.3.horizontal.decrease.circle"
-                          : "line.3.horizontal.decrease.circle.fill")
+                    } label: {
+                        Image(systemName: scope == .all
+                              ? "line.3.horizontal.decrease.circle"
+                              : "line.3.horizontal.decrease.circle.fill")
+                    }
+                    .accessibilityLabel("Filter notes")
+                    .accessibilityValue(scope.rawValue)
                 }
-                .accessibilityLabel("Filter notes")
-                .accessibilityValue(scope.rawValue)
             }
         }
         .navigationDestination(item: $editingNote) { note in
@@ -463,6 +484,7 @@ struct AllNotesView: View {
     }
 
     private var emptyTitle: String {
+        if kind == .prompts { return "No AI prompts yet" }
         switch scope {
         case .all: return "No notes yet"
         case .favorites: return "No favorites"
@@ -471,6 +493,7 @@ struct AllNotesView: View {
     }
 
     private var emptyMessage: String {
+        if kind == .prompts { return "Switch Home to AI Prompts and tap Record AI prompt." }
         switch scope {
         case .all: return "Tap Note on the home screen and start talking."
         case .favorites: return "Favorite a note from its menu to pin it here."
