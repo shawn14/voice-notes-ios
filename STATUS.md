@@ -192,3 +192,4 @@
 - Loop 6 done: Settings regrouped (Account · Assistant · Connections · Advanced · Data · Help), Notifications folded into Assistant, Knowledge row restored under Advanced. Build exit 0.
 - Loop 7 done: note detail shows its own Tasks (new card), dead extraction/transcript/next-step sections + 3 queries removed, cleanup card moved to the menu (2324 → 2116). Build exit 0.
 - Loop 8 done: `AllNotesView` (search + All/Favorites/Archived) behind See All; archived notes visible again. Build exit 0.
+- Loop 9 done: onboarding is welcome → persona → paywall (727 → 487 lines); intent question and feature grid removed. Build exit 0.

@@ -11,96 +11,11 @@ import SwiftUI
 import StoreKit
 import AuthenticationServices
 
-// MARK: - Quiz Data
-
-private enum UserRole: String, CaseIterable {
-    case professional = "Working professional"
-    case student = "Student"
-    case creator = "Creator"
-    case founder = "Founder / entrepreneur"
-    case other = "Something else"
-
-    var emoji: String {
-        switch self {
-        case .professional: return "briefcase"
-        case .student: return "graduationcap"
-        case .creator: return "paintbrush"
-        case .founder: return "hammer"
-        case .other: return "person"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .professional: return "Meetings, ideas, decisions"
-        case .student: return "Lectures, study notes, research"
-        case .creator: return "Ideas, scripts, content planning"
-        case .founder: return "Strategy, pitches, team notes"
-        case .other: return ""
-        }
-    }
-
-    var testimonial: String {
-        switch self {
-        case .professional:
-            return "EEON has helped me stop losing action items from meetings. I just talk, and everything is organized."
-        case .student:
-            return "I record lectures and EEON extracts all the key concepts. It's like having a study partner."
-        case .creator:
-            return "I dump ideas all day and EEON turns them into structured notes I can actually use."
-        case .founder:
-            return "Every decision, every commitment — it's all captured and searchable. Game changer."
-        case .other:
-            return "I never realized how much I was forgetting until EEON started remembering for me."
-        }
-    }
-
-    var personaName: String {
-        switch self {
-        case .professional: return "Sarah M., Product Manager"
-        case .student: return "Alex K., Graduate Student"
-        case .creator: return "Jordan L., Content Creator"
-        case .founder: return "Mike R., Startup Founder"
-        case .other: return "Taylor S., EEON User"
-        }
-    }
-
-    var useCases: [String] {
-        switch self {
-        case .professional: return ["Capture meeting action items", "Search past decisions", "Never miss a follow-up"]
-        case .student: return ["Record and review lectures", "Extract key concepts", "Build study notes automatically"]
-        case .creator: return ["Capture ideas on the go", "Turn voice into polished drafts", "Organize creative projects"]
-        case .founder: return ["Track every decision", "Capture investor call notes", "Search your entire history"]
-        case .other: return ["Voice-first note capture", "AI-powered organization", "Searchable memory"]
-        }
-    }
-}
-
-private enum UserIntent: String, CaseIterable {
-    case captureIdeas = "Capture ideas on the go"
-    case meetings = "Never forget what was said in meetings"
-    case secondBrain = "Build a searchable second brain"
-    case thinkOutLoud = "Think out loud, get organized text back"
-    case other = "Something else"
-
-    var emoji: String {
-        switch self {
-        case .captureIdeas: return "waveform"
-        case .meetings: return "person.3"
-        case .secondBrain: return "brain"
-        case .thinkOutLoud: return "bubble.left.and.bubble.right"
-        case .other: return "magnifyingglass"
-        }
-    }
-}
-
 // MARK: - OnboardingQuizView
 
 struct OnboardingQuizView: View {
     @State private var currentStep = 0
     @State private var selectedPresetId: String?
-    @State private var selectedRole: UserRole?
-    @State private var selectedIntent: UserIntent?
     @State private var selectedPlan: SubscriptionProduct = .annual
     @State private var isPurchasing = false
     @State private var errorMessage: String?
@@ -110,7 +25,7 @@ struct OnboardingQuizView: View {
 
     private let subscriptionManager = SubscriptionManager.shared
     private let authService = AuthService.shared
-    private let totalSteps = 5
+    private let totalSteps = 3
 
     private let termsURL = URL(string: "https://eeon.com/terms")!
     private let privacyURL = URL(string: "https://eeon.com/privacy")!
@@ -129,14 +44,14 @@ struct OnboardingQuizView: View {
 
                 // Screen content
                 TabView(selection: $currentStep) {
+                    // Three screens (2026-09-10): welcome, the one question
+                    // that changes behaviour (persona preset), then the
+                    // paywall. The intent question was never read anywhere
+                    // and the feature grid was marketing in the way; the
+                    // social-proof screen went 2026-08-20 (invented people).
                     heroScreen.tag(0)
                     roleScreen.tag(1)
-                    intentScreen.tag(2)
-                    // socialProofScreen removed 2026-08-20 — it showed
-                    // testimonials from invented people. Fabricated social
-                    // proof doesn't ship.
-                    featureScreen.tag(3)
-                    paywallScreen.tag(4)
+                    paywallScreen.tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut(duration: 0.3), value: currentStep)
@@ -295,63 +210,7 @@ struct OnboardingQuizView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Screen 3: Intent
-
-    private var intentScreen: some View {
-        quizScreen(
-            header: "Personalizing your EEON...",
-            question: "What brings you to EEON?"
-        ) {
-            ForEach(UserIntent.allCases, id: \.self) { intent in
-                quizOption(
-                    emoji: intent.emoji,
-                    title: intent.rawValue,
-                    subtitle: nil,
-                    isSelected: selectedIntent == intent,
-                    action: {
-                        selectedIntent = intent
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            withAnimation { currentStep = 3 }
-                        }
-                    }
-                )
-            }
-        }
-    }
-
-    // MARK: - Screen 4: Social Proof
-
-    private var featureScreen: some View {
-        VStack(spacing: 0) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 20) {
-                    Spacer().frame(height: 24)
-
-                    Text("What EEON does for you")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(Color("EEONTextPrimary"))
-
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        featureCard(emoji: "waveform", title: "Voice capture", subtitle: "Talk, we handle the rest")
-                        featureCard(emoji: "brain", title: "AI memory", subtitle: "Search everything you've said")
-                        featureCard(emoji: "bolt", title: "Instant extraction", subtitle: "Decisions, actions, commitments")
-                        featureCard(emoji: "sparkles", title: "Enhanced notes", subtitle: "Your words, polished")
-                        featureCard(emoji: "link", title: "Multi-source", subtitle: "Add links, PDFs, files")
-                        featureCard(emoji: "bubble.left", title: "Ask anything", subtitle: "Query your entire memory")
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-            }
-
-            continueButton { withAnimation { currentStep = 4 } }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
-        }
-    }
-
-    // MARK: - Screen 6: Paywall
+    // MARK: - Screen 3: Paywall
 
     private var paywallScreen: some View {
         VStack(spacing: 0) {
@@ -625,103 +484,4 @@ struct OnboardingQuizView: View {
         }
     }
 
-    // MARK: - Reusable Components
-
-    private func quizScreen<Content: View>(header: String, question: String, @ViewBuilder options: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    Spacer().frame(height: 16)
-
-                    Text(header)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color("EEONAccent"))
-
-                    Text(question)
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(Color("EEONTextPrimary"))
-                        .padding(.bottom, 8)
-
-                    options()
-                }
-                .padding(.horizontal, 24)
-            }
-        }
-    }
-
-    private func quizOption(emoji symbol: String, title: String, subtitle: String?, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: symbol)
-                    .font(.title3)
-                    .foregroundStyle(Color.eeonAccent)
-                    .frame(width: 40)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(Color("EEONTextPrimary"))
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let subtitle = subtitle, !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Spacer()
-
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color("EEONAccent"))
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color("EEONAccent").opacity(0.08) : Color(.systemGray6))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color("EEONAccent").opacity(0.3) : Color.clear, lineWidth: 1.5)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func featureCard(emoji symbol: String, title: String, subtitle: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: symbol)
-                .font(.title2)
-                .foregroundStyle(Color.eeonAccent)
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color("EEONTextPrimary"))
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func continueButton(action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Text("Continue")
-                    .font(.body.weight(.bold))
-                Image(systemName: "arrow.right")
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
-            .background(Color("EEONTextPrimary"))
-            .foregroundStyle(Color("EEONBackground"))
-            .cornerRadius(14)
-        }
-    }
 }

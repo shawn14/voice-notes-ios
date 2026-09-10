@@ -35,7 +35,7 @@ kill list (repo convention); never delete user notes; no schema changes.
       tasks / share / delete; AI transforms behind one menu.
 - [x] 8. Library ("See All"): plain chronological list + search, no
       collections carousel.
-- [ ] 9. Onboarding: cut to sign-in + permissions + first record.
+- [x] 9. Onboarding: cut to sign-in + permissions + first record.
 - [ ] 10. Final: full build, docs (CLAUDE.md + AGENTS.md mirror, MEMORY.md
       kill list, STATUS.md), commit, stop loop, notify.
 
@@ -128,6 +128,13 @@ kill list (repo convention); never delete user notes; no schema changes.
   again — the old collections library (`LibraryView`, projects/people/topics
   cards) lost its only entry point in loop 2 and is left in the file unreachable.
   Reuses the existing month sections and swipe rows. Build exit 0, no warnings.
+
+- **Loop 9 (08:46–08:54)** `OnboardingQuizView` 727 → 487 lines. Flow is now
+  welcome → "What do you do?" (persona preset — the one answer that changes
+  behaviour) → paywall. Removed the intent question (its answer was stored in local
+  state and never read anywhere), the six-card feature grid, and the two private
+  enums nobody else used. Paywall screen untouched (pricing, sign-in, Restore,
+  legal links are Shawn's / App Review's). Build exit 0, no warnings.
 
 ## Resume protocol (if the disk fills again)
 
