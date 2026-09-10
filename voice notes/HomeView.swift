@@ -1923,7 +1923,7 @@ struct SettingsView: View {
             EEONSettingsRow(
                 icon: "checklist",
                 title: "Reminders",
-                subtitle: "Action items can appear in an EEON list"
+                subtitle: "Tasks mirror to an EEON list in Reminders"
             )
         }
         .onChange(of: remindersSyncEnabled) { _, isOn in
@@ -1942,7 +1942,7 @@ struct SettingsView: View {
             EEONSettingsRow(
                 icon: "calendar",
                 title: "iPhone Calendar",
-                subtitle: "Shows iCloud, Google, and Outlook events from iPhone Calendar"
+                subtitle: "iCloud, Google, and Outlook events on this phone"
             )
         }
         .onChange(of: calendarContextEnabled) { _, isOn in
@@ -1978,13 +1978,13 @@ struct SettingsView: View {
             return googleCalendarFeedback
         }
         if googleCalendarService.isConnected {
-            return "Direct read-only Google Calendar is connected"
+            return "Connected · read-only"
         }
         if googleCalendarService.needsReauth {
             return "Sign-in expired - tap to reconnect"
         }
         if googleCalendarService.isConfigured {
-            return "Connect directly when Google events are not on this phone"
+            return "For Google events that are not on this phone"
         }
         return "Needs Google OAuth client ID in this build"
     }
@@ -3123,13 +3123,44 @@ struct SettingsView: View {
             }
             .pickerStyle(.menu)
 
+            NotificationSettingsSection()
             autoSummarizeRow
-            personalizationSettingsRow
-            captureSettingsRow
-            peopleSpeakersSettingsRow
         } header: {
             Text("Assistant")
         }
+    }
+
+    /// Everything that shapes EEON but is not flipped week to week
+    /// (2026-09-10 simplification: one group, not four rows in Assistant).
+    private var advancedSettingsSection: some View {
+        Section {
+            personalizationSettingsRow
+            captureSettingsRow
+            peopleSpeakersSettingsRow
+            knowledgeSettingsRow
+        } header: {
+            Text("Advanced")
+        } footer: {
+            Text("Tuning, vocabulary, people, and the knowledge EEON compiles from your notes.")
+        }
+    }
+
+    private var knowledgeSettingsRow: some View {
+        NavigationLink {
+            KnowledgeOverviewView()
+        } label: {
+            EEONSettingsRow(
+                icon: "books.vertical",
+                title: "Knowledge",
+                subtitle: knowledgeSummary
+            )
+        }
+    }
+
+    private var knowledgeSummary: String {
+        let count = libraryVisibleArticles(knowledgeArticles).count
+        if count == 0 { return "Articles EEON compiles from your notes" }
+        return count == 1 ? "1 article · Memory Map" : "\(count) articles · Memory Map"
     }
 
     private var connectionsSettingsSection: some View {
@@ -3153,7 +3184,7 @@ struct SettingsView: View {
         } header: {
             Text("Connections")
         } footer: {
-            Text("Calendar and Reminders are read-only meeting context. AI access is set up inside each AI tool on your computer — it is not a switch here.")
+            Text("Calendar is read-only; Reminders receives your tasks. AI access is set up inside each AI tool, not switched on here.")
         }
     }
 
@@ -3190,11 +3221,9 @@ struct SettingsView: View {
                 accountSettingsSection
                 assistantSettingsSection
                 connectionsSettingsSection
-                NotificationSettingsSection()
+                advancedSettingsSection
                 dataSettingsSection
                 helpSettingsSection
-
-                // MARK: - Developer Section (DEBUG only)
             }
             .listStyle(.insetGrouped)
             .listSectionSpacing(.compact)
@@ -3950,34 +3979,28 @@ struct NotificationSettingsSection: View {
         return Calendar.current.date(from: components) ?? Date()
     }()
 
+    /// One toggle, so it lives inside Settings › Assistant rather than owning
+    /// a section of its own (2026-09-10). The daily-brief toggle and time
+    /// picker were removed 2026-08-20 with the brief's home surface.
     var body: some View {
-        Section {
-            Toggle(isOn: $proactiveRemindersEnabled) {
-                HStack(spacing: 16) {
-                    EEONSettingsIcon(systemName: "bell.badge")
+        Toggle(isOn: $proactiveRemindersEnabled) {
+            HStack(spacing: 16) {
+                EEONSettingsIcon(systemName: "bell.badge")
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Proactive reminders")
-                            .font(.body)
-                        Text("Alerts for stale commitments, overdue actions")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Proactive reminders")
+                        .font(.body)
+                    Text("Nudges for overdue tasks and stale commitments")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(.vertical, 4)
-            .onChange(of: proactiveRemindersEnabled) { _, enabled in
-                if !enabled {
-                    NotificationScheduler.shared.removeAllPendingNotifications()
-                }
+        }
+        .padding(.vertical, 4)
+        .onChange(of: proactiveRemindersEnabled) { _, enabled in
+            if !enabled {
+                NotificationScheduler.shared.removeAllPendingNotifications()
             }
-
-            // Daily-brief notification toggle removed 2026-08-20 — the brief
-            // no longer has a home surface; the toggle was orphaned confusion.
-
-            // Brief-time picker removed with the daily-brief toggle (2026-08-20).
-        } header: {
-            Text("Notifications")
         }
     }
 }

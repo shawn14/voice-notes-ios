@@ -28,7 +28,7 @@ kill list (repo convention); never delete user notes; no schema changes.
       complete / due / open-note affordances; "All" → Tasks screen.
 - [x] 5. Bottom bar + recording: "Note" / "AI prompt" labels, distinct
       AI-prompt recording state, recording bar copy.
-- [ ] 6. Settings: regroup to Account · Calendar · Reminders · AI access ·
+- [x] 6. Settings: regroup to Account · Calendar · Reminders · AI access ·
       Subscription · Data; move Tune EEON / Knowledge / vocabulary / templates
       under one "Advanced" group.
 - [ ] 7. Note detail: trim toolbar and chips to transcript / enhanced /
@@ -100,6 +100,16 @@ kill list (repo convention); never delete user notes; no schema changes.
   a recording / Add a link or document (the SourcePickerSheet had no entry point
   at all before these loops, and loop 1 removed the last route to audio import).
   Build exit 0; only pre-existing `Text +` deprecation warnings in HomeView.swift.
+
+- **Loop 6 (08:14–08:24)** Settings root: Account · Assistant · Connections ·
+  Advanced · Data · Help. Kept Shawn's 09-01/09-02 decisions (plan card first,
+  calendar/reminder toggles on the root, Answer style inline). The one-toggle
+  Notifications section folded into Assistant as "Proactive reminders";
+  Personalization / Capture / People & Speakers moved to a new Advanced group with
+  a **Knowledge** row (→ `KnowledgeOverviewView`, article count + Memory Map) —
+  loop 1's carousel removal had left the knowledge base and Memory Map with no
+  entry point at all. Subtitles and the Connections footer shortened; the footer
+  also stops calling Reminders "read-only" (EEON writes tasks there). Build exit 0.
 
 ## Resume protocol (if the disk fills again)
 
