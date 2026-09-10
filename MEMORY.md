@@ -55,6 +55,11 @@ Home became a fixed **Calendar → Tasks → Notes** stack with a **Note · AI P
 
 Rationale: the same as v2 — every removed surface was a passive display or an unreachable one. Two rules this pass added: (1) a "feature" is only real if `grep` finds a call site — three whole modes and four note-detail sections had none; (2) removing an entry point must be paired with checking what else it was the only route to (loop 1 orphaned Knowledge and audio import; loops 5–6 restored them in Settings › Advanced and long-press Note).
 
+### 2026-09-10 (later) — AI Prompt recorder removed; "go back to a note recorder"
+
+After the simplification, Shawn looked at the AI Prompt mode fresh and called it: a voice prompt with no memory attached is a slow way to type, and the "an agent builds it" half never existed (nothing consumes the queue). The Hey Pocket thread that started this (08-25 MCP spec, 09-02 hosted-connector override) was about **an AI reading your memory**, not about dictating orders. Decision: **one record button, a note is a note.** Kept: the read-only memory connector (Pocket-competitive, costs nothing). Left dormant, not deleted: `Order`/`OrderDone` intents, `capturingOrder`, `enqueueOrder`, the hosted `list_orders`/`claim_order`/`complete_order` tools — nothing sets them any more. Do not resurrect the recorder without a consumer for the queue.
+
+
 ## Pricing Change
 
 **v1**: $9.99/mo, $79.99/yr, 5 free notes
