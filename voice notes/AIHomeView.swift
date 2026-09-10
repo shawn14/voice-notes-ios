@@ -409,15 +409,23 @@ struct AIHomeView: View {
             || (calendarContextEnabled && CalendarContextService.shared.isAuthorized)
     }
 
-    /// One line: the date, Ask, avatar. The greeting went with Option A —
-    /// orientation, not content, and the date does that job alone.
+    /// Date as the title, a one-line greeting above it in the meta style,
+    /// Ask and avatar on the right. The greeting is the only "fun" on the
+    /// screen and it stays one small line (Shawn, 2026-09-10: "make it a
+    /// little bit fun… keep it super low-key").
     private var headerBar: some View {
         HStack(alignment: .center, spacing: EEONLayout.tight) {
-            Text(todayDateString)
-                .font(EEONType.screenTitle)
-                .foregroundStyle(.eeonTextPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(greetingLine)
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonTextSecondary)
+                    .lineLimit(1)
+                Text(todayDateString)
+                    .font(EEONType.screenTitle)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
 
             Spacer(minLength: EEONLayout.tight)
 
@@ -471,6 +479,38 @@ struct AIHomeView: View {
 
     private var todayDateString: String {
         Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
+    }
+
+    /// Deterministic by hour and weekday — the same line all morning, never
+    /// a different joke on every render. Name only when signed in.
+    private var greetingLine: String {
+        let calendar = Calendar.current
+        let now = Date()
+        let hour = calendar.component(.hour, from: now)
+        let weekday = calendar.component(.weekday, from: now) // 1 = Sunday … 7 = Saturday
+        let base: String
+        switch hour {
+        case 0..<5:
+            base = "You're up late"
+        case 5..<12:
+            switch weekday {
+            case 2: base = "New week"
+            case 6: base = "It's Friday"
+            case 7: base = "Happy Saturday"
+            case 1: base = "Easy Sunday"
+            default: base = "Good morning"
+            }
+        case 12..<17:
+            base = "Good afternoon"
+        case 17..<21:
+            base = "Good evening"
+        default:
+            base = "Still at it"
+        }
+        if authService.isSignedIn, let name = authService.firstNameForGreeting, !name.isEmpty {
+            return "\(base), \(name)"
+        }
+        return base
     }
 
     // MARK: - Free Notes Warning
