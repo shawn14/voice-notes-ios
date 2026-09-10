@@ -42,8 +42,6 @@ struct AIHomeView: View {
     }
 
     @State private var showingSettings = false
-    /// Which list Home shows — and what the one record button records.
-    @State private var homeMode: HomeMode = .notes
     @State private var pendingAnswerQuery: AnswerQuery?
     /// "Remind me…" heard in a recording — confirmed in ReminderConfirmSheet.
     @State private var pendingReminder: ReminderCommandParser.Command?
@@ -237,14 +235,13 @@ struct AIHomeView: View {
                                 showingFullRecorder = false
                             }
                         },
-                        audioRecorder: audioRecorder,
-                        captureNoun: captureNoun
+                        audioRecorder: audioRecorder
                     )
                 }
 
                 // Transcribing overlay
                 if isTranscribing {
-                    HomeTranscribingOverlay(isAIPrompt: capturingOrder)
+                    HomeTranscribingOverlay()
                 }
             }
             .navigationBarHidden(true)
@@ -547,7 +544,7 @@ struct AIHomeView: View {
                     .frame(width: 9, height: 9)
                     .opacity(audioRecorder.isPaused ? 0.4 : 1)
 
-                Text(audioRecorder.isPaused ? audioRecorder.recordingStatusText : "Recording \(captureNoun)")
+                Text(audioRecorder.recordingStatusText)
                     .font(EEONType.control)
                     .foregroundStyle(.eeonTextPrimary)
 
@@ -571,27 +568,15 @@ struct AIHomeView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - 3. Bottom Bar (one record button)
+    // MARK: - 3. Bottom Bar
 
-    /// What the active capture will become, for every label that names it.
-    private var captureNoun: String { capturingOrder ? "AI prompt" : "note" }
-
-    /// One button. It records whatever the list above is showing — a note in
-    /// Notes mode, an AI prompt in AI Prompts mode (AI colour). Ask moved to
-    /// the header (Option A, 2026-09-10). Long-press for the non-voice inputs.
+    /// One button, one job: record a note. Ask lives in the header. Long-press
+    /// for the non-voice inputs. The AI Prompt mode was removed 2026-09-10
+    /// (Shawn: "go back to a note recorder") — see MEMORY.md.
     private var bottomBar: some View {
-        let promptMode = homeMode == .prompts
-        return HStack {
+        HStack {
             Button {
-                if isRecording {
-                    toggleRecording()
-                    return
-                }
-                capturingOrder = promptMode
                 toggleRecording()
-                // Paywall, background capture, or a mic error: nothing
-                // started, so the next Note must not become an order.
-                if !isRecording { capturingOrder = false }
             } label: {
                 HStack(spacing: EEONLayout.tight) {
                     if isTranscribing {
@@ -602,11 +587,11 @@ struct AIHomeView: View {
                             .fill(Color.white)
                             .frame(width: 16, height: 16)
                     } else {
-                        Image(systemName: promptMode ? "brain.head.profile" : "waveform")
+                        Image(systemName: "waveform")
                             .font(.body.weight(.semibold))
                     }
 
-                    Text(isTranscribing ? "Working…" : isRecording ? "Stop" : (promptMode ? "Record AI prompt" : "Record"))
+                    Text(isTranscribing ? "Working…" : isRecording ? "Stop" : "Record")
                         .font(EEONType.control)
                         .lineLimit(1)
 
@@ -621,12 +606,12 @@ struct AIHomeView: View {
                 .padding(.horizontal, EEONLayout.loose)
                 .frame(minHeight: 56)
                 .frame(maxWidth: .infinity)
-                .background(isRecording ? recordingRed : (promptMode ? Color.eeonAccentAI : Color.eeonAccent))
+                .background(isRecording ? recordingRed : Color.eeonAccent)
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
             .disabled(isTranscribing)
-            .accessibilityLabel(isRecording ? "Stop recording" : (promptMode ? "Record an AI prompt" : "Record a note"))
+            .accessibilityLabel(isRecording ? "Stop recording" : "Record a note")
             .contextMenu {
                 Button {
                     showingTypeNote = true
@@ -656,36 +641,25 @@ struct AIHomeView: View {
 
     // MARK: - Home stack
 
-    enum HomeMode: String, CaseIterable, Identifiable {
-        case notes = "Notes"
-        case prompts = "AI Prompts"
-
-        var id: String { rawValue }
-    }
-
-    /// Option A (2026-09-10): today's meetings as a strip, one quiet tasks
-    /// line, then a Notes | AI Prompts list. AI prompts never appear among
-    /// notes; the record button records into whichever list is showing.
+    /// Option A (2026-09-10): today's meetings, one quiet tasks line, the
+    /// three most recent notes. That is the whole screen.
     private var homeStack: some View {
         VStack(alignment: .leading, spacing: EEONLayout.standard) {
             CalendarMeetingsView(compact: true)
 
             tasksLine
 
-            Picker("Show", selection: $homeMode) {
-                ForEach(HomeMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
+            notesHeader
 
-            if homeMode == .notes {
-                notesList
-            } else {
-                promptsList
-            }
+            notesList
         }
+    }
+
+    private var notesHeader: some View {
+        Text("Notes")
+            .font(.headline)
+            .foregroundStyle(.eeonTextPrimary)
+            .padding(.horizontal)
     }
 
     // MARK: Tasks line
@@ -739,20 +713,11 @@ struct AIHomeView: View {
         }
     }
 
-    // MARK: Notes and AI Prompts
+    // MARK: Notes
 
-    /// Notes that are notes. Newest first by capture time — editing a note
-    /// must not move it.
+    /// Newest first by capture time — editing a note must not move it.
     private var homeNotes: [Note] {
-        visibleLibraryNotes
-            .filter { $0.intent != .order && $0.intent != .orderDone }
-            .sorted { $0.createdAt > $1.createdAt }
-    }
-
-    private var homePrompts: [Note] {
-        visibleLibraryNotes
-            .filter { $0.intent == .order || $0.intent == .orderDone }
-            .sorted { $0.createdAt > $1.createdAt }
+        visibleLibraryNotes.sorted { $0.createdAt > $1.createdAt }
     }
 
     private static let homeNoteLimit = 3
@@ -773,21 +738,8 @@ struct AIHomeView: View {
             if shown.isEmpty {
                 quietLine("No notes yet. Tap Record and start talking.")
             } else {
-                noteGroupCard(shown, status: { _ in nil }, moreCount: homeNotes.count - shown.count) {
-                    AllNotesView(kind: .notes)
-                }
-            }
-        }
-    }
-
-    private var promptsList: some View {
-        let shown = Array(homePrompts.prefix(Self.homeNoteLimit))
-        return VStack(alignment: .leading, spacing: 0) {
-            if shown.isEmpty {
-                quietLine("No AI prompts yet. Tap Record AI prompt and tell your agents what to build.")
-            } else {
-                noteGroupCard(shown, status: { $0.intent == .orderDone ? "Done" : "Queued" }, moreCount: homePrompts.count - shown.count) {
-                    AllNotesView(kind: .prompts)
+                noteGroupCard(shown, moreCount: homeNotes.count - shown.count) {
+                    AllNotesView()
                 }
             }
         }
@@ -807,13 +759,12 @@ struct AIHomeView: View {
     /// three and then a More button").
     private func noteGroupCard<Destination: View>(
         _ shown: [Note],
-        status: @escaping (Note) -> String?,
         moreCount: Int,
         @ViewBuilder destination: @escaping () -> Destination
     ) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(shown.enumerated()), id: \.element.id) { index, note in
-                noteRow(note, status: status(note))
+                noteRow(note)
                 if index < shown.count - 1 {
                     Divider().padding(.leading, 14)
                 }
@@ -864,7 +815,7 @@ struct AIHomeView: View {
 
     /// Title on top, "time · length · topic" underneath, chevron. Swipe for
     /// Edit / Share / Delete (no full swipe — a note goes only on that tap).
-    private func noteRow(_ note: Note, status: String?) -> some View {
+    private func noteRow(_ note: Note) -> some View {
         EEONSwipeActionsRow(
             actions: [
                 .edit { editNote = note },
@@ -886,15 +837,6 @@ struct AIHomeView: View {
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                    if let status {
-                        Text(status)
-                            .font(EEONType.badge)
-                            .foregroundStyle(status == "Done" ? Color.eeonTextTertiary : Color.eeonAccentAI)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill((status == "Done" ? Color.eeonTextTertiary : Color.eeonAccentAI).opacity(0.12)))
-                    }
 
                     Image(systemName: "chevron.right")
                         .font(EEONType.badge)
