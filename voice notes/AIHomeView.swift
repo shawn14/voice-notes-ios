@@ -42,6 +42,8 @@ struct AIHomeView: View {
     }
 
     @State private var showingSettings = false
+    /// Which list Home shows — and what the one record button records.
+    @State private var homeMode: HomeMode = .notes
     @State private var pendingAnswerQuery: AnswerQuery?
     /// "Remind me…" heard in a recording — confirmed in ReminderConfirmSheet.
     @State private var pendingReminder: ReminderCommandParser.Command?
@@ -92,10 +94,6 @@ struct AIHomeView: View {
 
     private var visibleExtractedActions: [ExtractedAction] {
         extractedActions.filter { !libraryIsSchemaSeedName($0.content) && !libraryIsSchemaSeedName($0.owner) }
-    }
-
-    private var libraryPreviewNotes: [Note] {
-        Array(visibleLibraryNotes.prefix(8))
     }
 
     var body: some View {
@@ -168,8 +166,8 @@ struct AIHomeView: View {
                     // Main scrollable content
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
-                            // 1. Greeting bar
-                            greetingBar
+                            // 1. Header: date · Ask · avatar
+                            headerBar
                                 .padding(.horizontal)
 
                             // Sync is broken and the user would otherwise never
@@ -183,8 +181,8 @@ struct AIHomeView: View {
                             syncFailureBanner
                                 .padding(.horizontal)
 
-                            if showOnboardingChecklist {
-                                onboardingChecklist
+                            if showSetupLine {
+                                setupLine
                                     .padding(.horizontal)
                             }
 
@@ -197,12 +195,10 @@ struct AIHomeView: View {
                                 }
                             }
 
-                            // Home is three fixed sections (2026-09-10 simplification):
-                            // Calendar → Tasks → Notes. The LLM-ordered persona
-                            // sections (HomeLayout) and the Knowledge carousel no
-                            // longer render here; HomeSections.swift is kept — see
-                            // the MEMORY.md kill list. Tune EEON and Knowledge live
-                            // in Settings.
+                            // Option A (2026-09-10, Shawn): today's meetings as a
+                            // strip, one quiet tasks line, then Notes | AI Prompts.
+                            // No persona sections, knowledge, or briefs live here
+                            // (see MEMORY.md kill list).
                             homeStack
 
                             // Spacer so content doesn't show behind bottom bar
@@ -406,37 +402,38 @@ struct AIHomeView: View {
         }
     }
 
-    // MARK: - 1. Greeting Bar
-
-    private var openTaskCount: Int {
-        visibleExtractedActions.filter { !$0.isCompleted }.count
-    }
+    // MARK: - 1. Header
 
     private var hasCalendarSource: Bool {
         googleCalendarService.isConnected
             || (calendarContextEnabled && CalendarContextService.shared.isAuthorized)
     }
 
-    private var greetingBar: some View {
-        HStack(alignment: .top) {
-            // One line, not four. The greeting is orientation, not content —
-            // it earns a single row or it doesn't run (2026-08-20 redesign).
-            VStack(alignment: .leading, spacing: 2) {
-                Text(greeting)
-                    .font(EEONType.screenTitle)
-                    .foregroundStyle(.eeonTextPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+    /// One line: the date, Ask, avatar. The greeting went with Option A —
+    /// orientation, not content, and the date does that job alone.
+    private var headerBar: some View {
+        HStack(alignment: .center, spacing: EEONLayout.tight) {
+            Text(todayDateString)
+                .font(EEONType.screenTitle)
+                .foregroundStyle(.eeonTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
-                Text(todayDateString)
-                    .font(EEONType.meta)
-                    .foregroundStyle(.eeonTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: EEONLayout.tight)
+
+            Button {
+                showingAskSheet = true
+            } label: {
+                Image(systemName: "sparkle.magnifyingglass")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.eeonAccentAI)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ask EEON")
+            .disabled(isRecording || isTranscribing)
 
-            Spacer(minLength: 8)
-
-            // Settings / avatar
             Button {
                 showingSettings = true
             } label: {
@@ -472,26 +469,8 @@ struct AIHomeView: View {
         .contentShape(Circle())
     }
 
-    private var greeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        let timeGreeting: String
-        if hour < 12 {
-            timeGreeting = "Good morning"
-        } else if hour < 17 {
-            timeGreeting = "Good afternoon"
-        } else {
-            timeGreeting = "Good evening"
-        }
-        if authService.isSignedIn, let firstName = authService.firstNameForGreeting {
-            return "\(timeGreeting) \(firstName)"
-        }
-        return timeGreeting
-    }
-
     private var todayDateString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d"
-        return formatter.string(from: Date())
+        Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
     }
 
     // MARK: - Free Notes Warning
@@ -552,27 +531,62 @@ struct AIHomeView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - 3. Bottom Bar (Note / AI Prompt / Ask)
+    // MARK: - 3. Bottom Bar (one record button)
 
     /// What the active capture will become, for every label that names it.
     private var captureNoun: String { capturingOrder ? "AI prompt" : "note" }
 
-    /// Two labelled recorders and Ask. Note is the wide primary; AI Prompt is
-    /// the same shape in the AI colour so nobody has to guess what a bare
-    /// brain icon does. While one records, the other dims; while
-    /// transcribing, the one that recorded says "Working…".
+    /// One button. It records whatever the list above is showing — a note in
+    /// Notes mode, an AI prompt in AI Prompts mode (AI colour). Ask moved to
+    /// the header (Option A, 2026-09-10). Long-press for the non-voice inputs.
     private var bottomBar: some View {
-        HStack(spacing: EEONLayout.snug) {
-            captureButton(
-                icon: "waveform",
-                title: "Note",
-                idleBackground: Color.eeonAccent,
-                isOrderButton: false,
-                accessibilityLabel: "Record a note"
-            ) {
+        let promptMode = homeMode == .prompts
+        return HStack {
+            Button {
+                if isRecording {
+                    toggleRecording()
+                    return
+                }
+                capturingOrder = promptMode
                 toggleRecording()
+                // Paywall, background capture, or a mic error: nothing
+                // started, so the next Note must not become an order.
+                if !isRecording { capturingOrder = false }
+            } label: {
+                HStack(spacing: EEONLayout.tight) {
+                    if isTranscribing {
+                        ProgressView()
+                            .tint(.white)
+                    } else if isRecording {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.white)
+                            .frame(width: 16, height: 16)
+                    } else {
+                        Image(systemName: promptMode ? "brain.head.profile" : "waveform")
+                            .font(.body.weight(.semibold))
+                    }
+
+                    Text(isTranscribing ? "Working…" : isRecording ? "Stop" : (promptMode ? "Record AI prompt" : "Record"))
+                        .font(EEONType.control)
+                        .lineLimit(1)
+
+                    if isRecording {
+                        Text(audioRecorder.formattedTime)
+                            .font(EEONType.control)
+                            .monospacedDigit()
+                            .opacity(0.85)
+                    }
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, EEONLayout.loose)
+                .frame(minHeight: 56)
+                .frame(maxWidth: .infinity)
+                .background(isRecording ? recordingRed : (promptMode ? Color.eeonAccentAI : Color.eeonAccent))
+                .clipShape(Capsule())
             }
-            .frame(maxWidth: .infinity)
+            .buttonStyle(.plain)
+            .disabled(isTranscribing)
+            .accessibilityLabel(isRecording ? "Stop recording" : (promptMode ? "Record an AI prompt" : "Record a note"))
             .contextMenu {
                 Button {
                     showingTypeNote = true
@@ -590,38 +604,6 @@ struct AIHomeView: View {
                     Label("Add a link or document", systemImage: "doc.badge.plus")
                 }
             }
-
-            captureButton(
-                icon: "brain.head.profile",
-                title: "AI Prompt",
-                idleBackground: Color.eeonAccentAI,
-                isOrderButton: true,
-                accessibilityLabel: "Record an AI prompt"
-            ) {
-                if isRecording {
-                    toggleRecording()
-                } else {
-                    capturingOrder = true
-                    toggleRecording()
-                    // Paywall, background capture, or a mic error: nothing
-                    // started, so the next Note must not become an order.
-                    if !isRecording { capturingOrder = false }
-                }
-            }
-
-            Button {
-                showingAskSheet = true
-            } label: {
-                Image(systemName: "sparkle.magnifyingglass")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.eeonAccentAI)
-                    .frame(width: 56, height: 56)
-                    .background(Color.eeonCard)
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ask EEON")
-            .disabled(isRecording || isTranscribing)
         }
         .padding(.horizontal, EEONLayout.screenMargin)
         .padding(.top, 8)
@@ -632,256 +614,241 @@ struct AIHomeView: View {
         )
     }
 
-    private func captureButton(
-        icon: String,
-        title: String,
-        idleBackground: Color,
-        isOrderButton: Bool,
-        accessibilityLabel: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        let isMine = capturingOrder == isOrderButton
-        let isActive = isRecording && isMine
-        let isWorking = isTranscribing && isMine
-        let isEnabled = !(isRecording || isTranscribing) || isActive
-        return Button(action: action) {
-            HStack(spacing: EEONLayout.tight) {
-                if isWorking {
-                    ProgressView()
-                        .tint(.white)
-                } else if isActive {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white)
-                        .frame(width: 16, height: 16)
-                } else {
-                    Image(systemName: icon)
-                        .font(.body.weight(.semibold))
-                }
-
-                Text(isWorking ? "Working…" : isActive ? "Stop" : title)
-                    .font(EEONType.control)
-                    .lineLimit(1)
-
-                if isActive {
-                    Text(audioRecorder.formattedTime)
-                        .font(EEONType.control)
-                        .monospacedDigit()
-                        .opacity(0.85)
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, EEONLayout.standard)
-            .frame(minHeight: 56)
-            .background(isActive ? recordingRed : idleBackground)
-            .clipShape(Capsule())
-            .opacity(isEnabled ? 1 : 0.45)
-        }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .accessibilityLabel(isActive ? "Stop recording" : accessibilityLabel)
-    }
-
     // MARK: - Home stack
 
-    /// The whole home surface, fixed order: Calendar → Tasks → Notes.
-    /// Home is not a dashboard and not a nag surface (2026-08-19, 2026-09-10):
-    /// no lenses, tabs, filters, briefs, or persona sections live here.
+    enum HomeMode: String, CaseIterable, Identifiable {
+        case notes = "Notes"
+        case prompts = "AI Prompts"
+
+        var id: String { rawValue }
+    }
+
+    /// Option A (2026-09-10): today's meetings as a strip, one quiet tasks
+    /// line, then a Notes | AI Prompts list. AI prompts never appear among
+    /// notes; the record button records into whichever list is showing.
     private var homeStack: some View {
         VStack(alignment: .leading, spacing: EEONLayout.standard) {
-            CalendarMeetingsView()
+            CalendarMeetingsView(compact: true)
 
-            if !homeOpenActions.isEmpty {
-                homeActionItemsSection
+            tasksLine
+
+            Picker("Show", selection: $homeMode) {
+                ForEach(HomeMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
             }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
 
-            if !visibleLibraryNotes.isEmpty {
-                recentLibrarySection
+            if homeMode == .notes {
+                notesList
+            } else {
+                promptsList
             }
         }
     }
 
-    private var recentLibrarySection: some View {
-        VStack(alignment: .leading, spacing: EEONLayout.snug) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Notes")
-                        .font(.headline)
-                        .foregroundStyle(.eeonTextPrimary)
-                    Text(libraryNoteCountLabel(visibleLibraryNotes.count))
+    // MARK: Tasks line
+
+    private var homeOpenActions: [ExtractedAction] {
+        visibleExtractedActions.filter { !$0.isCompleted }
+    }
+
+    /// Due today or already overdue.
+    private var tasksDueNow: Int {
+        let now = Date()
+        return homeOpenActions.filter { action in
+            guard let due = EventKitSyncService.parseDate(from: action.deadline) else { return false }
+            return Calendar.current.isDateInToday(due) || due < now
+        }.count
+    }
+
+    private var tasksLineText: String {
+        let due = tasksDueNow
+        if due > 0 { return due == 1 ? "1 task due today" : "\(due) tasks due today" }
+        let open = homeOpenActions.count
+        return open == 1 ? "1 open task" : "\(open) open tasks"
+    }
+
+    /// Low-key on purpose: one line, no card, no rows. Disappears when
+    /// there is nothing open. Tap → Tasks.
+    @ViewBuilder
+    private var tasksLine: some View {
+        if !homeOpenActions.isEmpty {
+            NavigationLink {
+                TasksView()
+            } label: {
+                HStack(spacing: EEONLayout.tight) {
+                    Image(systemName: "checklist")
+                        .font(EEONType.badge)
+                        .foregroundStyle(.eeonTextSecondary)
+                    Text(tasksLineText)
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(EEONType.badge)
+                        .foregroundStyle(.eeonTextTertiary)
+                    Spacer()
                 }
-
-                Spacer()
-
-                NavigationLink(destination: AllNotesView()) {
-                    Text("See All")
-                        .font(EEONType.control)
-                        .foregroundStyle(.eeonAccent)
-                        .frame(minHeight: EEONLayout.minTarget)
-                }
+                .frame(minHeight: EEONLayout.minTarget)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal)
-
-            LazyVStack(spacing: EEONLayout.snug) {
-                ForEach(libraryPreviewNotes) { note in
-                    noteFeedLink(note)
-                }
-            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("All tasks")
             .padding(.horizontal)
         }
     }
 
-    private func noteFeedLink(_ note: Note) -> some View {
-        // Swipe reveals Edit + Delete, tapping acts (no dialog, per Shawn
-        // 2026-09-01, "like Stock Alarm"). Notes need the tap: no full swipe.
+    // MARK: Notes and AI Prompts
+
+    /// Notes that are notes. Newest first by capture time — editing a note
+    /// must not move it.
+    private var homeNotes: [Note] {
+        visibleLibraryNotes
+            .filter { $0.intent != .order && $0.intent != .orderDone }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var homePrompts: [Note] {
+        visibleLibraryNotes
+            .filter { $0.intent == .order || $0.intent == .orderDone }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private static let homeNoteLimit = 20
+
+    private func dayLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            return date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+        }
+        return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year())
+    }
+
+    private func dayGroups(_ notes: [Note]) -> [(String, [Note])] {
+        var out: [(String, [Note])] = []
+        for note in notes {
+            let key = dayLabel(for: note.createdAt)
+            if let last = out.last, last.0 == key {
+                out[out.count - 1].1.append(note)
+            } else {
+                out.append((key, [note]))
+            }
+        }
+        return out
+    }
+
+    private var notesList: some View {
+        let shown = Array(homeNotes.prefix(Self.homeNoteLimit))
+        return VStack(alignment: .leading, spacing: 0) {
+            if shown.isEmpty {
+                quietLine("No notes yet. Tap Record and start talking.")
+            } else {
+                ForEach(dayGroups(shown), id: \.0) { day, dayNotes in
+                    dayHeader(day)
+                    ForEach(dayNotes) { note in
+                        noteRow(note, status: nil)
+                    }
+                }
+                if homeNotes.count > shown.count {
+                    NavigationLink(destination: AllNotesView()) {
+                        HStack(spacing: EEONLayout.tight) {
+                            Text("All \(homeNotes.count) notes")
+                                .font(EEONType.control)
+                                .foregroundStyle(.eeonAccent)
+                            Image(systemName: "chevron.right")
+                                .font(EEONType.badge)
+                                .foregroundStyle(.eeonAccent)
+                        }
+                        .frame(minHeight: EEONLayout.minTarget)
+                        .padding(.horizontal)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("All notes")
+                }
+            }
+        }
+    }
+
+    private var promptsList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if homePrompts.isEmpty {
+                quietLine("No AI prompts yet. Tap Record AI prompt and tell your agents what to build.")
+            } else {
+                ForEach(dayGroups(homePrompts), id: \.0) { day, dayNotes in
+                    dayHeader(day)
+                    ForEach(dayNotes) { note in
+                        noteRow(note, status: note.intent == .orderDone ? "Done" : "Queued")
+                    }
+                }
+            }
+        }
+    }
+
+    private func quietLine(_ text: String) -> some View {
+        Text(text)
+            .font(EEONType.meta)
+            .foregroundStyle(.eeonTextSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+    }
+
+    private func dayHeader(_ day: String) -> some View {
+        Text(day)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.eeonTextSecondary)
+            .textCase(.uppercase)
+            .padding(.horizontal)
+            .padding(.top, 14)
+            .padding(.bottom, 4)
+    }
+
+    /// One row per note: title and time, nothing else. Swipe for Edit /
+    /// Share / Delete (no full swipe — a note goes only on that tap).
+    private func noteRow(_ note: Note, status: String?) -> some View {
         EEONSwipeActionsRow(
             actions: [
                 .edit { editNote = note },
                 .share { sharePayload = EEONSharePayload(text: noteShareText(note)) },
                 .delete { deleteNote(note) }
             ],
+            background: .eeonBackground,
             allowsFullSwipe: false
         ) {
             NavigationLink(destination: NoteDetailView(note: note)) {
-                NoteFeedCard(note: note)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var homeOpenActions: [ExtractedAction] {
-        visibleExtractedActions
-            .filter { !$0.isCompleted }
-            .sorted { lhs, rhs in
-                let lhsDue = EventKitSyncService.parseDate(from: lhs.deadline)
-                let rhsDue = EventKitSyncService.parseDate(from: rhs.deadline)
-                switch (lhsDue, rhsDue) {
-                case let (left?, right?) where left != right:
-                    return left < right
-                case (_?, nil):
-                    return true
-                case (nil, _?):
-                    return false
-                default:
-                    return lhs.createdAt > rhs.createdAt
-                }
-            }
-    }
-
-    private var homeActionPreviewActions: [ExtractedAction] {
-        Array(homeOpenActions.prefix(3))
-    }
-
-    private var homeActionItemsSection: some View {
-        VStack(alignment: .leading, spacing: EEONLayout.snug) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tasks")
-                        .font(.headline)
+                HStack(alignment: .firstTextBaseline, spacing: EEONLayout.snug) {
+                    Text(note.displayTitle)
+                        .font(EEONType.preview)
                         .foregroundStyle(.eeonTextPrimary)
-                    Text(openTaskCount == 1 ? "1 open" : "\(openTaskCount) open")
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let status {
+                        Text(status)
+                            .font(EEONType.badge)
+                            .foregroundStyle(status == "Done" ? Color.eeonTextTertiary : Color.eeonAccentAI)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill((status == "Done" ? Color.eeonTextTertiary : Color.eeonAccentAI).opacity(0.12)))
+                    }
+
+                    Text(note.createdAt.formatted(date: .omitted, time: .shortened))
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextSecondary)
+                        .monospacedDigit()
                 }
-
-                Spacer()
-
-                NavigationLink {
-                    TasksView()
-                } label: {
-                    Text("See All")
-                        .font(EEONType.control)
-                        .foregroundStyle(.eeonAccent)
-                        .frame(minHeight: EEONLayout.minTarget)
+                .padding(.horizontal)
+                .padding(.vertical, 11)
+                .overlay(alignment: .bottom) {
+                    Divider().padding(.leading, 16)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("All tasks")
-            }
-
-            VStack(spacing: EEONLayout.tight) {
-                ForEach(homeActionPreviewActions) { action in
-                    homeActionRow(action)
-                }
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    // Home action items intentionally have NO swipe actions (Shawn,
-    // 2026-09-01): the preview is a quick tap-through to the note or a
-    // toggle; edit/share/delete live on the full Tasks screen.
-    private func homeActionRow(_ action: ExtractedAction) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Button {
-                toggleHomeAction(action)
-            } label: {
-                Image(systemName: action.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(action.isCompleted ? Color.eeonAccent : Color.eeonTextTertiary)
-                    .eeonTapTarget()
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-
-            if let note = sourceNote(for: action) {
-                NavigationLink(destination: NoteDetailView(note: note)) {
-                    homeActionText(action)
-                }
-                .buttonStyle(.plain)
-            } else {
-                homeActionText(action)
-            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 11)
-        .background(Color.eeonCard)
-        .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
-    }
-
-    private func homeActionText(_ action: ExtractedAction) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: EEONLayout.tight) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(action.content)
-                    .font(EEONType.preview)
-                    .foregroundStyle(.eeonTextPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: EEONLayout.tight) {
-                    if let due = EventKitSyncService.parseDate(from: action.deadline) {
-                        Label(due.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
-                    }
-
-                    if !action.owner.isEmpty && action.owner.lowercased() != "me" {
-                        Label(action.owner, systemImage: "person")
-                    }
-
-                }
-                .font(EEONType.badge)
-                .foregroundStyle(.eeonTextSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if sourceNote(for: action) != nil {
-                Image(systemName: "chevron.right")
-                    .font(EEONType.badge)
-                    .foregroundStyle(.eeonTextTertiary)
-            }
-        }
-        .contentShape(Rectangle())
-    }
-
-    private func sourceNote(for action: ExtractedAction) -> Note? {
-        guard let id = action.sourceNoteId else { return nil }
-        return visibleLibraryNotes.first { $0.id == id }
-    }
-
-    private func toggleHomeAction(_ action: ExtractedAction) {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            action.isCompleted.toggle()
-            action.completedAt = action.isCompleted ? Date() : nil
-            try? modelContext.save()
-        }
-        persistHomeTaskChanges([action])
     }
 
     private func deleteNote(_ note: Note) {
@@ -902,166 +869,57 @@ struct AIHomeView: View {
         return parts.joined(separator: "\n\n")
     }
 
-    private func persistHomeTaskChanges(_ changed: [ExtractedAction]) {
-        guard !changed.isEmpty else { return }
+    // MARK: - Setup line
 
-        var exportedNoteIds = Set<UUID>()
-        for action in changed {
-            if let note = sourceNote(for: action), exportedNoteIds.insert(note.id).inserted {
-                DocumentExportService.shared.export(note: note, context: modelContext)
-            }
-        }
-
-        Task {
-            for action in changed {
-                await EventKitSyncService.shared.updateCompletion(for: action)
-            }
-        }
-    }
-
-    // MARK: - Personalization Hero Card
-
-    /// Shown until every row is done (or the user dismisses it). Three rows,
-    /// one per home section: a note, the calendar, the to-dos.
-    private var showOnboardingChecklist: Bool {
+    /// One quiet row until calendar and Reminders are connected. Tap →
+    /// Settings, where both toggles live. Dismissable; never comes back.
+    private var showSetupLine: Bool {
         guard onboardingChecklistDismissedRaw == 0 else { return false }
-        return visibleLibraryNotes.isEmpty || !hasCalendarSource || !remindersSyncEnabled
+        return !hasCalendarSource || !remindersSyncEnabled
     }
 
-    private var onboardingChecklist: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Set up EEON")
-                        .font(.headline)
-                        .foregroundStyle(.eeonTextPrimary)
-                    Text("Three quick steps.")
-                        .font(EEONType.meta)
-                        .foregroundStyle(.eeonTextSecondary)
-                }
-
-                Spacer()
-
-                Button {
-                    onboardingChecklistDismissedRaw = Date().timeIntervalSince1970
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.eeonTextSecondary)
-                        .eeonTapTarget()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Dismiss setup checklist")
-            }
-
-            VStack(spacing: 0) {
-                checklistRow(
-                    icon: "waveform",
-                    title: "Record a memory",
-                    subtitle: "Talk for 30 seconds",
-                    isDone: !visibleLibraryNotes.isEmpty
-                ) {
-                    guard !isRecording, !isTranscribing else { return }
-                    toggleRecording()
-                }
-
-                Divider().padding(.leading, 44)
-
-                checklistRow(
-                    icon: "calendar",
-                    title: "Connect your calendar",
-                    subtitle: googleCalendarService.isConnected ? "Google Calendar is connected" : "Google Calendar or iPhone Calendar",
-                    isDone: hasCalendarSource
-                ) {
-                    connectChecklistCalendar()
-                }
-
-                Divider().padding(.leading, 44)
-
-                checklistRow(
-                    icon: "checklist",
-                    title: "Send follow-ups to Reminders",
-                    subtitle: "Action items land in an EEON list",
-                    isDone: remindersSyncEnabled
-                ) {
-                    Task {
-                        let granted = await EventKitSyncService.shared.requestAccess()
-                        await MainActor.run { remindersSyncEnabled = granted }
-                    }
-                }
-            }
-            .background(Color.eeonCard)
-            .clipShape(RoundedRectangle(cornerRadius: EEONLayout.cardRadius))
+    private var setupLineText: String {
+        switch (hasCalendarSource, remindersSyncEnabled) {
+        case (false, false): return "Connect your calendar and Reminders"
+        case (false, true): return "Connect your calendar"
+        default: return "Send tasks to Reminders"
         }
     }
 
-    private func checklistRow(
-        icon: String,
-        title: String,
-        subtitle: String,
-        isDone: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isDone ? Color.eeonAccent : Color.eeonTextTertiary)
-                    .frame(width: 24)
-
-                Image(systemName: icon)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.eeonAccentAI)
-                    .frame(width: 20)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(EEONType.control)
-                        .foregroundStyle(.eeonTextPrimary)
-                    Text(subtitle)
+    private var setupLine: some View {
+        HStack(spacing: EEONLayout.tight) {
+            Button {
+                showingSettings = true
+            } label: {
+                HStack(spacing: EEONLayout.tight) {
+                    Image(systemName: "gearshape")
+                        .font(EEONType.badge)
+                        .foregroundStyle(.eeonAccentAI)
+                    Text(setupLineText)
                         .font(EEONType.meta)
                         .foregroundStyle(.eeonTextSecondary)
-                        .lineLimit(2)
-                }
-
-                Spacer(minLength: 8)
-
-                if !isDone {
+                        .lineLimit(1)
                     Image(systemName: "chevron.right")
                         .font(EEONType.badge)
                         .foregroundStyle(.eeonTextTertiary)
                 }
+                .frame(minHeight: EEONLayout.minTarget)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
+            .buttonStyle(.plain)
 
-    private func connectChecklistCalendar() {
-        if googleCalendarService.isConfigured {
-            Task {
-                do {
-                    try await googleCalendarService.signIn()
-                } catch {
-                    await MainActor.run {
-                        errorMessage = error.localizedDescription
-                        showingError = true
-                    }
-                }
+            Spacer()
+
+            Button {
+                onboardingChecklistDismissedRaw = Date().timeIntervalSince1970
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.eeonTextTertiary)
+                    .eeonTapTarget()
             }
-        } else {
-            Task {
-                let granted = await CalendarContextService.shared.requestAccess()
-                await MainActor.run {
-                    calendarContextEnabled = granted
-                    if !granted {
-                        errorMessage = "Calendar access was not granted."
-                        showingError = true
-                    }
-                }
-            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss setup")
         }
     }
 

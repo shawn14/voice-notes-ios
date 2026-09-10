@@ -65,6 +65,15 @@ struct CalendarMeetingsView: View {
     @AppStorage("calendarMeetingsIncludeIPhoneCalendars") private var includeIPhoneCalendars = false
     private var googleCalendarService = GoogleCalendarService.shared
 
+    /// Home's strip (Option A, 2026-09-10): today only, one title line that
+    /// opens `CalendarScreen`, meetings as chips. The full view is the
+    /// pushed screen.
+    var compact: Bool = false
+
+    init(compact: Bool = false) {
+        self.compact = compact
+    }
+
     @State private var scope: CalendarMeetingScope = .today
     @State private var meetings: [CalendarMeeting] = []
     @State private var readSummary: CalendarReadSummary?
@@ -89,25 +98,29 @@ struct CalendarMeetingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: EEONLayout.snug) {
-            header
-
-            googleReauthBanner
-
-            if !isCalendarReady {
-                connectState
-            } else if shouldShowFullLoadingState {
-                loadingState
+            if compact {
+                compactStrip
             } else {
-                errorLine
-                if meetings.isEmpty {
-                    emptyState
+                header
+
+                googleReauthBanner
+
+                if !isCalendarReady {
+                    connectState
+                } else if shouldShowFullLoadingState {
+                    loadingState
                 } else {
-                    meetingList
+                    errorLine
+                    if meetings.isEmpty {
+                        emptyState
+                    } else {
+                        meetingList
+                    }
                 }
             }
         }
         .padding(.horizontal)
-        .padding(.top, 4)
+        .padding(.top, compact ? 0 : 4)
         .task { await refreshMeetings() }
         .onChange(of: scope) { _, _ in
             Task { await refreshMeetings() }
@@ -118,6 +131,115 @@ struct CalendarMeetingsView: View {
         .onChange(of: includeIPhoneCalendars) { _, _ in
             Task { await refreshMeetings(force: true) }
         }
+    }
+
+    // MARK: - Compact strip (Home)
+
+    private var compactTitle: String {
+        if !isCalendarReady { return "Calendar · not connected" }
+        if !hasLoadedOnce { return "Today" }
+        switch meetings.count {
+        case 0: return "Today · no meetings"
+        case 1: return "Today · 1 meeting"
+        default: return "Today · \(meetings.count) meetings"
+        }
+    }
+
+    private var compactStrip: some View {
+        VStack(alignment: .leading, spacing: EEONLayout.tight) {
+            NavigationLink {
+                CalendarScreen()
+            } label: {
+                HStack(spacing: EEONLayout.tight) {
+                    Image(systemName: "calendar")
+                        .font(EEONType.badge)
+                        .foregroundStyle(.eeonTextSecondary)
+                    Text(compactTitle)
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .font(EEONType.badge)
+                        .foregroundStyle(.eeonTextTertiary)
+                    Spacer()
+                    if isLoading {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(Color.eeonAccent)
+                    }
+                }
+                .frame(minHeight: EEONLayout.minTarget)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Calendar")
+
+            if googleCalendarService.needsReauth {
+                HStack(spacing: EEONLayout.tight) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(EEONType.badge)
+                        .foregroundStyle(Color.orange)
+                    Text("Google sign-in expired")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                    Spacer(minLength: EEONLayout.tight)
+                    Button("Reconnect") { connectGoogle() }
+                        .font(EEONType.control)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(Color.eeonAccent)
+                }
+            }
+
+            if !meetings.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: EEONLayout.tight) {
+                        ForEach(meetings) { meeting in
+                            meetingChip(meeting)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func meetingChip(_ meeting: CalendarMeeting) -> some View {
+        if let meetingURL = meeting.meetingURL {
+            Button {
+                openURL(meetingURL)
+            } label: {
+                meetingChipContent(meeting)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the call")
+        } else {
+            meetingChipContent(meeting)
+        }
+    }
+
+    private func meetingChipContent(_ meeting: CalendarMeeting) -> some View {
+        let now = meeting.isHappeningNow
+        return HStack(spacing: 6) {
+            Text(now ? "Now" : timeOnly(meeting.startDate))
+                .font(EEONType.badge)
+                .foregroundStyle(now ? Color.eeonAccent : Color.eeonTextSecondary)
+                .monospacedDigit()
+            Text(meeting.title)
+                .font(EEONType.control)
+                .foregroundStyle(.eeonTextPrimary)
+                .lineLimit(1)
+            if meeting.meetingURL != nil {
+                Image(systemName: "video")
+                    .font(EEONType.badge)
+                    .foregroundStyle(Color.eeonAccent)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 40)
+        .frame(maxWidth: 220)
+        .background(now ? Color.eeonAccent.opacity(0.12) : Color.eeonCard)
+        .clipShape(Capsule())
     }
 
     // MARK: - Header
@@ -667,5 +789,19 @@ struct CalendarMeetingsView: View {
                 meetingURL: nil
             )
         ]
+    }
+}
+
+/// The full calendar — Today / Week / Month, refresh, calendar options —
+/// pushed from Home's strip. Same view, non-compact.
+struct CalendarScreen: View {
+    var body: some View {
+        ScrollView {
+            CalendarMeetingsView()
+                .padding(.top, 8)
+        }
+        .background(Color.eeonBackground.ignoresSafeArea())
+        .navigationTitle("Calendar")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

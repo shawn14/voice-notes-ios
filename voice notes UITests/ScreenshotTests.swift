@@ -51,11 +51,12 @@ final class ScreenshotTests: XCTestCase {
         sleep(2)
         shot("01_Home")
 
-        let didSelectWeek = selectCalendarRange("This Week")
-        sleep(2)
-        shot("02_Calendar")
-        if didSelectWeek {
-            _ = selectCalendarRange("Today")
+        // Home's calendar strip pushes the full Calendar screen (Option A,
+        // 2026-09-10); Week is chosen there. Relaunch to get back Home.
+        if openCalendarScreen(selecting: "This Week") {
+            sleep(2)
+            shot("02_Calendar")
+            relaunchHome()
         }
 
         if tapAskEEON() {
@@ -175,7 +176,10 @@ final class ScreenshotTests: XCTestCase {
         return true
     }
 
-    private func selectCalendarRange(_ title: String) -> Bool {
+    private func openCalendarScreen(selecting title: String) -> Bool {
+        let strip = app.buttons["Calendar"]
+        guard strip.waitForExistence(timeout: 3) else { return false }
+        strip.tap()
         let range = app.buttons["Calendar options"]
         guard range.waitForExistence(timeout: 3) else { return false }
         range.tap()

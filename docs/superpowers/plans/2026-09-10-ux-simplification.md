@@ -160,6 +160,35 @@ Net −2,900 lines across `AIHomeView`, `CalendarMeetingsView`, `TasksView`,
   Archived scope, onboarding's three screens on a fresh install.
 - `fastlane snap` (screenshot lane) was not run; only its test target compiled.
 
+## Option A — the front screen, second pass (Shawn, 09:40: "overly complex… keep the very front screen extremely clean")
+
+Shawn's brief: see calendar, then notes; separate AI prompts from notes; tasks
+low-key. Chosen over a single Otter-style timeline (B) and a tab bar (C).
+
+- **Header** is one line: date · Ask icon · avatar. No greeting.
+- **Setup** is one dismissable line ("Connect your calendar and Reminders ›" →
+  Settings) instead of a three-row checklist card.
+- **Calendar** is a strip: "Today · 3 meetings ›" (opens the new pushed
+  `CalendarScreen` = the full view with Today/Week/Month + options) and today's
+  meetings as chips (time · title · video glyph; "Now" tinted; tap opens the call).
+  `CalendarMeetingsView(compact:)` is the same view, same data path, same reauth
+  banner (one line + Reconnect). Not connected → the strip title says so and the
+  tap lands on the connect card.
+- **Tasks** are one quiet line: "2 tasks due today ›" (due today or overdue, else
+  "N open tasks"), gone when nothing is open. Tap → Tasks.
+- **Notes | AI Prompts** segmented switch. Notes: newest-first by capture time, day
+  headers, one row per note = title + time, swipe Edit/Share/Delete, 20 shown then
+  "All N notes ›" → `AllNotesView`. AI Prompts: the Order/OrderDone notes only,
+  with a Queued/Done pill — they never appear among notes any more.
+- **One record button.** It records into whichever list is showing: Notes → accent
+  "Record"; AI Prompts → AI-colour "Record AI prompt" (sets `capturingOrder`).
+  Long-press keeps Type / Import / Add link. Ask lives in the header.
+- Removed: the three-row task preview, note cards, "See All" section headers,
+  the second recorder button. `ScreenshotTests` follows the strip → screen flow.
+- Build: main scheme + UI-test scheme exit 0, no warnings in touched files.
+  Installed on Shawn's iPhone (install seq 7184); launch refused because the
+  phone was locked — Shawn opens it. **Built, not verified** on device.
+
 ## Resume protocol (if the disk fills again)
 
 Each cron fire: `df -h /System/Volumes/Data`; if free < 1 GB, say so in one line
