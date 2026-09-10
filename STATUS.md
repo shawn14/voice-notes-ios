@@ -193,3 +193,4 @@
 - Loop 7 done: note detail shows its own Tasks (new card), dead extraction/transcript/next-step sections + 3 queries removed, cleanup card moved to the menu (2324 → 2116). Build exit 0.
 - Loop 8 done: `AllNotesView` (search + All/Favorites/Archived) behind See All; archived notes visible again. Build exit 0.
 - Loop 9 done: onboarding is welcome → persona → paywall (727 → 487 lines); intent question and feature grid removed. Build exit 0.
+- Loop 10 done: docs refreshed (`CLAUDE.md` = `AGENTS.md`, `MEMORY.md` kill list), screenshot test labels updated, UI-test scheme builds. **All 10 loops complete — 10 local commits ahead of `origin/main`, nothing pushed, nothing run on device.** Next: Shawn installs a Debug build and walks the list in the plan file's "NOT verified" section, then authorizes the push.

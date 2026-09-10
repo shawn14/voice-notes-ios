@@ -42,6 +42,19 @@ The following views were removed from navigation in v2 but kept in the codebase:
 
 Rationale: every removed view was either a passive display (users look once and leave) or required manual organization (users don't bother). The replacement — asking questions in natural language — is both easier and more powerful.
 
+### 2026-09-10 — UX simplification (Shawn: "much simpler and cleaner UX but maintain note recording and AI prompt recording plus calendar and to dos")
+
+Home became a fixed **Calendar → Tasks → Notes** stack with a **Note · AI Prompt · Ask** bar. Removed from the reachable app (files kept):
+- **Persona home sections** (`HomeSections.swift`, `HomeLayout` dispatch) and the **Knowledge carousel** — an LLM-ordered dashboard on the capture screen; the four jobs the app exists for don't need it. `homeLayoutJSON` is still compiled, just not rendered.
+- **Feed tabs / search field / category cards / week strip / date + tag filters / AI tab / Highlights (`TodayHighlightsView`) / drift banner / Tune hero** — most were already unreachable behind a segmented header nobody could see; the rest were nag surfaces.
+- **`CalendarMeetingsView` full-screen mode** (split view, detail pane, related notes) and **`TasksView` embedded mode** — neither had a call site.
+- **`LibraryView` collections** (projects / people / topics cards) — replaced by `AllNotesView` (search + All / Favorites / Archived), which also gave archived notes a surface again.
+- **Note detail: Extractions chips, "Show what I said", Next Step card, transform output** — defined, never rendered. Replaced by a Tasks card the note actually shows. "Clean up recording" moved from a per-note card to the menu.
+- **Onboarding intent question + feature grid** — the intent answer was never read; the grid was marketing between the persona question and the paywall.
+- Settings: Notifications folded into Assistant; Personalization / Capture / People & Speakers / Knowledge under **Advanced**.
+
+Rationale: the same as v2 — every removed surface was a passive display or an unreachable one. Two rules this pass added: (1) a "feature" is only real if `grep` finds a call site — three whole modes and four note-detail sections had none; (2) removing an entry point must be paired with checking what else it was the only route to (loop 1 orphaned Knowledge and audio import; loops 5–6 restored them in Settings › Advanced and long-press Note).
+
 ## Pricing Change
 
 **v1**: $9.99/mo, $79.99/yr, 5 free notes

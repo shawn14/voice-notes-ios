@@ -176,7 +176,7 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func selectCalendarRange(_ title: String) -> Bool {
-        let range = app.buttons["Calendar range"]
+        let range = app.buttons["Calendar options"]
         guard range.waitForExistence(timeout: 3) else { return false }
         range.tap()
         let option = app.buttons[title]
@@ -186,7 +186,7 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func openTasksFromHome() -> Bool {
-        let button = app.buttons["All action items"]
+        let button = app.buttons["All tasks"]
 
         for _ in 0..<4 {
             if button.waitForExistence(timeout: 2), button.isHittable {

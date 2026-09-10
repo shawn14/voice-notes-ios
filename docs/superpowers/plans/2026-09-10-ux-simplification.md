@@ -36,7 +36,7 @@ kill list (repo convention); never delete user notes; no schema changes.
 - [x] 8. Library ("See All"): plain chronological list + search, no
       collections carousel.
 - [x] 9. Onboarding: cut to sign-in + permissions + first record.
-- [ ] 10. Final: full build, docs (CLAUDE.md + AGENTS.md mirror, MEMORY.md
+- [x] 10. Final: full build, docs (CLAUDE.md + AGENTS.md mirror, MEMORY.md
       kill list, STATUS.md), commit, stop loop, notify.
 
 ## Log
@@ -135,6 +135,30 @@ kill list (repo convention); never delete user notes; no schema changes.
   state and never read anywhere), the six-card feature grid, and the two private
   enums nobody else used. Paywall screen untouched (pricing, sign-in, Restore,
   legal links are Shawn's / App Review's). Build exit 0, no warnings.
+
+- **Loop 10 (08:54–09:05)** Docs + gates. `CLAUDE.md` (view hierarchy, Tune EEON
+  `homeLayoutJSON` note, order invariant, kill list, screenshot-label warning)
+  mirrored to `AGENTS.md`; `MEMORY.md` kill list gained the 2026-09-10 section with
+  the two rules this pass taught (a feature is real only if grep finds a call site;
+  removing an entry point means checking what else it was the only route to).
+  `ScreenshotTests` re-pointed at the renamed `Calendar options` / `All tasks`
+  labels; `voice notes UITests` scheme builds for generic iOS (exit 0). Main scheme
+  exit 0 after every loop. Incident + outcome logged in `~/projects/LOG.md`.
+
+## Totals
+
+Net −2,900 lines across `AIHomeView`, `CalendarMeetingsView`, `TasksView`,
+`NoteDetailView`, `OnboardingQuizView`, `HomeView` (Settings/overlays),
+`LibraryView` (+`AllNotesView`). 10 local commits on `main`, **not pushed**.
+
+## NOT verified — needs Shawn
+
+- Nothing has run on a device or simulator. Every loop is compiler-verified
+  only. First device pass should check: bottom bar labels at Dynamic Type sizes,
+  long-press Note menu, AI Prompt → Discard → Note saves as a note (the
+  `capturingOrder` fix), calendar menu, Tasks card on a note, See All search and
+  Archived scope, onboarding's three screens on a fresh install.
+- `fastlane snap` (screenshot lane) was not run; only its test target compiled.
 
 ## Resume protocol (if the disk fills again)
 
