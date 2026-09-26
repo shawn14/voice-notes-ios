@@ -58,7 +58,11 @@ class SubscriptionManager {
     // MARK: - Computed Properties
 
     var isSubscribed: Bool {
-        !purchasedProductIDs.isEmpty
+        #if DEBUG
+        // UI tests that exercise Pro features (Identify Speakers).
+        if ProcessInfo.processInfo.arguments.contains("-UITestPro") { return true }
+        #endif
+        return !purchasedProductIDs.isEmpty
     }
 
     var monthlyProduct: Product? {

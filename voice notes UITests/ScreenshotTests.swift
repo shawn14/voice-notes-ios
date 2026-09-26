@@ -234,8 +234,10 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func tapSeededNote() -> Bool {
-        let row = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS[c] 'remind me to send lena'")
+        // Home's Notes card rows are buttons labeled "<title>, <time> · …"
+        // (Option A, 2026-09-10); the seeded standup is the recent one.
+        let row = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH[c] 'Standup with Lena'")
         ).firstMatch
 
         for _ in 0..<4 {
@@ -269,6 +271,60 @@ final class ScreenshotTests: XCTestCase {
         launchApp(extraArguments: extraArguments)
         sleep(3)
         dismissGatesIfNeeded()
+    }
+
+    /// End-to-end: seeded note → ⋯ → Mind Map → a real gpt-4o map renders
+    /// (live OpenAI call from the simulator, so it needs a working key).
+    func testNoteMindMap() throws {
+        sleep(3)
+        dismissGatesIfNeeded()
+        XCTAssertTrue(tapSeededNote(), "Seeded note not found")
+        let options = app.buttons["Note options"]
+        XCTAssertTrue(options.waitForExistence(timeout: 5), "Note options menu missing")
+        options.tap()
+        let mindMap = app.buttons["Mind Map"]
+        XCTAssertTrue(mindMap.waitForExistence(timeout: 5), "Mind Map menu item missing")
+        mindMap.tap()
+        // The map is drawn once the options menu appears in the sheet.
+        XCTAssertTrue(app.buttons["Mind map options"].waitForExistence(timeout: 60), "Mind map never rendered")
+        XCTAssertFalse(app.staticTexts["No Mind Map"].exists)
+        let map = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        map.name = "MindMap"
+        map.lifetime = .keepAlways
+        add(map)
+    }
+
+    /// End-to-end: a note with real two-voice audio → ⋯ → Identify Speakers
+    /// → background upload to OpenAI → transcript split into turns → the
+    /// Speakers editor opens with both speakers.
+    func testIdentifySpeakers() throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/two-speakers.m4a").path
+        app.terminate()
+        launchApp(extraArguments: ["-UITestPro", "-SeedSpeakerAudio", fixture])
+        sleep(3)
+        dismissGatesIfNeeded()
+
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] 'Paywall launch call'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "Seeded audio note not found")
+        row.tap()
+        let options = app.buttons["Note options"]
+        XCTAssertTrue(options.waitForExistence(timeout: 5))
+        options.tap()
+        let identify = app.buttons["Identify Speakers"]
+        XCTAssertTrue(identify.waitForExistence(timeout: 5), "Identify Speakers missing (no audio?)")
+        identify.tap()
+
+        // On success the Speakers editor opens by itself.
+        let editor = app.navigationBars["Speakers"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 120), "Speakers editor never opened")
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "SpeakersEditor"
+        shot.lifetime = .keepAlways
+        add(shot)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Speaker A'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Speaker B'")).firstMatch.exists)
     }
 
     // MARK: - Individual Screen Tests (for debugging)

@@ -122,6 +122,11 @@ struct NoteDetailView: View {
     @State private var excerptDraft = ""
     @State private var isSummarizingExcerpt = false
     @State private var excerptError: String?
+    @State private var speakerError: String?
+    @State private var showingMindMap = false
+    private var isIdentifyingSpeakers: Bool {
+        BackgroundDiarizationService.shared.isRunning(note.id)
+    }
 
     // Tag assignment sheet state
     @State private var showingTagSheet = false
@@ -180,6 +185,17 @@ struct NoteDetailView: View {
 
                         speakerSummarySection
                             .padding(.bottom, 20)
+
+                        speakerStatusRow
+                            .onChange(of: isIdentifyingSpeakers) { wasRunning, running in
+                                if wasRunning && !running { speakerJobEnded() }
+                            }
+                            .onAppear {
+                                if !isIdentifyingSpeakers,
+                                   BackgroundDiarizationService.shared.failures[note.id] != nil {
+                                    speakerJobEnded()
+                                }
+                            }
 
                         // 3. Enhanced / Original toggle
                         if note.enhancedNoteText != nil && !(note.enhancedNoteText?.isEmpty ?? true),
@@ -343,6 +359,26 @@ struct NoteDetailView: View {
                             .disabled(isSummarizingExcerpt || isRewriting || isReprocessing)
                         }
 
+                        // Free, like Pocket's: it's the demo that sells the rest.
+                        Button {
+                            showingMindMap = true
+                        } label: {
+                            Label("Mind Map", systemImage: "point.3.connected.trianglepath.dotted")
+                        }
+                        .disabled(isReprocessing)
+
+                        if note.audioURL != nil,
+                           let transcript = note.transcript,
+                           !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Button {
+                                identifySpeakers()
+                            } label: {
+                                Label(isIdentifyingSpeakers ? "Identifying Speakers…" : "Identify Speakers",
+                                      systemImage: "person.2.wave.2")
+                            }
+                            .disabled(isIdentifyingSpeakers || isReprocessing)
+                        }
+
                         Divider()
 
                         // Favorite toggle
@@ -406,6 +442,7 @@ struct NoteDetailView: View {
                         Image(systemName: "ellipsis.circle")
                             .foregroundStyle(.eeonTextPrimary)
                     }
+                    .accessibilityLabel("Note options")
                 }
             }
         }
@@ -456,6 +493,9 @@ struct NoteDetailView: View {
         }
         .sheet(isPresented: $showingTagPicker) {
             NoteTagPickerSheet(note: note)
+        }
+        .sheet(isPresented: $showingMindMap) {
+            MindMapView(note: note)
         }
         .sheet(isPresented: $showingSpeakerEditor) {
             SpeakerLabelEditorSheet(labels: speakerDrafts) { labels in
@@ -571,23 +611,80 @@ struct NoteDetailView: View {
                     .foregroundStyle(.eeonAccentAI)
                 }
 
-                FlowLayout(spacing: 8) {
+                // Plain text, no chip boxes (brain rule #41). The marker only
+                // shows beside a given name; alone it would read "Speaker A
+                // Speaker A".
+                FlowLayout(spacing: 16) {
                     ForEach(labels) { label in
+                        let named = label.displayName != label.marker
                         HStack(spacing: 5) {
-                            Text(label.marker)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.eeonTextTertiary)
                             Text(label.displayName)
-                                .font(.caption.weight(.medium))
+                                .font(.subheadline.weight(.medium))
                                 .foregroundStyle(.eeonTextPrimary)
+                            if named {
+                                Text(label.marker)
+                                    .font(.caption)
+                                    .foregroundStyle(.eeonTextTertiary)
+                            }
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.eeonCard)
-                        .cornerRadius(10)
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var speakerStatusRow: some View {
+        if isIdentifyingSpeakers {
+            HStack(spacing: 8) {
+                ProgressView().scaleEffect(0.8)
+                Text("Listening for who said what… You can leave EEON; it'll finish in the background.")
+                    .font(.caption)
+                    .foregroundStyle(.eeonTextSecondary)
+            }
+            .padding(.bottom, 16)
+        } else if let speakerError {
+            Text(speakerError)
+                .font(.caption)
+                .foregroundStyle(.eeonTextSecondary)
+                .padding(.bottom, 16)
+        }
+    }
+
+    /// Split the transcript by voice. Whisper's words are kept; only
+    /// "Speaker X:" turns are added. Runs on a background URLSession so a
+    /// long meeting finishes even if the user leaves EEON.
+    private func identifySpeakers() {
+        guard SubscriptionManager.shared.isSubscribed else {
+            showingPaywall = true
+            return
+        }
+        guard let audioURL = note.audioURL,
+              FileManager.default.fileExists(atPath: audioURL.path),
+              note.transcript != nil else {
+            speakerError = "This note's audio isn't on this device."
+            return
+        }
+        speakerError = nil
+        Task {
+            do {
+                try await BackgroundDiarizationService.shared.start(note: note)
+            } catch {
+                speakerError = error.localizedDescription
+            }
+        }
+    }
+
+    /// Job finished (possibly while the app was closed): surface the result.
+    private func speakerJobEnded() {
+        let service = BackgroundDiarizationService.shared
+        if let failure = service.failures[note.id] {
+            speakerError = failure
+            service.clearFailure(note.id)
+        } else if !note.speakerLabels.isEmpty {
+            showingOriginal = true
+            speakerDrafts = editableSpeakerLabels
+            showingSpeakerEditor = true
         }
     }
 
@@ -795,7 +892,8 @@ struct NoteDetailView: View {
     private var noteBodySection: some View {
         let displayText: String = {
             if showingOriginal {
-                return note.transcript ?? note.content
+                guard let transcript = note.transcript else { return note.content }
+                return SpeakerAttribution.displayTranscript(transcript, labels: note.speakerLabels)
             } else {
                 return note.enhancedNoteText ?? note.transcript ?? note.content
             }
@@ -1715,7 +1813,7 @@ private struct SpeakerLabelEditorSheet: View {
                         }
                     }
                 } footer: {
-                    Text("EEON keeps these labels with this note. Full automatic speaker diarization requires a dedicated audio provider; this editor preserves speaker names when the transcript already has speaker markers.")
+                    Text("Names replace the speaker markers in this note's transcript. Use Identify Speakers in the note menu to split a recording by voice.")
                 }
             }
             .navigationTitle("Speakers")

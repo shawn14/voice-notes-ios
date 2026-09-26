@@ -24,6 +24,9 @@ enum ScreenshotSeed {
     @MainActor
     static func seedIfNeeded(in context: ModelContext) {
         guard ProcessInfo.processInfo.arguments.contains("-SeedScreenshotData") else { return }
+        // Before the idempotency guard: an earlier run's founder notes must
+        // not stop the audio note from being seeded.
+        seedSpeakerAudioNote(in: context)
 
         // Idempotency: skip if any non-seed notes exist
         let descriptor = FetchDescriptor<Note>()
@@ -35,6 +38,33 @@ enum ScreenshotSeed {
         UserDefaults.standard.set(OnboardingState.completed.rawValue, forKey: "onboardingState")
 
         seedFounder(in: context)
+    }
+
+    /// `-SeedSpeakerAudio <path>`: a note backed by a real two-voice
+    /// recording, with that recording's real Whisper transcript, so UI tests
+    /// can run Identify Speakers end to end. The simulator reads host paths.
+    private static func seedSpeakerAudioNote(in context: ModelContext) {
+        let args = ProcessInfo.processInfo.arguments
+        guard let flag = args.firstIndex(of: "-SeedSpeakerAudio"), flag + 1 < args.count else { return }
+        let source = URL(fileURLWithPath: args[flag + 1])
+        let fileName = "seed-two-speakers.m4a"
+        let destination = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(fileName)
+        let title = "Paywall launch call"
+        let existing = (try? context.fetch(FetchDescriptor<Note>(predicate: #Predicate { $0.title == title }))) ?? []
+        for old in existing { context.delete(old) }
+        try? FileManager.default.removeItem(at: destination)
+        guard (try? FileManager.default.copyItem(at: source, to: destination)) != nil else { return }
+
+        let note = Note(title: title, content: "")
+        note.transcript = "Hi Mark, thanks for joining, I wanted to talk about the paywall launch next week. Sure, I think we should push it to the 15th so the onboarding copy is ready. That works for me, can you send the new screenshots by Friday? Yes, I will have them done Thursday night."
+        note.content = note.transcript ?? ""
+        note.audioFileName = fileName
+        note.audioDuration = 16
+        note.createdAt = Date().addingTimeInterval(-60)
+        note.updatedAt = note.createdAt
+        context.insert(note)
+        try? context.save()
     }
 
     // MARK: - Founder persona
