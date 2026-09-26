@@ -281,13 +281,21 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(tapSeededNote(), "Seeded note not found")
         let options = app.buttons["Note options"]
         XCTAssertTrue(options.waitForExistence(timeout: 5), "Note options menu missing")
-        options.tap()
         let mindMap = app.buttons["Mind Map"]
-        XCTAssertTrue(mindMap.waitForExistence(timeout: 5), "Mind Map menu item missing")
+        // A tap during the push transition can land before the menu is live.
+        for _ in 0..<3 where !mindMap.exists {
+            options.tap()
+            _ = mindMap.waitForExistence(timeout: 3)
+        }
+        XCTAssertTrue(mindMap.exists, "Mind Map menu item missing")
         mindMap.tap()
         // The map is drawn once the options menu appears in the sheet.
         XCTAssertTrue(app.buttons["Mind map options"].waitForExistence(timeout: 60), "Mind map never rendered")
         XCTAssertFalse(app.staticTexts["No Mind Map"].exists)
+        // It must stay open until Done (device report 2026-09-26: it showed
+        // the map, then closed by itself).
+        sleep(10)
+        XCTAssertTrue(app.buttons["Mind map options"].exists, "Mind map sheet closed by itself")
         let map = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         map.name = "MindMap"
         map.lifetime = .keepAlways

@@ -124,6 +124,8 @@ struct NoteDetailView: View {
     @State private var excerptError: String?
     @State private var speakerError: String?
     @State private var showingMindMap = false
+    /// Set once a map exists for the current text; drives the Mind map line.
+    @State private var cachedMindMap: NoteMindMapNode?
     private var isIdentifyingSpeakers: Bool {
         BackgroundDiarizationService.shared.isRunning(note.id)
     }
@@ -185,6 +187,8 @@ struct NoteDetailView: View {
 
                         speakerSummarySection
                             .padding(.bottom, 20)
+
+                        mindMapLine
 
                         speakerStatusRow
                             .onChange(of: isIdentifyingSpeakers) { wasRunning, running in
@@ -494,9 +498,10 @@ struct NoteDetailView: View {
         .sheet(isPresented: $showingTagPicker) {
             NoteTagPickerSheet(note: note)
         }
-        .sheet(isPresented: $showingMindMap) {
+        .sheet(isPresented: $showingMindMap, onDismiss: refreshMindMapLine) {
             MindMapView(note: note)
         }
+        .onAppear(perform: refreshMindMapLine)
         .sheet(isPresented: $showingSpeakerEditor) {
             SpeakerLabelEditorSheet(labels: speakerDrafts) { labels in
                 note.speakerLabels = labels
@@ -631,6 +636,44 @@ struct NoteDetailView: View {
                 }
             }
         }
+    }
+
+    /// After a map has been made, the note links to it directly (device
+    /// feedback 2026-09-26: it was only reachable through the ⋯ menu).
+    @ViewBuilder
+    private var mindMapLine: some View {
+        if let map = cachedMindMap {
+            Button {
+                showingMindMap = true
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .font(.subheadline)
+                        .foregroundStyle(.eeonAccent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Mind map")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.eeonTextPrimary)
+                        Text(map.children.map(\.title).joined(separator: " · "))
+                            .font(.caption)
+                            .foregroundStyle(.eeonTextSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.eeonTextTertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open mind map")
+            .padding(.bottom, 20)
+        }
+    }
+
+    private func refreshMindMapLine() {
+        cachedMindMap = MindMapService.cached(noteID: note.id, text: MindMapView.sourceText(for: note))
     }
 
     @ViewBuilder

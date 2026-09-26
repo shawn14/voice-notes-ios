@@ -22,7 +22,10 @@ struct MindMapView: View {
     @State private var collapsed: Set<Int> = []
 
     /// The text the map is built from: the cleaned-up note when there is one.
-    private var sourceText: String {
+    private var sourceText: String { Self.sourceText(for: note) }
+
+    /// Shared with NoteDetailView so its "Mind map" line finds the same cache entry.
+    static func sourceText(for note: Note) -> String {
         note.enhancedNoteText ?? note.transcript ?? note.content
     }
 

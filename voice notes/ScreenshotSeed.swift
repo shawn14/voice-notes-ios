@@ -47,14 +47,17 @@ enum ScreenshotSeed {
         let args = ProcessInfo.processInfo.arguments
         guard let flag = args.firstIndex(of: "-SeedSpeakerAudio"), flag + 1 < args.count else { return }
         let source = URL(fileURLWithPath: args[flag + 1])
-        let fileName = "seed-two-speakers.m4a"
+        // Unique name, copied BEFORE old seed notes go: deleting a note also
+        // deletes its audio file, which raced a fixed-name copy and left the
+        // test with no note at all.
+        let fileName = "seed-two-speakers-\(UUID().uuidString).m4a"
         let destination = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(fileName)
+        guard (try? FileManager.default.copyItem(at: source, to: destination)) != nil else { return }
+
         let title = "Paywall launch call"
         let existing = (try? context.fetch(FetchDescriptor<Note>(predicate: #Predicate { $0.title == title }))) ?? []
         for old in existing { context.delete(old) }
-        try? FileManager.default.removeItem(at: destination)
-        guard (try? FileManager.default.copyItem(at: source, to: destination)) != nil else { return }
 
         let note = Note(title: title, content: "")
         note.transcript = "Hi Mark, thanks for joining, I wanted to talk about the paywall launch next week. Sure, I think we should push it to the 15th so the onboarding copy is ready. That works for me, can you send the new screenshots by Friday? Yes, I will have them done Thursday night."
