@@ -142,34 +142,62 @@ struct AIAccessSetupView: View {
         }
     }
 
+    /// Connecting always starts on the computer: the phone can't make a page
+    /// appear there. Step 1 is a short address to type on the computer (the
+    /// TV-pairing pattern); step 2 is scanning the QR that page leads to.
+    /// Shawn (2026-09-29): "When they download the app and they hit that, is
+    /// it going to pop up on their computer? I don't understand how."
     private var addToToolSection: some View {
-        Section {
-            Picker("Tool", selection: $tool) {
-                ForEach(AgentTool.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
+        Group {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Go to")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                    Text("eeon.com/connect")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.eeonTextPrimary)
+                        .textSelection(.enabled)
+                    Text("It shows how to add EEON to Claude Code, Codex, Cursor, or Claude. Your agent then opens a page with a QR code.")
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonTextSecondary)
+                }
+                .padding(.vertical, 4)
 
-            copyRow(label: tool.instruction, value: setupText(for: tool), mono: true)
+                ShareLink(item: URL(string: "https://www.eeon.com/connect")!) {
+                    Label("Send the link to my computer", systemImage: "laptopcomputer.and.arrow.down")
+                }
 
-            // The primary action once the agent's page is open.
-            Button {
-                if AgentQRScannerView.isAvailable { showScanner = true } else { showCodeEntry = true }
-            } label: {
-                Label("Scan QR code", systemImage: "qrcode.viewfinder")
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.eeonAccentAI)
+                DisclosureGroup("Commands") {
+                    Picker("Tool", selection: $tool) {
+                        ForEach(AgentTool.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    copyRow(label: tool.instruction, value: setupText(for: tool), mono: true)
+                }
+            } header: {
+                Text("Step 1 · On your computer")
             }
-        } header: {
-            Text("Add EEON to your agent")
-        } footer: {
-            // Scanning is the path; typing the code is only the fallback, so
-            // it's a quiet link rather than a row (Shawn, 2026-09-29).
-            VStack(alignment: .leading, spacing: 6) {
-                Text("1. On your computer, run the command above. Your agent opens a page with a QR code.\n2. Tap Scan QR code and point your phone at that page. It reads it live, no photo needed.\n3. Tap Allow.")
-                Button("Can't scan? Enter the code") { showCodeEntry = true }
-                    .font(EEONType.meta)
-                    .foregroundStyle(.eeonAccentAI)
-                    .buttonStyle(.plain)
+
+            Section {
+                Button {
+                    if AgentQRScannerView.isAvailable { showScanner = true } else { showCodeEntry = true }
+                } label: {
+                    Label("Scan QR code", systemImage: "qrcode.viewfinder")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.eeonAccentAI)
+                }
+            } header: {
+                Text("Step 2 · On this phone")
+            } footer: {
+                // Scanning is the path; typing the code is only the fallback.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Point your phone at the QR code on your computer. It reads it live, no photo needed. Then tap Allow.")
+                    Button("Can't scan? Enter the code") { showCodeEntry = true }
+                        .font(EEONType.meta)
+                        .foregroundStyle(.eeonAccentAI)
+                        .buttonStyle(.plain)
+                }
             }
         }
     }

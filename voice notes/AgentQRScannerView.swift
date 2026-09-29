@@ -31,7 +31,7 @@ struct AgentQRScannerView: View {
                 VStack(spacing: 6) {
                     Text("Point your phone at the QR code on your computer")
                         .font(.subheadline.weight(.semibold))
-                    Text("No QR code yet? On your computer, add EEON to your agent. In Claude Code: /mcp → eeon → Authenticate. A page with the code opens.")
+                    Text("No QR code yet? On your computer, go to eeon.com/connect and add EEON to your AI tool. It opens a page with the code.")
                         .font(EEONType.meta)
                         .multilineTextAlignment(.center)
                 }
