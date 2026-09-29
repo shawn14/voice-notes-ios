@@ -260,6 +260,7 @@ struct voice_notesApp: App {
             .onOpenURL { url in
                 handleIncomingURL(url)
             }
+            .agentPairingSheet()
             .sheet(isPresented: $showingSharedNote) {
                 sharedNoteToShow = nil
                 isLoadingSharedNote = false
@@ -361,6 +362,13 @@ struct voice_notesApp: App {
     private func handleIncomingURL(_ url: URL) {
         // Handle custom scheme: voicenotes://
         if url.scheme == "voicenotes" {
+            // QR on an AI agent's sign-in page: approve it here.
+            if url.host == "pair",
+               let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "code" })?.value {
+                AIAccessService.shared.pendingPairCode = code
+                return
+            }
             if url.host == "record" {
                 shouldStartRecording = true
                 return

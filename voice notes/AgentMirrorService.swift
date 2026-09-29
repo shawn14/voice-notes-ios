@@ -283,8 +283,28 @@ struct AgentAccessStatus: Decodable, Equatable {
     var articles: Int = 0
     var lastSyncAt: Date?
     var lastAgentReadAt: Date?
+    var lastAgentName: String?
+    var agents: [ConnectedAgent] = []
+
+    struct ConnectedAgent: Decodable, Hashable {
+        let name: String
+        let connectedAt: Date
+    }
 
     init(state: State) { self.state = state }
+
+    enum CodingKeys: String, CodingKey { case state, notes, articles, lastSyncAt, lastAgentReadAt, lastAgentName, agents }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        state = try c.decode(State.self, forKey: .state)
+        notes = try c.decodeIfPresent(Int.self, forKey: .notes) ?? 0
+        articles = try c.decodeIfPresent(Int.self, forKey: .articles) ?? 0
+        lastSyncAt = try c.decodeIfPresent(Date.self, forKey: .lastSyncAt)
+        lastAgentReadAt = try c.decodeIfPresent(Date.self, forKey: .lastAgentReadAt)
+        lastAgentName = try c.decodeIfPresent(String.self, forKey: .lastAgentName)
+        agents = try c.decodeIfPresent([ConnectedAgent].self, forKey: .agents) ?? []
+    }
 }
 
 private extension JSONDecoder {

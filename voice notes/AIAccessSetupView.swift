@@ -2,8 +2,10 @@ import SwiftUI
 import SwiftData
 import UIKit
 
-/// Settings → "AI agents". Lets Claude Code, Codex, or Cursor read the user's
-/// notes so they can say "read my note about this project and build it".
+/// Settings → "AI agents". One switch lets Claude Code, Codex, Cursor, or
+/// Claude read the user's notes, so they can say "read my note about this
+/// project and build it". Agents are added with a URL (no token) and approved
+/// here by QR or code.
 ///
 /// Status comes from the server (`/api/connect/status`), never from "a token
 /// exists": a stored token proves nothing about what an agent can read.
@@ -11,23 +13,24 @@ struct AIAccessSetupView: View {
     @State private var ai = AIAccessService.shared
     @State private var mirror = AgentMirrorService.shared
     @State private var tool: AgentTool = .claudeCode
-    @State private var showShare = false
     @State private var justCopied: String?
+    @State private var showCodeEntry = false
+    @State private var typedCode = ""
+    @State private var confirmTurnOff = false
 
     @Query(sort: \Note.createdAt, order: .reverse) private var notes: [Note]
     @Query private var projects: [Project]
 
     var body: some View {
         List {
+            switchSection
             if ai.isConnected {
                 statusSection
-                accessSection
                 addToToolSection
+                agentsSection
                 tryItSection
-                disconnectSection
             } else {
                 introSection
-                setupSection
             }
         }
         .listStyle(.insetGrouped)
@@ -38,12 +41,44 @@ struct AIAccessSetupView: View {
             await mirror.syncNow()
             await mirror.refreshStatus()
         }
-        .sheet(isPresented: $showShare) {
-            ActivityViewControllerRepresentable(activityItems: [shareText])
+        .alert("Enter the code from your computer", isPresented: $showCodeEntry) {
+            TextField("ABC-DEF", text: $typedCode)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+            Button("Continue") {
+                let code = typedCode
+                typedCode = ""
+                if !AIAccessService.normalize(code).isEmpty { ai.pendingPairCode = code }
+            }
+            Button("Cancel", role: .cancel) { typedCode = "" }
+        }
+        .confirmationDialog("Turn off AI agents?", isPresented: $confirmTurnOff, titleVisibility: .visible) {
+            Button("Turn Off", role: .destructive) { Task { await ai.disconnect() } }
+        } message: {
+            Text("Every connected agent loses access and EEON deletes its copy of your notes.")
         }
     }
 
-    // MARK: - Not connected
+    // MARK: - Sections
+
+    private var switchSection: some View {
+        Section {
+            Toggle(isOn: Binding(
+                get: { ai.isConnected || ai.isConnecting },
+                set: { on in
+                    if on { Task { await ai.connect() } } else { confirmTurnOff = true }
+                }
+            )) {
+                Label("Let AI agents read my notes", systemImage: "sparkle.magnifyingglass")
+            }
+            .disabled(ai.isConnecting)
+            if let error = ai.lastError {
+                Text(error).font(EEONType.meta).foregroundStyle(.orange)
+            }
+        } footer: {
+            Text("EEON keeps an encrypted copy of your notes' text (never audio) so agents can read them anytime, even with your phone off. Read-only. Turning this off deletes the copy and disconnects every agent.")
+        }
+    }
 
     private var introSection: some View {
         Section {
@@ -63,43 +98,6 @@ struct AIAccessSetupView: View {
             .padding(.vertical, 4)
         }
     }
-
-    private var setupSection: some View {
-        Group {
-            Section {
-                Toggle("Keep notes available to agents", isOn: Binding(
-                    get: { mirror.isEnabled },
-                    set: { mirror.isEnabled = $0 }
-                ))
-                Button {
-                    Task { await ai.connect() }
-                } label: {
-                    HStack(spacing: 12) {
-                        if ai.isConnecting {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "sparkle.magnifyingglass")
-                                .foregroundStyle(.eeonAccentAI)
-                        }
-                        Text(ai.isConnecting ? "Connecting…" : "Connect with Apple")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.eeonAccentAI)
-                    }
-                }
-                .disabled(ai.isConnecting)
-            } footer: {
-                Text(mirrorFooter)
-            }
-
-            if let error = ai.lastError {
-                Section {
-                    Text(error).font(EEONType.meta).foregroundStyle(.orange)
-                }
-            }
-        }
-    }
-
-    // MARK: - Connected
 
     private var statusSection: some View {
         Section {
@@ -123,7 +121,7 @@ struct AIAccessSetupView: View {
             .padding(.vertical, 2)
 
             if mirror.status?.state == .notConnected {
-                Button("Reconnect") { Task { await ai.connect() } }
+                Button("Turn on again") { Task { await ai.disconnect(); await ai.connect() } }
                     .fontWeight(.semibold)
             }
             if let error = mirror.lastError {
@@ -134,17 +132,6 @@ struct AIAccessSetupView: View {
         }
     }
 
-    private var accessSection: some View {
-        Section {
-            Toggle("Keep notes available to agents", isOn: Binding(
-                get: { mirror.isEnabled },
-                set: { on in Task { on ? await mirror.enable() : await mirror.disable() } }
-            ))
-        } footer: {
-            Text(mirrorFooter)
-        }
-    }
-
     private var addToToolSection: some View {
         Section {
             Picker("Tool", selection: $tool) {
@@ -152,18 +139,33 @@ struct AIAccessSetupView: View {
             }
             .pickerStyle(.segmented)
 
-            if let setup = setupText(for: tool) {
-                copyRow(label: tool.instruction, value: setup, mono: true)
-            }
+            copyRow(label: tool.instruction, value: setupText(for: tool), mono: true)
+
             Button {
-                showShare = true
+                showCodeEntry = true
             } label: {
-                Label("Send to my computer", systemImage: "square.and.arrow.up")
+                Label("Enter code", systemImage: "number")
+                    .fontWeight(.semibold)
             }
         } header: {
             Text("Add EEON to your agent")
         } footer: {
-            Text("Do this once on each computer. The setup includes your private access token, so only send it to yourself.")
+            Text("Your agent opens a page with a QR code. Scan it with your iPhone camera, or tap Enter code, then Allow.")
+        }
+    }
+
+    @ViewBuilder
+    private var agentsSection: some View {
+        if let agents = mirror.status?.agents, !agents.isEmpty {
+            Section {
+                ForEach(agents, id: \.self) { agent in
+                    LabeledContent(agent.name, value: "since \(agent.connectedAt.formatted(date: .abbreviated, time: .omitted))")
+                }
+            } header: {
+                Text("Connected agents")
+            } footer: {
+                Text("To remove them all, turn off AI agents above.")
+            }
         }
     }
 
@@ -173,20 +175,7 @@ struct AIAccessSetupView: View {
         } header: {
             Text("Try it")
         } footer: {
-            Text("Or open any note, tap ⋯ → Send to an agent.")
-        }
-    }
-
-    private var disconnectSection: some View {
-        Section {
-            Button(role: .destructive) {
-                ai.disconnect()
-                Task { await mirror.refreshStatus() }
-            } label: {
-                Label("Disconnect", systemImage: "xmark.circle")
-            }
-        } footer: {
-            Text("Stops every connected agent and deletes EEON's copy of your notes.")
+            Text("Or open any note, tap ⋯ → Send to an Agent.")
         }
     }
 
@@ -195,10 +184,9 @@ struct AIAccessSetupView: View {
     private var statusTitle: String {
         switch mirror.status?.state {
         case .ready: return "Ready · \(mirror.status?.notes ?? 0) notes"
-        case .syncing: return "Uploading your notes…"
-        case .proxyOnly: return "Limited: needs Apple sign-in"
-        case .notConnected: return "Reconnect needed"
-        case nil: return "Checking…"
+        case .syncing, .proxyOnly: return "Uploading your notes…"
+        case .notConnected: return "Turned off on the server"
+        case nil: return mirror.isSyncing ? "Uploading your notes…" : "Checking…"
         }
     }
 
@@ -206,42 +194,29 @@ struct AIAccessSetupView: View {
         guard let status = mirror.status else { return nil }
         switch status.state {
         case .ready:
-            var parts: [String] = []
-            if let synced = status.lastSyncAt { parts.append("updated \(relative(synced))") }
-            if let read = status.lastAgentReadAt {
-                parts.append("last read by an agent \(relative(read))")
-            } else {
-                parts.append("no agent has read them yet")
-            }
-            return parts.joined(separator: " · ")
-        case .syncing:
+            guard let read = status.lastAgentReadAt else { return "No agent has read them yet." }
+            return "Last read by \(status.lastAgentName ?? "an agent") \(relative(read))"
+        case .syncing, .proxyOnly:
             return "Agents can read your notes as soon as this finishes."
-        case .proxyOnly:
-            return "Agents can only read notes while Apple's sign-in lasts (up to 2 weeks). Turn on “Keep notes available” below."
         case .notConnected:
-            return "This connection was revoked. Agents can't read your notes until you reconnect."
+            return "Agents can't read your notes. Turn it on again."
         }
     }
 
     private var statusIcon: String {
         switch mirror.status?.state {
         case .ready: return "checkmark.circle.fill"
-        case .syncing: return "arrow.triangle.2.circlepath"
-        case .proxyOnly, .notConnected: return "exclamationmark.triangle.fill"
-        case nil: return "circle.dotted"
+        case .notConnected: return "exclamationmark.triangle.fill"
+        default: return "arrow.triangle.2.circlepath"
         }
     }
 
     private var statusColor: Color {
         switch mirror.status?.state {
         case .ready: return .green
-        case .proxyOnly, .notConnected: return .orange
+        case .notConnected: return .orange
         default: return .eeonTextSecondary
         }
-    }
-
-    private var mirrorFooter: String {
-        "When on, EEON keeps an encrypted copy of your notes' text (never audio) so agents can read them anytime, even when your phone is off. Read-only. Turning this off or disconnecting deletes the copy."
     }
 
     // MARK: - Helpers
@@ -256,17 +231,12 @@ struct AIAccessSetupView: View {
         return "Read my latest EEON note about \(recent ?? "my project") and do it."
     }
 
-    private func setupText(for tool: AgentTool) -> String? {
+    private func setupText(for tool: AgentTool) -> String {
         switch tool {
         case .claudeCode: return ai.claudeCommand
         case .codex: return ai.codexCommand
-        case .cursor: return ai.cursorConfig
+        case .other: return ai.mcpURL
         }
-    }
-
-    private var shareText: String {
-        let setup = setupText(for: tool) ?? ai.mcpURL
-        return "EEON for \(tool.label): \(tool.instruction)\n\n\(setup)\n\nThen ask: \(examplePrompt)"
     }
 
     private func relative(_ date: Date) -> String {
@@ -288,11 +258,10 @@ struct AIAccessSetupView: View {
                     Text(label)
                         .font(EEONType.badge)
                         .foregroundStyle(.eeonTextSecondary)
-                    Text(mono ? masked(value) : value)
+                    Text(value)
                         .font(mono ? .system(.footnote, design: .monospaced) : EEONType.meta)
                         .foregroundStyle(.eeonTextPrimary)
                         .lineLimit(4)
-                        .truncationMode(.middle)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: justCopied == label ? "checkmark" : "doc.on.doc")
@@ -301,31 +270,25 @@ struct AIAccessSetupView: View {
         }
         .buttonStyle(.plain)
     }
-
-    /// Show the command's shape without printing the secret on screen.
-    private func masked(_ value: String) -> String {
-        guard let token = ai.connectorToken, !token.isEmpty else { return value }
-        return value.replacingOccurrences(of: token, with: "••••••")
-    }
 }
 
 enum AgentTool: String, CaseIterable, Identifiable {
-    case claudeCode, codex, cursor
+    case claudeCode, codex, other
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .claudeCode: return "Claude Code"
         case .codex: return "Codex"
-        case .cursor: return "Cursor"
+        case .other: return "Other apps"
         }
     }
 
     var instruction: String {
         switch self {
-        case .claudeCode: return "Run in Terminal"
-        case .codex: return "Run in Terminal"
-        case .cursor: return "Add to ~/.cursor/mcp.json"
+        case .claudeCode: return "Run once in Terminal, then /mcp → eeon → Authenticate"
+        case .codex: return "Run once in Terminal"
+        case .other: return "Cursor, Claude, ChatGPT: add a custom connector with this URL"
         }
     }
 }

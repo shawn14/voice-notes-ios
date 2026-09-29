@@ -1,111 +1,208 @@
 import Foundation
-import AuthenticationServices
 import CloudKit
 
-/// In-app "Set up AI access": runs the EEON connect flow inside an
-/// ASWebAuthenticationSession (same pattern as Google Calendar), captures the
-/// connector token the web callback returns via `voicenotes://ai-access`, and
-/// keeps it so Settings can show the user their connector URL + token to add
-/// to Claude / ChatGPT / Cursor. Read-only; the token is revocable.
+/// Settings → "AI agents". One switch connects this phone to the EEON
+/// connector; agents (Claude Code, Codex, Cursor, claude.ai) then sign in with
+/// just the URL and the user approves each one here by QR or short code.
+///
+/// Why this shape (2026-09-29): the old flow made the user sign in to Apple in
+/// a web sheet and then carry a long secret token to every computer. The
+/// mirror (`AgentMirrorService`) carries the notes, so no Apple web sign-in is
+/// needed, and OAuth pairing means no token is ever copied by hand.
 @Observable
-final class AIAccessService: NSObject {
+final class AIAccessService {
     static let shared = AIAccessService()
+
+    /// The one URL every agent adds. No token in it.
+    static let mcpURL = "https://www.eeon.com/api/mcp"
 
     private let defaults = UserDefaults.standard
     private let tokenKey = "aiAccessConnectorToken"
-    private let urlKey = "aiAccessMCPURL"
     private let cloudKitAPITokenKey = "EEONCloudKitAPIToken"
-
-    private var authSession: ASWebAuthenticationSession?
-    private let contextProvider = AIAccessPresentationContextProvider()
-
-    /// The URL the connect flow lives at. `?app=1` makes the callback return
-    /// into the app via the voicenotes:// scheme instead of the web page.
-    private let startURL = URL(string: "https://www.eeon.com/api/connect/start?app=1")!
-    private let callbackScheme = "voicenotes"
 
     var isConnecting = false
     var lastError: String?
 
-    private override init() { super.init() }
+    /// A pairing code opened from the camera QR (`voicenotes://pair?code=`)
+    /// or typed in; the root view presents the approval sheet for it.
+    var pendingPairCode: String?
 
-    var connectorToken: String? { defaults.string(forKey: tokenKey) }
-    var mcpURL: String { defaults.string(forKey: urlKey) ?? "https://www.eeon.com/api/mcp" }
+    // Stored (not computed over UserDefaults) so @Observable tracks it.
+    // Computed reads were invisible to SwiftUI: Disconnect changed the token
+    // but the screen never redrew (Shawn, 2026-09-29).
+    private(set) var connectorToken: String?
     var isConnected: Bool { connectorToken?.isEmpty == false }
+    var mcpURL: String { Self.mcpURL }
 
-    /// A ready-to-paste Claude Code command for the current connector.
-    var claudeCommand: String? {
-        guard let token = connectorToken else { return nil }
-        return "claude mcp add --transport http eeon \(mcpURL) --header \"Authorization: Bearer \(token)\""
+    private init() {
+        connectorToken = defaults.string(forKey: tokenKey)
     }
 
+    // MARK: - Connect / disconnect
+
+    /// One tap: create this phone's connection and upload notes for agents.
     @MainActor
     func connect() async {
+        guard !isConnecting else { return }
         isConnecting = true
         lastError = nil
         defer { isConnecting = false }
         do {
-            let callback = try await openAuthSession(startURL)
-            let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
-            if let error = items.first(where: { $0.name == "error" })?.value {
-                lastError = readableError(error)
+            let (data, response) = try await URLSession.shared.data(for: request(path: "/api/connect/device", method: "POST"))
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let token = (try? JSONDecoder().decode(DeviceConnection.self, from: data))?.token,
+                  !token.isEmpty else {
+                lastError = serverMessage(data) ?? "Couldn't turn on AI agents. Check your connection and try again."
                 return
             }
-            guard let token = items.first(where: { $0.name == "token" })?.value, !token.isEmpty else {
-                lastError = "Sign-in finished but no connector was returned. Please try again."
-                return
-            }
-            let url = items.first(where: { $0.name == "url" })?.value ?? mcpURL
             defaults.set(token, forKey: tokenKey)
-            defaults.set(url, forKey: urlKey)
-            // A new connection starts with an empty server mirror.
+            connectorToken = token
             AgentMirrorService.shared.clearHashes()
-            if AgentMirrorService.shared.isEnabled {
-                await AgentMirrorService.shared.syncNow()
-            }
+            await AgentMirrorService.shared.syncNow()
             await AgentMirrorService.shared.refreshStatus()
-        } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
-            // User dismissed the sheet — not an error worth surfacing.
         } catch {
-            lastError = error.localizedDescription
+            lastError = "Couldn't turn on AI agents. Check your connection and try again."
         }
     }
 
-    /// Revoke server-side (best effort) and forget locally.
-    func disconnect() {
-        if let token = connectorToken,
-           let revoke = URL(string: "https://www.eeon.com/api/connect/revoke") {
-            var req = URLRequest(url: revoke)
-            req.httpMethod = "POST"
-            req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-            req.httpBody = "token=\(token)".data(using: .utf8)
-            URLSession.shared.dataTask(with: req).resume()
+    /// Revoke server-side (deletes the note copy and every approved agent)
+    /// and forget locally.
+    @MainActor
+    func disconnect() async {
+        if let token = connectorToken {
+            var revoke = request(path: "/api/connect/revoke", method: "POST")
+            revoke.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            revoke.httpBody = "token=\(token)".data(using: .utf8)
+            _ = try? await URLSession.shared.data(for: revoke)
         }
         defaults.removeObject(forKey: tokenKey)
-        defaults.removeObject(forKey: urlKey)
-        // Revoke deletes the server mirror too; forget what we uploaded.
+        connectorToken = nil
         AgentMirrorService.shared.clearHashes()
+        await AgentMirrorService.shared.refreshStatus()
     }
 
-    /// Codex reads the bearer from an env var instead of a header flag.
-    var codexCommand: String? {
-        guard let token = connectorToken else { return nil }
-        return "export EEON_TOKEN=\(token)\ncodex mcp add eeon --url \(mcpURL) --bearer-token-env-var EEON_TOKEN"
-    }
+    // MARK: - Pairing (approve an agent)
 
-    /// Cursor's ~/.cursor/mcp.json entry.
-    var cursorConfig: String? {
-        guard let token = connectorToken else { return nil }
-        return """
-        {
-          "mcpServers": {
-            "eeon": {
-              "url": "\(mcpURL)",
-              "headers": { "Authorization": "Bearer \(token)" }
+    /// Which agent is asking for this code, or a readable error.
+    func pairingClientName(code: String) async -> Result<String, PairingError> {
+        guard var components = URLComponents(string: "https://www.eeon.com/api/pair") else { return .failure(.message("Invalid code.")) }
+        components.queryItems = [URLQueryItem(name: "code", value: Self.normalize(code))]
+        guard let url = components.url else { return .failure(.message("Invalid code.")) }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            if (response as? HTTPURLResponse)?.statusCode == 200,
+               let name = (try? JSONDecoder().decode(PairInfo.self, from: data))?.clientName {
+                return .success(name)
             }
-          }
+            return .failure(.message(serverMessage(data) ?? "That code didn't work. Start again on your computer."))
+        } catch {
+            return .failure(.message("Couldn't reach EEON. Check your connection."))
         }
-        """
+    }
+
+    /// Approve (or refuse) the agent. Turns AI agents on first if needed.
+    @MainActor
+    func decidePairing(code: String, approve: Bool) async -> Result<Void, PairingError> {
+        if approve && !isConnected { await connect() }
+        guard let token = connectorToken else {
+            return .failure(.message(lastError ?? "Turn on AI agents first."))
+        }
+        var req = request(path: "/api/pair", method: "POST", token: token)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONEncoder().encode(PairDecision(code: Self.normalize(code), approve: approve))
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            if (response as? HTTPURLResponse)?.statusCode == 200 {
+                await AgentMirrorService.shared.refreshStatus()
+                return .success(())
+            }
+            return .failure(.message(serverMessage(data) ?? "That code didn't work. Start again on your computer."))
+        } catch {
+            return .failure(.message("Couldn't reach EEON. Check your connection."))
+        }
+    }
+
+    static func normalize(_ code: String) -> String {
+        code.uppercased().filter { $0.isLetter || $0.isNumber }
+    }
+
+    // MARK: - Setup text (no tokens anywhere)
+
+    var claudeCommand: String { "claude mcp add --transport http eeon \(mcpURL)" }
+    var codexCommand: String { "codex mcp add eeon --url \(mcpURL)\ncodex mcp login eeon" }
+
+    // MARK: - Orders (dormant AI-order recorder; see CLAUDE.md)
+
+    func enqueueOrder(
+        id: UUID,
+        title: String,
+        instructions: String,
+        createdAt: Date,
+        project: String?
+    ) async {
+        guard let token = connectorToken else { return }
+        let trimmedInstructions = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedInstructions.isEmpty else { return }
+        do {
+            try await send(
+                url: URL(string: "https://www.eeon.com/api/orders")!,
+                method: "POST",
+                token: token,
+                body: OrderMirrorPayload(
+                    id: id.uuidString,
+                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                    instructions: trimmedInstructions,
+                    date: Self.iso8601.string(from: createdAt),
+                    project: project,
+                    recordName: nil
+                )
+            )
+        } catch {
+            lastError = "Could not queue this AI order. It is still saved in EEON."
+        }
+    }
+
+    /// Legacy connections made with the old Apple web sign-in can still read
+    /// live CloudKit; keep their token fresh when this build carries the API
+    /// token. The mirror makes this optional for reads.
+    @discardableResult
+    func refreshCloudKitAccessIfPossible() async -> Bool {
+        guard let token = connectorToken else { return false }
+        guard let apiToken = cloudKitAPIToken,
+              let url = endpoint(path: "/api/connect/refresh") else {
+            // Debug installs carry the unresolved $(EEON_CLOUDKIT_API_TOKEN)
+            // placeholder. The agent mirror covers reads either way.
+            print("[AIAccess] CloudKit refresh skipped: no EEONCloudKitAPIToken in this build")
+            return false
+        }
+        do {
+            let webAuthToken = try await fetchWebAuthToken(apiToken: apiToken)
+            try await send(
+                url: url,
+                method: "POST",
+                token: token,
+                body: CloudKitRefreshPayload(ckWebAuthToken: webAuthToken, environment: "production")
+            )
+            return true
+        } catch {
+            // Device connections have no CloudKit token to refresh; the mirror
+            // serves their reads, so this is expected and not user-facing.
+            print("[AIAccess] CloudKit refresh failed: \(error)")
+            return false
+        }
+    }
+
+    // MARK: - HTTP
+
+    func endpoint(path: String) -> URL? {
+        URL(string: "https://www.eeon.com\(path)")
+    }
+
+    private func request(path: String, method: String, token: String? = nil) -> URLRequest {
+        var req = URLRequest(url: endpoint(path: path)!)
+        req.httpMethod = method
+        if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        return req
     }
 
     /// Authenticated JSON request to an EEON connector endpoint.
@@ -123,101 +220,8 @@ final class AIAccessService: NSObject {
         }
     }
 
-    func enqueueOrder(
-        id: UUID,
-        title: String,
-        instructions: String,
-        createdAt: Date,
-        project: String?
-    ) async {
-        guard let token = connectorToken,
-              let url = endpoint(path: "/api/orders") else { return }
-        let trimmedInstructions = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedInstructions.isEmpty else { return }
-
-        do {
-            try await postJSON(
-                url: url,
-                token: token,
-                payload: OrderMirrorPayload(
-                    id: id.uuidString,
-                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    instructions: trimmedInstructions,
-                    date: Self.iso8601.string(from: createdAt),
-                    project: project,
-                    recordName: nil
-                )
-            )
-        } catch {
-            lastError = "Could not queue this AI order. It is still saved in EEON."
-        }
-    }
-
-    @discardableResult
-    func refreshCloudKitAccessIfPossible() async -> Bool {
-        guard let token = connectorToken else { return false }
-        guard let apiToken = cloudKitAPIToken,
-              let url = endpoint(path: "/api/connect/refresh") else {
-            // Debug installs carry the unresolved $(EEON_CLOUDKIT_API_TOKEN)
-            // placeholder. The agent mirror covers reads either way.
-            print("[AIAccess] CloudKit refresh skipped: no EEONCloudKitAPIToken in this build")
-            return false
-        }
-        do {
-            let webAuthToken = try await fetchWebAuthToken(apiToken: apiToken)
-            try await postJSON(
-                url: url,
-                token: token,
-                payload: CloudKitRefreshPayload(
-                    ckWebAuthToken: webAuthToken,
-                    environment: "production"
-                )
-            )
-            return true
-        } catch {
-            print("[AIAccess] CloudKit refresh failed: \(error)")
-            // With the mirror on, agents still read notes; don't alarm the user.
-            if !AgentMirrorService.shared.isEnabled {
-                lastError = "AI memory access needs reconnecting."
-            }
-            return false
-        }
-    }
-
-    private func readableError(_ code: String) -> String {
-        switch code {
-        case "read_failed":
-            return "Signed in, but couldn't read your notes. Make sure iCloud is on for the same Apple Account."
-        case "no_token":
-            return "Sign-in didn't complete. Please try again."
-        default:
-            return code
-        }
-    }
-
-    private func openAuthSession(_ url: URL) async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
-            let session = ASWebAuthenticationSession(
-                url: url,
-                callbackURLScheme: callbackScheme
-            ) { callbackURL, error in
-                self.authSession = nil
-                if let callbackURL {
-                    continuation.resume(returning: callbackURL)
-                } else {
-                    continuation.resume(throwing: error ?? ASWebAuthenticationSessionError(.canceledLogin))
-                }
-            }
-            session.presentationContextProvider = contextProvider
-            // Clean session each time. A shared Safari session can carry stale
-            // Apple sign-in state that makes CloudKit report "session has timed
-            // out"; ephemeral avoids that at the cost of a full sign-in.
-            session.prefersEphemeralWebBrowserSession = true
-            authSession = session
-            if !session.start() {
-                continuation.resume(throwing: ASWebAuthenticationSessionError(.presentationContextInvalid))
-            }
-        }
+    private func serverMessage(_ data: Data) -> String? {
+        (try? JSONDecoder().decode(ServerError.self, from: data))?.error
     }
 
     private var cloudKitAPIToken: String? {
@@ -225,14 +229,6 @@ final class AIAccessService: NSObject {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("$(") else { return nil }
         return trimmed
-    }
-
-    func endpoint(path: String) -> URL? {
-        guard var components = URLComponents(string: mcpURL) else { return nil }
-        components.path = path
-        components.query = nil
-        components.fragment = nil
-        return components.url
     }
 
     private func fetchWebAuthToken(apiToken: String) async throws -> String {
@@ -246,24 +242,25 @@ final class AIAccessService: NSObject {
         }
     }
 
-    private func postJSON<T: Encodable>(url: URL, token: String, payload: T) async throws {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(payload)
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-    }
-
     private static let iso8601: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 }
+
+enum PairingError: Error {
+    case message(String)
+
+    var text: String {
+        switch self { case .message(let text): return text }
+    }
+}
+
+private struct DeviceConnection: Decodable { let token: String }
+private struct PairInfo: Decodable { let clientName: String }
+private struct PairDecision: Encodable { let code: String; let approve: Bool }
+private struct ServerError: Decodable { let error: String }
 
 private struct OrderMirrorPayload: Encodable {
     let id: String
@@ -277,17 +274,4 @@ private struct OrderMirrorPayload: Encodable {
 private struct CloudKitRefreshPayload: Encodable {
     let ckWebAuthToken: String
     let environment: String
-}
-
-private final class AIAccessPresentationContextProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        if let keyWindow = scenes.flatMap(\.windows).first(where: { $0.isKeyWindow }) {
-            return keyWindow
-        }
-        guard let scene = scenes.first else {
-            fatalError("AI access setup requires an active window scene")
-        }
-        return ASPresentationAnchor(windowScene: scene)
-    }
 }
