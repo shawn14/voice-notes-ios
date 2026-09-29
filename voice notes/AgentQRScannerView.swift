@@ -24,13 +24,23 @@ struct AgentQRScannerView: View {
                 }
                 .ignoresSafeArea()
 
-                Text("Point at the QR code on your computer's EEON page")
-                    .font(EEONType.meta)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.black.opacity(0.6), in: Capsule())
-                    .padding(.bottom, 32)
+                // No shutter: the scanner reads the code live. The QR only
+                // exists once the user starts connecting on the computer, so
+                // say where it comes from (Shawn: "how am I supposed to take a
+                // picture of it? I don't understand").
+                VStack(spacing: 6) {
+                    Text("Point your phone at the QR code on your computer")
+                        .font(.subheadline.weight(.semibold))
+                    Text("No QR code yet? On your computer, add EEON to your agent. In Claude Code: /mcp → eeon → Authenticate. A page with the code opens.")
+                        .font(EEONType.meta)
+                        .multilineTextAlignment(.center)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 32)
             }
             .navigationTitle("Scan QR code")
             .navigationBarTitleDisplayMode(.inline)

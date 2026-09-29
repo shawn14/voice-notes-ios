@@ -165,7 +165,7 @@ struct AIAccessSetupView: View {
             // Scanning is the path; typing the code is only the fallback, so
             // it's a quiet link rather than a row (Shawn, 2026-09-29).
             VStack(alignment: .leading, spacing: 6) {
-                Text("Your agent opens a page with a QR code. Tap Scan QR code, point at it, then tap Allow.")
+                Text("1. On your computer, run the command above. Your agent opens a page with a QR code.\n2. Tap Scan QR code and point your phone at that page. It reads it live, no photo needed.\n3. Tap Allow.")
                 Button("Can't scan? Enter the code") { showCodeEntry = true }
                     .font(EEONType.meta)
                     .foregroundStyle(.eeonAccentAI)
