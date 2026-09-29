@@ -267,6 +267,24 @@ UI tests only (no unit tests — see `TODOS.md` #1 for the planned first unit-te
 - Launch args: `-UITestMode`, `-SkipOnboarding` for test-specific behavior; `-SeedScreenshotData` (DEBUG only) runs `ScreenshotSeed.swift`, which inserts a curated founder persona — compiled articles, focus items, sample notes, and a pre-baked `homeLayoutJSON` (still seeded; Home ignores it since 2026-09-10) — so screenshots bypass the LLM compile loop. `ScreenshotTests` finds Home controls by accessibility label: `Calendar options`, `All tasks`, `Ask EEON` — rename those labels and the screenshot lane breaks silently
 - `AuthService.debugSignIn()` available in DEBUG builds
 
+## Installing on Shawn's iPhone (Wi-Fi, no cable) — and proving agents can read his notes
+
+Shawn's iPhone: `F3C3794A-23F0-52DE-849D-AEB50EE743DD`, bundle `voice.notes.voice-notes`. Never ask for a cable first.
+
+1. `xcrun devicectl list devices`. If the iPhone is `unavailable` while `ping -c1 shawns-iphone.local` answers, the Mac's pairing daemons are stale: `killall remotepairingd; killall CoreDeviceService`, re-list → `available (paired)` (verified 2026-09-29; `tunnelState: unavailable` and `xcdevice` saying `interface: usb` are symptoms of the same thing, not a missing "Connect via network").
+2. ONE unsandboxed Bash call (separate calls lose the `.app`):
+   ```bash
+   xcodebuild -quiet -scheme "voice notes" -configuration Debug -destination "generic/platform=iOS" build \
+   && APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/voice_notes-*/Build/Products/Debug-iphoneos/"voice notes.app" | head -1) \
+   && codesign --verify "$APP" \
+   && xcrun devicectl device install app --device F3C3794A-23F0-52DE-849D-AEB50EE743DD "$APP" \
+   && xcrun devicectl device process launch --device F3C3794A-23F0-52DE-849D-AEB50EE743DD voice.notes.voice-notes
+   ```
+   The build compiles the working tree, including anyone's uncommitted work. `Locked` on launch means the phone is locked, not unreachable.
+3. Read the app's state without UI: `xcrun devicectl device copy from --device <udid> --domain-type appDataContainer --domain-identifier voice.notes.voice-notes --source Library/Preferences/voice.notes.voice-notes.plist --destination <scratch>/prefs.plist`; the connector token is `plutil -extract aiAccessConnectorToken raw` (never print it).
+4. Prove agents can read the notes: `curl -A Mozilla/5.0 https://www.eeon.com/api/connect/status -H "Authorization: Bearer $T"` → `state: ready`, note/article counts, `lastSyncAt`. Then JSON-RPC `tools/call` `vault_status` (expect `source: mirror`, `error: null`), `recent_notes`, `search_memory`, `get_note` against `https://www.eeon.com/api/mcp`. Send a browser User-Agent: Vercel's firewall 403s python-urllib. For the full agent path (register → `/oauth/authorize` → `POST /api/pair` with the phone token → poll → `/api/oauth/token`), follow `v0-eeon-app-design/scripts/e2e-agent-oauth.mjs`, and delete any test agent afterwards (`DEL eeon:agent:<t>`, `SREM eeon:agents:<phone-token> <t>`) so it doesn't show in Shawn's Connected agents.
+5. A new Claude Code session is needed to pick up `~/.claude.json` MCP changes; `/mcp` → eeon → Authenticate opens the QR page.
+
 ## Releases (Fastlane)
 
 Fastlane lives **outside this repo** in `~/projects/fastlane-configs`, keyed by app:
