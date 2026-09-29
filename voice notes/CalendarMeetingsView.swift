@@ -251,20 +251,11 @@ struct CalendarMeetingsView: View {
         }
     }
 
-    /// A row is tappable only when it has somewhere to go (a call link).
-    @ViewBuilder
+    /// Tapping the event itself never opens the call (Shawn, 2026-09-29:
+    /// "when I just click the event, it shouldn't open up the actual video").
+    /// Only the explicit Join button at the end of the row does.
     private func compactRow(_ meeting: CalendarMeeting) -> some View {
-        if let meetingURL = meeting.meetingURL {
-            Button {
-                openURL(meetingURL)
-            } label: {
-                compactRowContent(meeting)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens the call")
-        } else {
-            compactRowContent(meeting)
-        }
+        compactRowContent(meeting)
     }
 
     private func compactRowContent(_ meeting: CalendarMeeting) -> some View {
@@ -296,10 +287,8 @@ struct CalendarMeetingsView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(Capsule().fill(Color.eeonAccent.opacity(0.13)))
-            } else if meeting.meetingURL != nil {
-                Image(systemName: "video")
-                    .font(EEONType.badge)
-                    .foregroundStyle(Color.eeonAccent)
+            } else if let meetingURL = meeting.meetingURL {
+                joinButton(meetingURL, font: EEONType.badge)
             }
         }
         .padding(.horizontal, 14)
@@ -461,20 +450,11 @@ struct CalendarMeetingsView: View {
         }
     }
 
-    /// A row is tappable only when it has somewhere to go (a call link).
-    @ViewBuilder
+    /// Tapping the event itself never opens the call (Shawn, 2026-09-29:
+    /// "when I just click the event, it shouldn't open up the actual video").
+    /// Only the explicit Join button at the end of the row does.
     private func meetingRow(_ meeting: CalendarMeeting) -> some View {
-        if let meetingURL = meeting.meetingURL {
-            Button {
-                openURL(meetingURL)
-            } label: {
-                meetingRowContent(meeting)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens the call")
-        } else {
-            meetingRowContent(meeting)
-        }
+        meetingRowContent(meeting)
     }
 
     private func meetingRowContent(_ meeting: CalendarMeeting) -> some View {
@@ -506,10 +486,8 @@ struct CalendarMeetingsView: View {
                     .padding(.vertical, 5)
                     .background(Color.eeonAccent.opacity(0.13))
                     .clipShape(Capsule())
-            } else if meeting.meetingURL != nil {
-                Image(systemName: "video")
-                    .font(EEONType.control)
-                    .foregroundStyle(Color.eeonAccent)
+            } else if let meetingURL = meeting.meetingURL {
+                joinButton(meetingURL, font: EEONType.control)
             }
         }
         .padding(10)
@@ -786,10 +764,35 @@ struct CalendarMeetingsView: View {
         return "\(day), \(time)"
     }
 
+    /// The only control that opens a video call: a deliberate tap on Join.
+    private func joinButton(_ url: URL, font: Font) -> some View {
+        Button {
+            openURL(url)
+        } label: {
+            Label("Join", systemImage: "video")
+                .labelStyle(.iconOnly)
+                .font(font)
+                .foregroundStyle(Color.eeonAccent)
+                .frame(minWidth: 32, minHeight: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("Join \(Self.callProvider(url)) call")
+    }
+
+    static func callProvider(_ url: URL) -> String {
+        let host = url.host()?.lowercased() ?? ""
+        if host.contains("zoom") { return "Zoom" }
+        if host.contains("meet.google") { return "Google Meet" }
+        if host.contains("teams.microsoft") || host.contains("teams.live") { return "Teams" }
+        if host.contains("webex") { return "Webex" }
+        return "Video call"
+    }
+
     private func meetingMetaLine(for meeting: CalendarMeeting) -> String {
         var parts = [timeLine(for: meeting)]
-        if meeting.meetingURL != nil {
-            parts.append("Google Meet")
+        if let meetingURL = meeting.meetingURL {
+            parts.append(Self.callProvider(meetingURL))
         } else if let location = meeting.location, !location.isEmpty {
             parts.append(location)
         } else if !meeting.calendarTitle.isEmpty {
