@@ -128,7 +128,9 @@ final class AIAccessService {
 
     // MARK: - Setup text (no tokens anywhere)
 
-    var claudeCommand: String { "claude mcp add --transport http eeon \(mcpURL)" }
+    // `claude mcp login` opens the browser to the QR page right away, so the
+    // user never has to find /mcp → Authenticate.
+    var claudeCommand: String { "claude mcp add --transport http eeon \(mcpURL) && claude mcp login eeon" }
     var codexCommand: String { "codex mcp add eeon --url \(mcpURL)\ncodex mcp login eeon" }
 
     // MARK: - Orders (dormant AI-order recorder; see CLAUDE.md)

@@ -334,8 +334,8 @@ enum AgentTool: String, CaseIterable, Identifiable {
 
     var instruction: String {
         switch self {
-        case .claudeCode: return "Run once in Terminal, then /mcp → eeon → Authenticate"
-        case .codex: return "Run once in Terminal"
+        case .claudeCode: return "Run once in Terminal. A page with the QR code opens."
+        case .codex: return "Run once in Terminal. A page with the QR code opens."
         case .other: return "Cursor, Claude, ChatGPT: add a custom connector with this URL"
         }
     }
