@@ -17,6 +17,8 @@ struct AIAccessSetupView: View {
     @State private var showCodeEntry = false
     @State private var typedCode = ""
     @State private var confirmTurnOff = false
+    @State private var showScanner = false
+    @State private var scannedCode: String?
 
     @Query(sort: \Note.createdAt, order: .reverse) private var notes: [Note]
     @Query private var projects: [Project]
@@ -51,6 +53,14 @@ struct AIAccessSetupView: View {
                 if !AIAccessService.normalize(code).isEmpty { ai.pendingPairCode = code }
             }
             Button("Cancel", role: .cancel) { typedCode = "" }
+        }
+        // Hand the code to the app-level approval sheet only after the
+        // scanner sheet has gone, so two sheets never fight.
+        .sheet(isPresented: $showScanner, onDismiss: {
+            if let code = scannedCode { ai.pendingPairCode = code }
+            scannedCode = nil
+        }) {
+            AgentQRScannerView { code in scannedCode = code }
         }
         .confirmationDialog("Turn off AI agents?", isPresented: $confirmTurnOff, titleVisibility: .visible) {
             Button("Turn Off", role: .destructive) { Task { await ai.disconnect() } }
@@ -141,16 +151,26 @@ struct AIAccessSetupView: View {
 
             copyRow(label: tool.instruction, value: setupText(for: tool), mono: true)
 
+            // The primary action once the agent's page is open.
             Button {
-                showCodeEntry = true
+                if AgentQRScannerView.isAvailable { showScanner = true } else { showCodeEntry = true }
             } label: {
-                Label("Enter code", systemImage: "number")
+                Label("Scan QR code", systemImage: "qrcode.viewfinder")
                     .fontWeight(.semibold)
+                    .foregroundStyle(.eeonAccentAI)
             }
         } header: {
             Text("Add EEON to your agent")
         } footer: {
-            Text("Your agent opens a page with a QR code. Scan it with your iPhone camera, or tap Enter code, then Allow.")
+            // Scanning is the path; typing the code is only the fallback, so
+            // it's a quiet link rather than a row (Shawn, 2026-09-29).
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Your agent opens a page with a QR code. Tap Scan QR code, point at it, then tap Allow.")
+                Button("Can't scan? Enter the code") { showCodeEntry = true }
+                    .font(EEONType.meta)
+                    .foregroundStyle(.eeonAccentAI)
+                    .buttonStyle(.plain)
+            }
         }
     }
 
