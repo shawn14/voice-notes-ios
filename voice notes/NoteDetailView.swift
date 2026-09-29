@@ -135,6 +135,7 @@ struct NoteDetailView: View {
 
     // Copy feedback
     @State private var showCopiedFeedback = false
+    @State private var agentCopyMessage: String?
 
     // Paywall for PRO rewrite templates
     @State private var showingPaywall = false
@@ -278,7 +279,7 @@ struct NoteDetailView: View {
             if showCopiedFeedback {
                 VStack {
                     Spacer()
-                    Text("Copied!")
+                    Text(agentCopyMessage ?? "Copied!")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 20)
@@ -361,6 +362,12 @@ struct NoteDetailView: View {
                                 Label("Clean Up Recording…", systemImage: "scissors")
                             }
                             .disabled(isSummarizingExcerpt || isRewriting || isReprocessing)
+                        }
+
+                        Button {
+                            sendToAgent()
+                        } label: {
+                            Label("Send to an Agent", systemImage: "sparkle.magnifyingglass")
                         }
 
                         // Free, like Pocket's: it's the demo that sells the rest.
@@ -1406,6 +1413,23 @@ struct NoteDetailView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    /// Copies a prompt that makes Claude Code / Codex / Cursor read this exact
+    /// note through the EEON connector and act on it.
+    private func sendToAgent() {
+        let title = note.title.isEmpty ? "Untitled note" : note.title
+        UIPasteboard.general.string = "Use the EEON connector: call get_note with id \(note.id.uuidString) (\"\(title)\"), read it, and do what the note says."
+        agentCopyMessage = AIAccessService.shared.isConnected
+            ? "Copied — paste into your agent"
+            : "Copied — connect in Settings → AI agents first"
+        withAnimation { showCopiedFeedback = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            withAnimation {
+                showCopiedFeedback = false
+                agentCopyMessage = nil
+            }
+        }
     }
 
     private func copyNoteText() {

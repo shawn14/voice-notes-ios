@@ -3165,6 +3165,16 @@ struct SettingsView: View {
         return count == 1 ? "1 article · Memory Map" : "\(count) articles · Memory Map"
     }
 
+    private var agentStatusSubtitle: String {
+        switch AgentMirrorService.shared.status?.state {
+        case .ready: return "Ready · \(AgentMirrorService.shared.status?.notes ?? 0) notes"
+        case .syncing: return "Uploading notes…"
+        case .proxyOnly: return "Limited · tap to fix"
+        case .notConnected: return "Reconnect needed"
+        case nil: return "Connected"
+        }
+    }
+
     private var connectionsSettingsSection: some View {
         // Inlined 2026-09-01 (Shawn): the calendar and reminder toggles used
         // to hide one tap deep behind a "Calendars & Connections" row. They
@@ -3179,14 +3189,16 @@ struct SettingsView: View {
             } label: {
                 EEONSettingsRow(
                     icon: "sparkle.magnifyingglass",
-                    title: "Set up AI access",
-                    subtitle: AIAccessService.shared.isConnected ? "Connected · manage" : "Connect Claude, Cursor, or ChatGPT"
+                    title: "AI agents",
+                    subtitle: AIAccessService.shared.isConnected
+                        ? agentStatusSubtitle
+                        : "Let Claude Code, Codex, or Cursor read your notes"
                 )
             }
         } header: {
             Text("Connections")
         } footer: {
-            Text("Calendar is read-only; Reminders receives your tasks. AI access is set up inside each AI tool, not switched on here.")
+            Text("Calendar is read-only; Reminders receives your tasks. AI agents read your notes only after you connect them.")
         }
     }
 

@@ -219,6 +219,7 @@ struct voice_notesApp: App {
         // reaching the service through CaptureBridge (see CaptureIntents.swift).
         BackgroundCaptureService.shared.configure(container: container)
         BackgroundDiarizationService.shared.configure(container: container)
+        AgentMirrorService.shared.container = container
         CaptureBridge.toggleHandler = {
             try await BackgroundCaptureService.shared.toggle()
         }
@@ -242,6 +243,13 @@ struct voice_notesApp: App {
                             if newPhase == .active {
                                 Task {
                                     await triggerAppActiveRefresh()
+                                }
+                            } else if newPhase == .background {
+                                // Push the note the user just recorded before iOS suspends us.
+                                let task = UIApplication.shared.beginBackgroundTask()
+                                Task {
+                                    await AgentMirrorService.shared.syncNow()
+                                    UIApplication.shared.endBackgroundTask(task)
                                 }
                             }
                         }
@@ -411,6 +419,10 @@ struct voice_notesApp: App {
         let context = container.mainContext
         Task {
             await AIAccessService.shared.refreshCloudKitAccessIfPossible()
+        }
+        Task {
+            await AgentMirrorService.shared.syncNow()
+            await AgentMirrorService.shared.refreshStatus()
         }
 
         // Process any pending ingests from share extension

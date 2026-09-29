@@ -58,6 +58,12 @@ final class AIAccessService: NSObject {
             let url = items.first(where: { $0.name == "url" })?.value ?? mcpURL
             defaults.set(token, forKey: tokenKey)
             defaults.set(url, forKey: urlKey)
+            // A new connection starts with an empty server mirror.
+            AgentMirrorService.shared.clearHashes()
+            if AgentMirrorService.shared.isEnabled {
+                await AgentMirrorService.shared.syncNow()
+            }
+            await AgentMirrorService.shared.refreshStatus()
         } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
             // User dismissed the sheet — not an error worth surfacing.
         } catch {
@@ -77,6 +83,44 @@ final class AIAccessService: NSObject {
         }
         defaults.removeObject(forKey: tokenKey)
         defaults.removeObject(forKey: urlKey)
+        // Revoke deletes the server mirror too; forget what we uploaded.
+        AgentMirrorService.shared.clearHashes()
+    }
+
+    /// Codex reads the bearer from an env var instead of a header flag.
+    var codexCommand: String? {
+        guard let token = connectorToken else { return nil }
+        return "export EEON_TOKEN=\(token)\ncodex mcp add eeon --url \(mcpURL) --bearer-token-env-var EEON_TOKEN"
+    }
+
+    /// Cursor's ~/.cursor/mcp.json entry.
+    var cursorConfig: String? {
+        guard let token = connectorToken else { return nil }
+        return """
+        {
+          "mcpServers": {
+            "eeon": {
+              "url": "\(mcpURL)",
+              "headers": { "Authorization": "Bearer \(token)" }
+            }
+          }
+        }
+        """
+    }
+
+    /// Authenticated JSON request to an EEON connector endpoint.
+    func send<T: Encodable>(url: URL, method: String, token: String, body: T?) async throws {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+        }
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
     }
 
     func enqueueOrder(
@@ -111,9 +155,14 @@ final class AIAccessService: NSObject {
 
     @discardableResult
     func refreshCloudKitAccessIfPossible() async -> Bool {
-        guard let token = connectorToken,
-              let apiToken = cloudKitAPIToken,
-              let url = endpoint(path: "/api/connect/refresh") else { return false }
+        guard let token = connectorToken else { return false }
+        guard let apiToken = cloudKitAPIToken,
+              let url = endpoint(path: "/api/connect/refresh") else {
+            // Debug installs carry the unresolved $(EEON_CLOUDKIT_API_TOKEN)
+            // placeholder. The agent mirror covers reads either way.
+            print("[AIAccess] CloudKit refresh skipped: no EEONCloudKitAPIToken in this build")
+            return false
+        }
         do {
             let webAuthToken = try await fetchWebAuthToken(apiToken: apiToken)
             try await postJSON(
@@ -126,7 +175,11 @@ final class AIAccessService: NSObject {
             )
             return true
         } catch {
-            lastError = "AI memory access needs reconnecting."
+            print("[AIAccess] CloudKit refresh failed: \(error)")
+            // With the mirror on, agents still read notes; don't alarm the user.
+            if !AgentMirrorService.shared.isEnabled {
+                lastError = "AI memory access needs reconnecting."
+            }
             return false
         }
     }
@@ -174,7 +227,7 @@ final class AIAccessService: NSObject {
         return trimmed
     }
 
-    private func endpoint(path: String) -> URL? {
+    func endpoint(path: String) -> URL? {
         guard var components = URLComponents(string: mcpURL) else { return nil }
         components.path = path
         components.query = nil
