@@ -636,9 +636,7 @@ struct HomeView: View {
     }
 
     private func deleteNote(_ note: Note) {
-        note.deleteAudioFile()
-        note.deleteImageFiles()
-        modelContext.delete(note)
+        NoteTrash.moveToTrash(note, context: modelContext)
     }
 
     private func transcribeAndSave(url: URL) {
@@ -3443,6 +3441,7 @@ extension SettingsView {
 
         if let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             try? fm.removeItem(at: support.appendingPathComponent("diarize-jobs", isDirectory: true))
+            NoteTrash.deleteAll()  // Recently Deleted skips the 30 days here
             removeContents(of: support, where: { !$0.lastPathComponent.hasPrefix("default-backup-") })
         }
     }

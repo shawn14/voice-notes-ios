@@ -516,7 +516,7 @@ struct NoteDetailView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This cannot be undone.")
+            Text("You can restore it from Recently Deleted in the Library for 30 days.")
         }
         .sheet(isPresented: $showingShareSheet) {
             ShareNoteView(note: note)
@@ -1703,16 +1703,9 @@ struct NoteDetailView: View {
     }
 
     private func deleteNote() {
-        if let fileName = note.audioFileName {
-            let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent(fileName)
-            try? FileManager.default.removeItem(at: url)
+        if NoteTrash.moveToTrash(note, context: modelContext) {
+            dismiss()
         }
-        // Delete image files
-        note.deleteImageFiles()
-        modelContext.delete(note)
-        try? modelContext.save()
-        dismiss()
     }
 
     private func deletePhoto(_ fileName: String) {

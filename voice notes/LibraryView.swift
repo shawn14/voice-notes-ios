@@ -67,6 +67,7 @@ struct LibraryView: View {
     @Query(sort: \Project.sortOrder) private var projects: [Project]
 
     @State private var searchQuery = ""
+    @State private var trashCount = 0
     @State private var editingNote: Note?
 
     private var visibleNotes: [Note] {
@@ -152,7 +153,22 @@ struct LibraryView: View {
                     }
                 }
             }
+
+            if !isSearching && trashCount > 0 {
+                Section {
+                    NavigationLink(destination: RecentlyDeletedView()) {
+                        HStack {
+                            Label("Recently Deleted", systemImage: "trash")
+                            Spacer()
+                            Text("\(trashCount)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
         }
+        .onAppear { trashCount = NoteTrash.entries().count }
+        .onChange(of: notes.count) { trashCount = NoteTrash.entries().count }
         .navigationTitle("Library")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchQuery, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search Library")
@@ -571,10 +587,7 @@ private struct LibraryNoteListRow: View {
 
     private func deleteNote() {
         withAnimation(.easeInOut(duration: 0.2)) {
-            note.deleteAudioFile()
-            note.deleteImageFiles()
-            modelContext.delete(note)
-            try? modelContext.save()
+            NoteTrash.moveToTrash(note, context: modelContext)
         }
     }
 }

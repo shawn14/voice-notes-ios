@@ -435,6 +435,7 @@ struct voice_notesApp: App {
     @MainActor
     private func triggerAppActiveRefresh() async {
         let context = container.mainContext
+        NoteTrash.purgeExpired()
         Task {
             await AIAccessService.shared.refreshCloudKitAccessIfPossible()
         }

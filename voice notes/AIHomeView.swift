@@ -857,10 +857,7 @@ struct AIHomeView: View {
 
     private func deleteNote(_ note: Note) {
         withAnimation(.easeInOut(duration: 0.2)) {
-            note.deleteAudioFile()
-            note.deleteImageFiles()
-            modelContext.delete(note)
-            try? modelContext.save()
+            NoteTrash.moveToTrash(note, context: modelContext)
         }
     }
 
