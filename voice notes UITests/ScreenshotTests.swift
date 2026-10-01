@@ -335,6 +335,62 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Speaker B'")).firstMatch.exists)
     }
 
+    /// Paste from the Record long-press menu creates a note; a note exports
+    /// as Markdown, PDF and its recording through the share sheet.
+    func testPasteAndExport() throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/two-speakers.m4a").path
+        app.terminate()
+        launchApp(extraArguments: ["-UITestPro", "-SeedSpeakerAudio", fixture])
+        sleep(3)
+        dismissGatesIfNeeded()
+
+        // Paste. iOS asks "Allow Paste" when an app reads another app's copy.
+        let pasted = "Pasted note: renew the passport before March"
+        UIPasteboard.general.string = pasted
+        let record = app.buttons["Record a note"]
+        XCTAssertTrue(record.waitForExistence(timeout: 10))
+        record.press(forDuration: 1.2)
+        let pasteItem = app.buttons["Paste"]
+        XCTAssertTrue(pasteItem.waitForExistence(timeout: 5), "Paste missing from Record menu")
+        pasteItem.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.buttons["Allow Paste"]
+        if allow.waitForExistence(timeout: 3) { allow.tap() }
+        let pastedRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] 'Pasted note'")).firstMatch
+        XCTAssertTrue(pastedRow.waitForExistence(timeout: 30), "Pasted note never appeared on Home")
+
+        // Export the audio note three ways.
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] 'Paywall launch call'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        for format in ["PDF", "Markdown", "Recording"] {
+            let options = app.buttons["Note options"]
+            XCTAssertTrue(options.waitForExistence(timeout: 5))
+            let exportMenu = app.buttons["Export As…"]
+            for _ in 0..<3 where !exportMenu.exists {
+                options.tap()
+                _ = exportMenu.waitForExistence(timeout: 3)
+            }
+            exportMenu.tap()
+            let item = app.buttons[format]
+            XCTAssertTrue(item.waitForExistence(timeout: 5), "\(format) export missing")
+            item.tap()
+            // The share sheet shows the file's name as its header.
+            let sheet = app.otherElements["ActivityListView"]
+            let close = app.buttons["Close"]
+            XCTAssertTrue(sheet.waitForExistence(timeout: 10) || close.waitForExistence(timeout: 2),
+                          "\(format) share sheet never opened")
+            let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            shot.name = "Export-\(format)"
+            shot.lifetime = .keepAlways
+            add(shot)
+            if close.exists { close.tap() } else { app.swipeDown(velocity: .fast) }
+            sleep(1)
+        }
+    }
+
     // MARK: - Individual Screen Tests (for debugging)
 
     func testHomeOnly() throws {

@@ -624,9 +624,14 @@ struct AIHomeView: View {
                     Label("Import a recording", systemImage: "square.and.arrow.down")
                 }
                 Button {
+                    DataIntentBridge.importClipboard()
+                } label: {
+                    Label("Paste", systemImage: "doc.on.clipboard")
+                }
+                Button {
                     showingSourcePicker = true
                 } label: {
-                    Label("Add a link or document", systemImage: "doc.badge.plus")
+                    Label("Add a link, file or photo", systemImage: "doc.badge.plus")
                 }
             }
         }

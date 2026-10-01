@@ -22,5 +22,34 @@ struct EEONAppShortcuts: AppShortcutsProvider {
             shortTitle: "Record Note",
             systemImageName: "mic.fill"
         )
+        AppShortcut(
+            intent: AskEEONIntent(),
+            phrases: [
+                "Ask \(.applicationName)",
+                "Ask \(.applicationName) a question",
+                "Search my \(.applicationName) memory"
+            ],
+            shortTitle: "Ask EEON",
+            systemImageName: "sparkle.magnifyingglass"
+        )
+        AppShortcut(
+            intent: AddToEEONIntent(),
+            phrases: [
+                "Add to \(.applicationName)",
+                "Save this to \(.applicationName)",
+                "Send to \(.applicationName)"
+            ],
+            shortTitle: "Add to EEON",
+            systemImageName: "plus.circle"
+        )
+        AppShortcut(
+            intent: GetRecentNotesIntent(),
+            phrases: [
+                "Get my recent \(.applicationName) notes",
+                "What did I tell \(.applicationName) recently"
+            ],
+            shortTitle: "Recent Notes",
+            systemImageName: "clock"
+        )
     }
 }

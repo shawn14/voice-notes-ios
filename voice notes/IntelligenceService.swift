@@ -9,6 +9,8 @@
 //
 
 import Foundation
+import UniformTypeIdentifiers
+import UIKit
 import SwiftData
 
 @Observable
@@ -488,21 +490,33 @@ final class IntelligenceService {
         isProcessingIngests = true
         defer { isProcessingIngests = false }
 
-        let pending = SharedDefaults.pendingIngests
+        // Items added while this runs (a second Shortcut, another share) would
+        // otherwise wait for the next app launch, because a concurrent drain
+        // call returns at the guard above. Loop until nothing new is queued;
+        // `attempted` stops an item that can't be removed from looping forever.
+        var attempted = Set<String>()
+        while true {
+        let pending = SharedDefaults.pendingIngests.filter { !attempted.contains($0.id) }
         guard !pending.isEmpty else { return }
+        attempted.formUnion(pending.map(\.id))
 
-        // Clear immediately to prevent double processing
-        SharedDefaults.clearPendingIngests()
-
+        // Each item leaves the queue only once its note is saved (see
+        // removePendingIngest); isProcessingIngests stops a second drain here.
         for ingest in pending {
+            var note: Note
+
             if let sharedFileName = ingest.sharedFileName, !sharedFileName.isEmpty {
-                await createPendingRecordingIngest(from: ingest, sharedFileName: sharedFileName, context: context)
-                continue
-            }
+                // Documents, images and text files become text notes; anything
+                // else (audio/video) is a recording that the transcription
+                // drain picks up.
+                guard let document = await documentNote(from: ingest, sharedFileName: sharedFileName) else {
+                    await createPendingRecordingIngest(from: ingest, sharedFileName: sharedFileName, context: context)
+                    SharedDefaults.removePendingIngest(id: ingest.id)
+                    continue
+                }
+                note = document
+            } else if let urlString = ingest.url, !urlString.isEmpty {
 
-            let note: Note
-
-            if let urlString = ingest.url, !urlString.isEmpty {
                 // URL ingest — fetch article content
                 do {
                     let webContent = try await WebContentService.fetchArticle(from: urlString)
@@ -527,8 +541,11 @@ final class IntelligenceService {
                     title: ingest.title ?? String(text.prefix(50)),
                     content: text
                 )
-                note.sourceType = .webArticle
+                // Text from Shortcuts/Siri is the user's own note; text shared
+                // from another app is clipped content.
+                note.sourceType = ingest.contentTypeIdentifier == SharedDefaults.typedTextContentType ? .voice : .webArticle
             } else {
+                SharedDefaults.removePendingIngest(id: ingest.id)
                 continue
             }
 
@@ -538,6 +555,7 @@ final class IntelligenceService {
                 context.insert(note)
                 try? context.save()
             }
+            SharedDefaults.removePendingIngest(id: ingest.id)
 
             // Run extraction + embedding pipeline
             await processNoteSave(
@@ -552,6 +570,49 @@ final class IntelligenceService {
             await EmbeddingService.shared.generateAndStoreEmbedding(for: note)
             await MainActor.run { try? context.save() }
         }
+        }
+    }
+
+    /// PDF, image or plain-text file from the share queue → a text note, or
+    /// nil when the file is not one of those (recordings take the audio path).
+    private func documentNote(from ingest: SharedDefaults.PendingIngest, sharedFileName: String) async -> Note? {
+        guard let typeID = ingest.contentTypeIdentifier, let type = UTType(typeID),
+              let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedDefaults.suiteName)
+        else { return nil }
+        let isPDF = type.conforms(to: .pdf)
+        let isImage = type.conforms(to: .image)
+        let isText = type.conforms(to: .plainText) || type.conforms(to: .text) && !type.conforms(to: .html)
+        guard isPDF || isImage || isText else { return nil }
+
+        let fileURL = container.appendingPathComponent("Shared Imports", isDirectory: true)
+            .appendingPathComponent(sharedFileName)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let baseName = ingest.originalFileName.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent }
+
+        var text = ""
+        var title = ingest.title ?? baseName ?? "Imported"
+        if isPDF {
+            guard let document = try? await PDFExtractionService.shared.extractText(from: fileURL) else { return failedImport(ingest, title) }
+            text = document.text
+            if ingest.title == nil, !document.title.isEmpty { title = document.title }
+        } else if isImage {
+            guard let data = try? Data(contentsOf: fileURL), let image = UIImage(data: data),
+                  let recognized = try? await ImageService.extractText(from: image) else { return failedImport(ingest, title) }
+            text = recognized
+        } else {
+            text = (try? String(contentsOf: fileURL, encoding: .utf8)) ?? ""
+        }
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return failedImport(ingest, title) }
+        let note = Note(title: title, content: text)
+        note.sourceType = .document
+        return note
+    }
+
+    /// Keep a visible trace instead of silently dropping what the user sent.
+    private func failedImport(_ ingest: SharedDefaults.PendingIngest, _ title: String) -> Note {
+        let note = Note(title: title, content: "EEON couldn't read any text in \(ingest.originalFileName ?? "this file").")
+        note.sourceType = .document
+        return note
     }
 
     private func createPendingRecordingIngest(

@@ -103,10 +103,27 @@ struct SharedDefaults {
         }
     }
 
+    /// contentTypeIdentifier for text the user wrote themselves (Shortcuts,
+    /// Siri, paste) rather than content clipped from another app.
+    static let typedTextContentType = "com.eeon.typed-text"
+
+    /// Folder in the App Group where files wait for the main app to ingest them.
+    static var sharedImportsURL: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: suiteName)?
+            .appendingPathComponent("Shared Imports", isDirectory: true)
+    }
+
     static func addPendingIngest(_ ingest: PendingIngest) {
         var current = pendingIngests
         current.append(ingest)
         pendingIngests = current
+    }
+
+    /// Drop one item after its note is saved. Clearing the whole queue up
+    /// front lost items shared mid-drain, and everything queued if the app
+    /// was killed while processing.
+    static func removePendingIngest(id: String) {
+        pendingIngests = pendingIngests.filter { $0.id != id }
     }
 
     static func clearPendingIngests() {

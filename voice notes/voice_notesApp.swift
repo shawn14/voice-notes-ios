@@ -220,6 +220,10 @@ struct voice_notesApp: App {
         BackgroundCaptureService.shared.configure(container: container)
         BackgroundDiarizationService.shared.configure(container: container)
         AgentMirrorService.shared.container = container
+        DataIntentBridge.container = container
+        #if DEBUG
+        IngestSelfTest.runIfRequested()
+        #endif
         CaptureBridge.toggleHandler = {
             try await BackgroundCaptureService.shared.toggle()
         }
@@ -360,6 +364,12 @@ struct voice_notesApp: App {
     }
 
     private func handleIncomingURL(_ url: URL) {
+        // "Open in EEON" from Files / Mail / AirDrop: queue the file like the
+        // Share Extension does (IntelligenceService turns it into a note).
+        if url.isFileURL {
+            DataIntentBridge.importFile(url)
+            return
+        }
         // Handle custom scheme: voicenotes://
         if url.scheme == "voicenotes" {
             // QR on an AI agent's sign-in page: approve it here.

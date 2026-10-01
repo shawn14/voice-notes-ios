@@ -16,6 +16,27 @@
 	<string>$(EEON_CLOUDKIT_API_TOKEN)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>EEON uses the camera to scan the QR code that connects an AI agent, like Claude Code, to your notes.</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Recordings, Documents and Photos</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.audio</string>
+				<string>public.movie</string>
+				<string>com.adobe.pdf</string>
+				<string>public.image</string>
+				<string>public.plain-text</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Voice Notes uses speech recognition to show a live preview of your words as you speak.</string>
 	<key>NSUbiquitousContainers</key>

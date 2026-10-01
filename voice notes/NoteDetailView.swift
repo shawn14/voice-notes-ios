@@ -124,6 +124,8 @@ struct NoteDetailView: View {
     @State private var excerptError: String?
     @State private var speakerError: String?
     @State private var showingMindMap = false
+    @State private var exportedFile: ExportedFile?
+    @State private var exportError: String?
     /// Set once a map exists for the current text; drives the Mind map line.
     @State private var cachedMindMap: NoteMindMapNode?
     private var isIdentifyingSpeakers: Bool {
@@ -328,6 +330,30 @@ struct NoteDetailView: View {
                             Label("Share as Link", systemImage: "link")
                         }
 
+                        // Files other apps can take: Obsidian/Notion (Markdown),
+                        // Mail/print (PDF), or the recording itself.
+                        Menu {
+                            Button {
+                                export(.markdown)
+                            } label: {
+                                Label("Markdown", systemImage: "doc.plaintext")
+                            }
+                            Button {
+                                export(.pdf)
+                            } label: {
+                                Label("PDF", systemImage: "doc.richtext")
+                            }
+                            if note.audioURL.map({ FileManager.default.fileExists(atPath: $0.path) }) == true {
+                                Button {
+                                    export(.recording)
+                                } label: {
+                                    Label("Recording", systemImage: "waveform")
+                                }
+                            }
+                        } label: {
+                            Label("Export As…", systemImage: "square.and.arrow.up.on.square")
+                        }
+
                         Divider()
 
                         // Project assignment
@@ -505,6 +531,14 @@ struct NoteDetailView: View {
         .sheet(isPresented: $showingTagPicker) {
             NoteTagPickerSheet(note: note)
         }
+        .sheet(item: $exportedFile) { file in
+            ActivityViewControllerRepresentable(activityItems: [file.url])
+        }
+        .alert("Couldn't Export", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(exportError ?? "")
+        }
         .sheet(isPresented: $showingMindMap, onDismiss: refreshMindMapLine) {
             MindMapView(note: note)
         }
@@ -676,6 +710,16 @@ struct NoteDetailView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Open mind map")
             .padding(.bottom, 20)
+        }
+    }
+
+    private func export(_ format: NoteFileExport.Format) {
+        do {
+            exportedFile = ExportedFile(url: try NoteFileExport.file(for: note, format: format, tasks: noteActions))
+        } catch {
+            exportError = format == .recording
+                ? "This note's recording isn't on this device."
+                : error.localizedDescription
         }
     }
 
@@ -2278,4 +2322,10 @@ final class NoteShareItemSource: NSObject, UIActivityItemSource {
         ))
     }
     .modelContainer(for: [Note.self, Project.self], inMemory: true)
+}
+
+/// A generated export file, presented in the share sheet.
+struct ExportedFile: Identifiable {
+    let url: URL
+    var id: String { url.path }
 }

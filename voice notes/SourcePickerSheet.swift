@@ -50,14 +50,21 @@ struct SourcePickerSheet: View {
         .presentationDetents([.medium])
         .fileImporter(
             isPresented: $showFilePicker,
-            allowedContentTypes: [.pdf, .plainText],
+            allowedContentTypes: [.pdf, .plainText, .image, .audio, .movie],
             allowsMultipleSelection: false
         ) { result in
             switch result {
             case .success(let urls):
                 guard let url = urls.first else { return }
                 dismiss()
-                onImportPDF(url)
+                // PDFs and text keep their existing in-app path; photos and
+                // recordings go through the shared import queue.
+                let type = UTType(filenameExtension: url.pathExtension) ?? .data
+                if type.conforms(to: .pdf) || type.conforms(to: .plainText) {
+                    onImportPDF(url)
+                } else {
+                    DataIntentBridge.importFile(url)
+                }
             case .failure:
                 linkError = "Could not open the file"
             }
@@ -99,11 +106,30 @@ struct SourcePickerSheet: View {
             sourceRow(
                 icon: "doc.text",
                 iconColor: .green,
-                title: "PDF, file, or text",
+                title: "File, PDF, or photo",
                 action: {
                     showFilePicker = true
                 }
             )
+
+            sourceRow(
+                icon: "doc.on.clipboard",
+                iconColor: .teal,
+                title: "Paste",
+                action: {
+                    if DataIntentBridge.importClipboard() {
+                        dismiss()
+                    } else {
+                        linkError = "The clipboard is empty. Copy text, a link or an image first."
+                    }
+                }
+            )
+
+            if let linkError, !showWebLinkInput {
+                Text(linkError)
+                    .font(.caption)
+                    .foregroundStyle(.eeonTextSecondary)
+            }
 
             sourceRow(
                 icon: "link",

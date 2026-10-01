@@ -1,7 +1,6 @@
 # STATUS
 
 ## 2026-08-28
-
 - Settings/account refactor for Sign in with Apple is in the app, using the native Apple button and a more standard Account detail page.
 - Hey Pocket gap pass v1 is implemented locally:
   - MCP server in `mcp/` reads the exported EEON markdown vault.
@@ -256,3 +255,9 @@
 ## 2026-09-30
 
 - **SHIPPED 3.10.0 (170) to App Review** (submission `e8b22567-a39f-4f93-bb42-821771f413b8`, readback `WAITING_FOR_REVIEW`, subs APPROVED; 3.9.0 was live). Built by `fastlane beta` from a **clean git worktree** of `21b504a` via the new `VOICE_NOTES_ROOT` override (fastlane-configs `9464521`), so the uncommitted Sep 26 share/ingest work (DataIntents, IngestSelfTest, NoteFileExport, `CFBundleDocumentTypes`) is NOT in this release. Production CloudKit schema gate passed. IPA readback: 3.10.0/170, `NSCameraUsageDescription` present, `EEONCloudKitAPIToken` resolved, AI agents / scanner / eeon.com-connect strings present, no Sep 26 doc types. Metadata + What's New + 15 screenshots pushed and read back with `asc_push.py --version 3.10.0 --create-if-missing`. Open: Shawn to update **App Privacy** (User Content → Other User Content, not linked, not tracking, App Functionality) in the ASC web UI; `git push` of voice-notes main (blocked for Claude).
+
+## 2026-10-01
+
+- **Product signal logged (Rehan / interactions):** [@rehanxahmed](https://x.com/rehanxahmed/status/2105569466482581625) — “we make Interactions so good you’d pay before downloading.” Video attached; link points at his earlier “light mode first” tip. Filed at [docs/research/2026-10-01-rehan-interactions-pay-before-download.md](docs/research/2026-10-01-rehan-interactions-pay-before-download.md). Implication for EEON: first-use capture/Ask should clear a willingness-to-pay bar before install friction; no build ticket from this log alone.
+
+

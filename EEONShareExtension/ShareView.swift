@@ -149,16 +149,22 @@ struct ShareView: View {
 
         if title.isEmpty && contentPreview.isEmpty {
             title = "Unsupported Content"
-            contentPreview = "Share a link, text, or audio recording."
+            contentPreview = "Share a link, text, recording, PDF or photo."
         }
 
         await MainActor.run { isLoaded = true }
     }
 
     private func extractRecordingAttachment(_ attachment: NSItemProvider, item: NSExtensionItem) async -> Bool {
-        let recordingTypes: [UTType] = [.audio, .movie, .mpeg4Movie, .quickTimeMovie]
+        // Recordings are transcribed; PDFs, photos and text FILES become text
+        // notes in the main app (IntelligenceService.documentNote). Plain text
+        // shared as a string (not a file) keeps the text path below.
+        var fileTypes: [UTType] = [.audio, .movie, .mpeg4Movie, .quickTimeMovie, .pdf, .image]
+        if attachment.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            fileTypes.append(.plainText)
+        }
 
-        for type in recordingTypes where attachment.hasItemConformingToTypeIdentifier(type.identifier) {
+        for type in fileTypes where attachment.hasItemConformingToTypeIdentifier(type.identifier) {
             guard let copied = await Self.copyFileRepresentation(
                 from: attachment,
                 typeIdentifier: type.identifier,
@@ -172,8 +178,20 @@ struct ShareView: View {
             originalFileName = copied.originalName
             contentTypeIdentifier = type.identifier
             let baseTitle = copied.originalName.removingPathExtension
-            title = item.attributedContentText?.string ?? (baseTitle.isEmpty ? "Imported Recording" : baseTitle)
-            contentPreview = type.conforms(to: .movie) ? "Video recording ready to import." : "Audio recording ready to import."
+            let kind: (fallback: String, preview: String)
+            if type.conforms(to: .pdf) {
+                kind = ("Imported PDF", "PDF ready to import. EEON will read its text.")
+            } else if type.conforms(to: .image) {
+                kind = ("Imported Photo", "Photo ready to import. EEON will read any text in it.")
+            } else if type.conforms(to: .plainText) {
+                kind = ("Imported Text", "Text file ready to import.")
+            } else if type.conforms(to: .movie) {
+                kind = ("Imported Recording", "Video recording ready to import.")
+            } else {
+                kind = ("Imported Recording", "Audio recording ready to import.")
+            }
+            title = item.attributedContentText?.string ?? (baseTitle.isEmpty ? kind.fallback : baseTitle)
+            contentPreview = kind.preview
             return true
         }
 
