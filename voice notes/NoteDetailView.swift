@@ -124,6 +124,7 @@ struct NoteDetailView: View {
     @State private var excerptError: String?
     @State private var speakerError: String?
     @State private var showingMindMap = false
+    @State private var showingAskNote = false
     @State private var exportedFile: ExportedFile?
     @State private var exportError: String?
     /// Set once a map exists for the current text; drives the Mind map line.
@@ -309,6 +310,13 @@ struct NoteDetailView: View {
 
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 12) {
+                    // Ask about this note (Pocket scopes Ask to one recording)
+                    Button(action: { showingAskNote = true }) {
+                        Image(systemName: "bubble.left.and.text.bubble.right")
+                            .foregroundStyle(.eeonTextPrimary)
+                    }
+                    .accessibilityLabel("Ask about this note")
+
                     // Share button — shares note text directly
                     Button(action: { showingTextShareSheet = true }) {
                         Image(systemName: "square.and.arrow.up")
@@ -388,6 +396,12 @@ struct NoteDetailView: View {
                                 Label("Clean Up Recording…", systemImage: "scissors")
                             }
                             .disabled(isSummarizingExcerpt || isRewriting || isReprocessing)
+                        }
+
+                        Button {
+                            showingAskNote = true
+                        } label: {
+                            Label("Ask About This Note", systemImage: "bubble.left.and.text.bubble.right")
                         }
 
                         Button {
@@ -541,6 +555,9 @@ struct NoteDetailView: View {
         }
         .sheet(isPresented: $showingMindMap, onDismiss: refreshMindMapLine) {
             MindMapView(note: note)
+        }
+        .sheet(isPresented: $showingAskNote) {
+            AnswerSheet(scopedNote: note)
         }
         .onAppear(perform: refreshMindMapLine)
         .sheet(isPresented: $showingSpeakerEditor) {

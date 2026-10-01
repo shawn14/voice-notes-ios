@@ -26,6 +26,9 @@ struct AnswerSheet: View {
     let navigationTitle: String
     let showsDoneButton: Bool
     let wrapsInNavigationStack: Bool
+    /// When set, questions are answered from this one note's transcript
+    /// ("Ask about this note") instead of the whole Library.
+    var scopedNote: Note? = nil
 
     private enum LoadState {
         case idle
@@ -74,6 +77,15 @@ struct AnswerSheet: View {
         self.navigationTitle = navigationTitle
         self.showsDoneButton = showsDoneButton
         self.wrapsInNavigationStack = wrapsInNavigationStack
+    }
+
+    /// Ask about one note, presented as a sheet from the note screen.
+    init(scopedNote: Note) {
+        self.initialQuery = nil
+        self.navigationTitle = "Ask This Note"
+        self.showsDoneButton = true
+        self.wrapsInNavigationStack = true
+        self.scopedNote = scopedNote
     }
 
     var body: some View {
@@ -172,7 +184,7 @@ struct AnswerSheet: View {
     }
 
     private var inputPlaceholder: String {
-        if case .idle = state { return "Ask EEON" }
+        if case .idle = state { return scopedNote == nil ? "Ask EEON" : "Ask about this note" }
         return "Ask another"
     }
 
@@ -204,11 +216,12 @@ struct AnswerSheet: View {
                 .frame(width: 68, height: 68)
                 .background(Circle().fill(Color.eeonAccentAI.opacity(0.14)))
 
-            Text("Ask EEON")
+            Text(scopedNote == nil ? "Ask EEON" : "Ask This Note")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.eeonTextPrimary)
 
-            Text("Ask a question about anything you have captured.")
+            Text(scopedNote.map { "Ask a question about \u{201C}\($0.displayTitle)\u{201D}." }
+                 ?? "Ask a question about anything you have captured.")
                 .font(.subheadline)
                 .foregroundStyle(.eeonTextSecondary)
                 .multilineTextAlignment(.center)
@@ -244,7 +257,14 @@ struct AnswerSheet: View {
     }
 
     private var starterQuestions: [String] {
-        [
+        if scopedNote != nil {
+            return [
+                "What are the key points?",
+                "What are the action items?",
+                "What was decided?"
+            ]
+        }
+        return [
             "What follow-ups do I owe?",
             "What decisions did I make this week?",
             "Summarize my active projects"
@@ -259,7 +279,7 @@ struct AnswerSheet: View {
 
             HStack(spacing: 12) {
                 TypingIndicator()
-                Text("Searching your Library...")
+                Text(scopedNote == nil ? "Searching your Library..." : "Reading this note...")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -506,13 +526,18 @@ struct AnswerSheet: View {
 
         Task {
             do {
-                let response = try await RAGService.shared.answerQuestion(
-                    query: ragQuery,
-                    allNotes: allNotes,
-                    articles: Array(knowledgeArticles),
-                    projects: projects,
-                    dailyBriefs: dailyBriefs
-                )
+                let response: RAGResponse
+                if let scopedNote {
+                    response = try await RAGService.shared.answerAboutNote(query: ragQuery, note: scopedNote)
+                } else {
+                    response = try await RAGService.shared.answerQuestion(
+                        query: ragQuery,
+                        allNotes: allNotes,
+                        articles: Array(knowledgeArticles),
+                        projects: projects,
+                        dailyBriefs: dailyBriefs
+                    )
+                }
                 await MainActor.run {
                     submittedQuestion = nil
                     state = .answer(question: trimmed, response: response)
