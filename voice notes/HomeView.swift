@@ -14,6 +14,7 @@ import AVFoundation
 import PhotosUI
 import CloudKit
 import AuthenticationServices
+import WidgetKit
 
 // MARK: - Filter Options
 
@@ -1783,8 +1784,6 @@ struct SettingsView: View {
     @Query(sort: \Project.sortOrder) private var projects: [Project]
     @Query private var notes: [Note]
     @Query private var knowledgeArticles: [KnowledgeArticle]
-    @Query private var dailyBriefs: [DailyBrief]
-    @Query private var kanbanItems: [KanbanItem]
     @Query(sort: \MentionedPerson.lastMentionedAt, order: .reverse) private var mentionedPeople: [MentionedPerson]
 
     // Observe AuthService for reactive updates
@@ -3363,36 +3362,88 @@ struct SettingsView: View {
     }
 
     private func deleteAllDataAndSignOut() {
-        // Delete all notes and their audio files
-        for note in notes {
-            note.deleteAudioFile()
-            modelContext.delete(note)
+        // 1. Server-side copies. Read everything these need before the local wipe
+        //    below; the requests finish in the background (offline = best effort).
+        //    The mirror goes first: disable() turns syncing off synchronously, so
+        //    the deletes below can't be uploaded as a last diff.
+        let shareIds = CloudKitShareService.publishedShareIds
+        Task {
+            await AgentMirrorService.shared.disable()
+            await AIAccessService.shared.disconnect()
+            await CloudKitShareService.shared.deleteSharedNotes(ids: shareIds)
+        }
+        GoogleCalendarService.shared.disconnect()
+
+        // 2. Every model in the schema (keep in sync with voice_notesApp.init).
+        //    Extracted items use sourceNoteId, not relationships, so deleting
+        //    notes alone leaves them behind.
+        do {
+            try modelContext.delete(model: Note.self)
+            try modelContext.delete(model: Tag.self)
+            try modelContext.delete(model: ExtractedDecision.self)
+            try modelContext.delete(model: ExtractedAction.self)
+            try modelContext.delete(model: ExtractedCommitment.self)
+            try modelContext.delete(model: UnresolvedItem.self)
+            try modelContext.delete(model: KanbanItem.self)
+            try modelContext.delete(model: KanbanMovement.self)
+            try modelContext.delete(model: WeeklyDebrief.self)
+            try modelContext.delete(model: Project.self)
+            try modelContext.delete(model: DailyBrief.self)
+            try modelContext.delete(model: ExtractedURL.self)
+            try modelContext.delete(model: MentionedPerson.self)
+            try modelContext.delete(model: KnowledgeArticle.self)
+            try modelContext.delete(model: KnowledgeEvent.self)
+            try modelContext.delete(model: DailyIntention.self)
+            try modelContext.delete(model: CustomRewriteTemplate.self)
+            try modelContext.save()
+        } catch {
+            print("Delete all data failed: \(error)")
         }
 
-        // Delete all projects
-        for project in projects {
-            modelContext.delete(project)
-        }
+        // 3. Files: recordings, photos, imported docs (Documents), pending share-sheet
+        //    imports, speaker-identification jobs, store backups, caches.
+        Self.deleteAllLocalFiles()
 
-        // Delete all daily briefs
-        for brief in dailyBriefs {
-            modelContext.delete(brief)
-        }
-
-        // Delete all kanban items
-        for item in kanbanItems {
-            modelContext.delete(item)
-        }
-
-        // Clear intelligence caches
+        // 4. Preferences and caches (EEON context, vocabulary, briefs, widget preview…)
         SessionBrief.clearCache()
         StatusCounters.shared.reset()
+        if let bundleId = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleId)
+        }
+        UserDefaults(suiteName: SharedDefaults.suiteName)?.removePersistentDomain(forName: SharedDefaults.suiteName)
+        WidgetCenter.shared.reloadAllTimelines()
 
         // Clear all user data including name/email and usage
         // Dismiss first, then clear data after sheet animation completes
         dismiss()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             AuthService.shared.clearAllUserData()
+        }
+    }
+}
+
+extension SettingsView {
+    /// Removes every user file EEON keeps outside SwiftData. The live store in
+    /// Application Support is left alone (its rows were deleted above); its
+    /// `default-backup-*` copies are removed because they hold old notes.
+    static func deleteAllLocalFiles() {
+        let fm = FileManager.default
+        func removeContents(of folder: URL?, where keep: (URL) -> Bool = { _ in false }) {
+            guard let folder,
+                  let items = try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil) else { return }
+            for item in items where !keep(item) {
+                try? fm.removeItem(at: item)
+            }
+        }
+
+        removeContents(of: fm.urls(for: .documentDirectory, in: .userDomainMask).first)
+        removeContents(of: fm.urls(for: .cachesDirectory, in: .userDomainMask).first)
+        removeContents(of: SharedDefaults.sharedImportsURL)
+        removeContents(of: fm.temporaryDirectory)
+
+        if let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            try? fm.removeItem(at: support.appendingPathComponent("diarize-jobs", isDirectory: true))
+            removeContents(of: support, where: { !$0.lastPathComponent.hasPrefix("default-backup-") })
         }
     }
 }
