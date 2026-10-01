@@ -186,3 +186,30 @@ Asana / ClickUp / TickTick (TODO #6, OAuth per app) · speaker names (Whisper
 can't diarize) · dark theme (light-only, 08-20) · Ask model picker · Ask
 attachments · memory import from ChatGPT · "Pocket Wrapped" · desktop/web.
 
+
+## Gap status (2026-10-01)
+
+Re-graded against `main` after 3.10.0 (170) plus the Sep 26 share/ingest work,
+using a fresh pass over heypocket.com, its docs and changelog, the App Store
+listing, and reviews.
+
+**Closed since 08-25:**
+- MCP / agent access: hosted connector + opt-in mirror, `claude mcp login eeon` (3.10.0).
+- Speaker names: `gpt-4o-transcribe-diarize` turns + Whisper words (09-25).
+- Per-note mind map.
+- PDF / Markdown / recording export per note (09-26).
+- iPad + Mac Catalyst targets.
+- **Ask about one note** (10-01): Pocket scopes Ask to a recording. `AnswerSheet(scopedNote:)` → `RAGService.answerAboutNote`, which reads the full transcript, not 300–500-char excerpts.
+
+**Fixed alongside (not a Pocket feature, a privacy gap):** Delete Account & Data now deletes every
+`@Model` type, local files, store backups, preferences, the agent mirror and
+connection, Google Calendar token, and published share links (tracked from
+10-01 on; earlier links expire within 90 days).
+
+**Still open:**
+- Recently Deleted / 30-day bin: design awaiting a decision, `docs/superpowers/specs/2026-10-01-recently-deleted-design.md`.
+- Transcript editing.
+- Tap-a-line-to-seek in the transcript.
+- DOCX export and emailed summaries.
+- Visual summaries (diagrams / decision trees).
+- Deliberately deferred: third-party task apps (#6), public API / webhooks, Apple Watch, web/Android, dark theme (light-only by choice).
