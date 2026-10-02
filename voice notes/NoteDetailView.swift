@@ -516,7 +516,7 @@ struct NoteDetailView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("You can restore it from Recently Deleted in the Library for 30 days.")
+            Text("You can restore it for 30 days from Recently Deleted (in Settings or at the bottom of All Notes).")
         }
         .sheet(isPresented: $showingShareSheet) {
             ShareNoteView(note: note)

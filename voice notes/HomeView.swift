@@ -3047,6 +3047,19 @@ struct SettingsView: View {
         }
     }
 
+    /// Always reachable, unlike Notes › More (which needs 4+ notes).
+    private var recentlyDeletedSettingsRow: some View {
+        NavigationLink {
+            RecentlyDeletedView()
+        } label: {
+            EEONSettingsRow(
+                icon: "trash",
+                title: "Recently Deleted",
+                subtitle: "Restore notes for 30 days"
+            )
+        }
+    }
+
     private var helpSettingsRow: some View {
         NavigationLink {
             helpDetail
@@ -3203,6 +3216,7 @@ struct SettingsView: View {
         Section {
             syncSettingsRow
             exportSettingsRow
+            recentlyDeletedSettingsRow
         } header: {
             Text("Data")
         }

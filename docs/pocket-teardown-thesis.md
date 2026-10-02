@@ -206,7 +206,7 @@ listing, and reviews.
 connection, Google Calendar token, and published share links (tracked from
 10-01 on; earlier links expire within 90 days).
 
-- **Recently Deleted** (10-01): 30-day per-device bin, Library → Recently Deleted. Design: `docs/superpowers/specs/2026-10-01-recently-deleted-design.md` (Option B).
+- **Recently Deleted** (10-01): 30-day per-device bin, Settings → Data → Recently Deleted (also at the bottom of All Notes). Design: `docs/superpowers/specs/2026-10-01-recently-deleted-design.md` (Option B).
 
 **Still open:**
 - Transcript editing.

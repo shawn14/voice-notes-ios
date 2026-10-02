@@ -1,7 +1,7 @@
 # Recently Deleted (30-day recycle bin) — design
 
 **Date:** 2026-10-01
-**Status:** Decided: Option B (Shawn, 2026-10-01). Implemented in `NoteTrash.swift` + `RecentlyDeletedView.swift`. Recently Deleted lives in Library (shown when non-empty).
+**Status:** Decided: Option B (Shawn, 2026-10-01). Implemented in `NoteTrash.swift` + `RecentlyDeletedView.swift`. Recently Deleted is reachable from Settings → Data (always) and the bottom of All Notes (when non-empty); the collections LibraryView is unreachable.
 **Why:** Pocket keeps deleted recordings for 30 days. In EEON, Delete Note is
 permanent and immediate, everywhere: the CloudKit private DB syncs the delete to
 every device and the agent mirror prunes it. One mis-tap loses a recording.
