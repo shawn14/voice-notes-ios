@@ -188,7 +188,7 @@ enum RewriteService {
     }
 
     /// Rewrite a transcript using a specific template
-    static func rewrite(transcript: String, template: RewriteTemplate) async throws -> String {
+    static func rewrite(transcript: String, template: RewriteTemplate, maxTokens: Int = 1500) async throws -> String {
         guard let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
             throw RewriteError.noAPIKey
         }
@@ -208,7 +208,7 @@ enum RewriteService {
                 ["role": "system", "content": ContextAssembler.flatPrefix(for: .rewrite) + template.systemPrompt],
                 ["role": "user", "content": transcript]
             ],
-            "max_tokens": 1500,
+            "max_tokens": maxTokens,
             "temperature": 0.4
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

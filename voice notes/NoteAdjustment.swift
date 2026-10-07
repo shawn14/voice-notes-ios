@@ -69,3 +69,45 @@ enum NoteAdjustment: String, CaseIterable, Identifiable {
         )
     }
 }
+
+// MARK: - Translate
+
+/// "Translate" in the same menu. Works like an adjustment: it replaces the
+/// text on screen and the one-level undo brings the original language back.
+/// The transcript is never touched, so re-running a format returns to it.
+enum NoteTranslationLanguage: String, CaseIterable, Identifiable {
+    case english = "English"
+    case spanish = "Spanish"
+    case french = "French"
+    case german = "German"
+    case portuguese = "Portuguese"
+    case italian = "Italian"
+    case chineseSimplified = "Chinese (Simplified)"
+    case japanese = "Japanese"
+    case korean = "Korean"
+    case hindi = "Hindi"
+    case arabic = "Arabic"
+    case russian = "Russian"
+
+    var id: String { rawValue }
+
+    /// Long notes need room: a translation that stops mid-note is worse than
+    /// none, so this asks for more output than the 1500-token rewrite default.
+    static let maxTokens = 4000
+
+    var template: RewriteTemplate {
+        RewriteTemplate(
+            id: "translate_" + rawValue,
+            name: rawValue,
+            emoji: "",
+            icon: "character.bubble",
+            section: .textEditing,
+            isPro: true,
+            systemPrompt: "You are translating an existing note, not summarizing it. Translate the whole note into "
+                + rawValue
+                + ". Translate every sentence; do not shorten, summarize, or add anything. Keep the structure exactly (headings, bold labels, bullets, numbering, line breaks). Keep company and product names, numbers, prices, and URLs exactly as written. If the note is already in "
+                + rawValue
+                + ", return it unchanged. This instruction overrides any style or language preference given above. Return only the translated note."
+        )
+    }
+}
