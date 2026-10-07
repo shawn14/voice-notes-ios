@@ -385,6 +385,7 @@ struct AllNotesView: View {
         case all = "All notes"
         case favorites = "Favorites"
         case archived = "Archived"
+        case deleted = "Recently Deleted"
 
         var id: String { rawValue }
 
@@ -393,11 +394,17 @@ struct AllNotesView: View {
             case .all: return "doc.text"
             case .favorites: return "heart"
             case .archived: return "archivebox"
+            case .deleted: return "trash"
             }
         }
     }
 
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
+    /// The bin is files on disk, not a query; reloaded when it is shown or changed.
+    @State private var deletedNotes: [DeletedNoteSnapshot] = []
+    @State private var previewingDeleted: DeletedNoteSnapshot?
+    @State private var confirmingEmptyBin = false
     @State private var scope: Scope = .all
     @State private var query = ""
     @State private var editingNote: Note?
@@ -407,7 +414,106 @@ struct AllNotesView: View {
         case .all: return libraryVisibleNotes(notes)
         case .favorites: return libraryVisibleNotes(notes).filter { $0.isFavorite }
         case .archived: return libraryArchivedNotes(notes)
+        case .deleted: return []
         }
+    }
+
+    private var shownDeletedNotes: [DeletedNoteSnapshot] {
+        guard !trimmedQuery.isEmpty else { return deletedNotes }
+        return deletedNotes.filter {
+            $0.displayTitle.localizedCaseInsensitiveContains(trimmedQuery)
+                || $0.bodyText.localizedCaseInsensitiveContains(trimmedQuery)
+        }
+    }
+
+    private func reloadDeletedNotes() {
+        deletedNotes = RecentlyDeletedStore.entries()
+    }
+
+    private func restore(_ snapshot: DeletedNoteSnapshot) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            RecentlyDeletedStore.restore(snapshot, in: modelContext)
+            reloadDeletedNotes()
+        }
+    }
+
+    private func deleteForGood(_ snapshot: DeletedNoteSnapshot) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            RecentlyDeletedStore.purge(snapshot)
+            reloadDeletedNotes()
+        }
+    }
+
+    @ViewBuilder
+    private var deletedNotesList: some View {
+        if shownDeletedNotes.isEmpty {
+            if !trimmedQuery.isEmpty {
+                ContentUnavailableView.search(text: trimmedQuery)
+            } else {
+                ContentUnavailableView(
+                    emptyTitle,
+                    systemImage: scope.icon,
+                    description: Text(emptyMessage)
+                )
+            }
+        } else {
+            Section {
+                ForEach(shownDeletedNotes) { snapshot in
+                    Button {
+                        previewingDeleted = snapshot
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(snapshot.displayTitle)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Text(deletedSubtitle(snapshot))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button {
+                            restore(snapshot)
+                        } label: {
+                            Label("Restore", systemImage: "arrow.uturn.backward")
+                        }
+                        .tint(.eeonAccentAI)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            deleteForGood(snapshot)
+                        } label: {
+                            Label("Delete Now", systemImage: "trash")
+                        }
+                    }
+                    .contextMenu {
+                        Button {
+                            restore(snapshot)
+                        } label: {
+                            Label("Restore", systemImage: "arrow.uturn.backward")
+                        }
+                        Button(role: .destructive) {
+                            deleteForGood(snapshot)
+                        } label: {
+                            Label("Delete Now", systemImage: "trash")
+                        }
+                    }
+                }
+            } footer: {
+                Text("Notes stay here for 30 days, then they are removed for good along with their recordings.")
+            }
+        }
+    }
+
+    private func deletedSubtitle(_ snapshot: DeletedNoteSnapshot) -> String {
+        let days = snapshot.daysLeft()
+        let left = days == 0 ? "Removed today" : (days == 1 ? "1 day left" : "\(days) days left")
+        let deleted = snapshot.deletedAt.formatted(date: .abbreviated, time: .omitted)
+        return "Deleted \(deleted) · \(left)"
     }
 
     private var trimmedQuery: String {
@@ -421,7 +527,9 @@ struct AllNotesView: View {
 
     var body: some View {
         List {
-            if shownNotes.isEmpty {
+            if scope == .deleted {
+                deletedNotesList
+            } else if shownNotes.isEmpty {
                 if !trimmedQuery.isEmpty {
                     ContentUnavailableView.search(text: trimmedQuery)
                 } else {
@@ -455,6 +563,48 @@ struct AllNotesView: View {
                 .accessibilityLabel("Filter notes")
                 .accessibilityValue(scope.rawValue)
             }
+            if scope == .deleted, !deletedNotes.isEmpty {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Empty", role: .destructive) {
+                        confirmingEmptyBin = true
+                    }
+                }
+            }
+        }
+        .onChange(of: scope) { _, newScope in
+            if newScope == .deleted { reloadDeletedNotes() }
+        }
+        .confirmationDialog("Delete \(deletedNotes.count) notes for good?", isPresented: $confirmingEmptyBin, titleVisibility: .visible) {
+            Button("Delete All", role: .destructive) {
+                RecentlyDeletedStore.purgeAll()
+                reloadDeletedNotes()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This cannot be undone.")
+        }
+        .sheet(item: $previewingDeleted) { snapshot in
+            NavigationStack {
+                ScrollView {
+                    Text(snapshot.bodyText.isEmpty ? "No text in this note." : snapshot.bodyText)
+                        .font(.body.leading(.loose))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                }
+                .navigationTitle(snapshot.displayTitle)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { previewingDeleted = nil }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Restore") {
+                            restore(snapshot)
+                            previewingDeleted = nil
+                        }
+                    }
+                }
+            }
         }
         .navigationDestination(item: $editingNote) { note in
             NoteDetailView(note: note, startEditing: true)
@@ -467,6 +617,7 @@ struct AllNotesView: View {
         case .all: return "No notes yet"
         case .favorites: return "No favorites"
         case .archived: return "Nothing archived"
+        case .deleted: return "Nothing deleted"
         }
     }
 
@@ -475,6 +626,7 @@ struct AllNotesView: View {
         case .all: return "Tap Note on the home screen and start talking."
         case .favorites: return "Favorite a note from its menu to pin it here."
         case .archived: return "Archived notes stay searchable here."
+        case .deleted: return "Deleted notes wait here for 30 days before they are removed."
         }
     }
 }
@@ -571,10 +723,8 @@ private struct LibraryNoteListRow: View {
 
     private func deleteNote() {
         withAnimation(.easeInOut(duration: 0.2)) {
-            note.deleteAudioFile()
-            note.deleteImageFiles()
-            modelContext.delete(note)
-            try? modelContext.save()
+            // Recoverable for 30 days from the filter menu › Recently Deleted.
+            RecentlyDeletedStore.trash(note, in: modelContext)
         }
     }
 }

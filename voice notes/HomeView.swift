@@ -635,9 +635,7 @@ struct HomeView: View {
     }
 
     private func deleteNote(_ note: Note) {
-        note.deleteAudioFile()
-        note.deleteImageFiles()
-        modelContext.delete(note)
+        RecentlyDeletedStore.trash(note, in: modelContext)
     }
 
     private func transcribeAndSave(url: URL) {
@@ -3363,6 +3361,8 @@ struct SettingsView: View {
     }
 
     private func deleteAllDataAndSignOut() {
+        // "All data" includes what is waiting in Recently Deleted.
+        RecentlyDeletedStore.purgeAll()
         // Delete all notes and their audio files
         for note in notes {
             note.deleteAudioFile()

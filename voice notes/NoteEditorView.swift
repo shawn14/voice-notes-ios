@@ -458,12 +458,7 @@ struct NoteEditorView: View {
     }
 
     private func deleteNote() {
-        if let fileName = note.audioFileName {
-            let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent(fileName)
-            try? FileManager.default.removeItem(at: url)
-        }
-        modelContext.delete(note)
+        guard RecentlyDeletedStore.trash(note, in: modelContext) else { return }
         dismiss()
     }
 

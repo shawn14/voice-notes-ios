@@ -857,10 +857,8 @@ struct AIHomeView: View {
 
     private func deleteNote(_ note: Note) {
         withAnimation(.easeInOut(duration: 0.2)) {
-            note.deleteAudioFile()
-            note.deleteImageFiles()
-            modelContext.delete(note)
-            try? modelContext.save()
+            // Recoverable for 30 days from Notes › Recently Deleted.
+            RecentlyDeletedStore.trash(note, in: modelContext)
         }
     }
 
