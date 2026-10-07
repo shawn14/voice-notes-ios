@@ -857,8 +857,7 @@ struct AIHomeView: View {
 
     private func deleteNote(_ note: Note) {
         withAnimation(.easeInOut(duration: 0.2)) {
-            // Recoverable for 30 days from Notes › Recently Deleted.
-            RecentlyDeletedStore.trash(note, in: modelContext)
+            NoteTrash.moveToTrash(note, context: modelContext)
         }
     }
 

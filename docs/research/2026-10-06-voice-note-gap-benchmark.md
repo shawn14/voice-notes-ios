@@ -40,9 +40,15 @@ Missing, and closed in this pass:
 | Gap | Who ships it | What EEON had |
 |---|---|---|
 | Apple Watch capture | Granola, Voicenotes, Letterly, AudioPen | No watch target |
-| Recently Deleted (30 days) | Pocket ("kept in the Recycle Bin for 30 days") | Delete destroyed the note and audio at once, from three screens |
 | Tap a sentence to hear it | Otter; Pocket lacks it | Whisper's segment times were fetched then discarded |
 | Translate a note | Letterly, AudioPen, Superwhisper, Otter (reported) | Nothing reachable |
+| Edit the transcript | Pocket (`transcript.edited`), Otter | Only the enhanced note could be edited |
+
+Recently Deleted (Pocket keeps deletes 30 days) and Ask about one note also came
+out of this benchmark as gaps. Both were already on `origin/main` from
+2026-10-01; this Mac's checkout was five commits behind and had not been
+fetched. A second bin built here in parallel was discarded in favor of
+`NoteTrash`. Lesson: `git fetch` before trusting "in sync".
 
 Missing, and deliberately left:
 

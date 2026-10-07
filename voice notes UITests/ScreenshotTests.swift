@@ -393,7 +393,7 @@ final class ScreenshotTests: XCTestCase {
 
     // MARK: - Individual Screen Tests (for debugging)
 
-    // MARK: - 2026-10-06 gap pass: tap-to-hear, Translate, Recently Deleted
+    // MARK: - 2026-10-06 gap pass: tap-to-hear, Translate, Edit transcript
     //
     // Written when this Mac had no iOS simulator runtime for Xcode 26.2, so
     // these three compiled but had not yet run. Run them before trusting them.
@@ -477,45 +477,21 @@ final class ScreenshotTests: XCTestCase {
                       "Undo did not bring the original language back")
     }
 
-    /// Delete → the note leaves Home → Notes filter › Recently Deleted shows
-    /// it with days left → Restore puts it back.
-    func testRecentlyDeletedRestore() throws {
+    /// Edit transcript → fix a word → Save: the corrected word shows and the
+    /// rest of the transcript is untouched.
+    func testEditTranscript() throws {
         openSeededAudioNote()
-        app.buttons["Note options"].tap()
-        let delete = app.buttons["Delete Note"]
-        XCTAssertTrue(delete.waitForExistence(timeout: 5))
-        delete.tap()
-        let confirm = app.buttons["Delete"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
-        confirm.tap()
-
-        let homeRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] 'Paywall launch call'")).firstMatch
-        XCTAssertTrue(homeRow.waitForNonExistence(timeout: 5), "Deleted note still on Home")
-
-        let more = app.buttons["More"]
-        XCTAssertTrue(more.waitForExistence(timeout: 5), "Home has no More link to all notes")
-        more.tap()
-        let filter = app.buttons["Filter notes"]
-        XCTAssertTrue(filter.waitForExistence(timeout: 5))
-        filter.tap()
-        app.buttons["Recently Deleted"].tap()
-
-        // A bin row is one button whose label joins its title and subtitle.
-        let binned = anyElement(labelContaining: "Paywall launch call")
-        XCTAssertTrue(binned.waitForExistence(timeout: 5), "Deleted note is not in Recently Deleted")
-        XCTAssertTrue(anyElement(labelContaining: "30 days left").exists)
-        keep("RecentlyDeleted")
-
-        binned.press(forDuration: 1.0)
-        let restore = app.buttons["Restore"]
-        XCTAssertTrue(restore.waitForExistence(timeout: 5))
-        restore.tap()
-        XCTAssertTrue(binned.waitForNonExistence(timeout: 5), "Restored note still listed as deleted")
-
-        filter.tap()
-        app.buttons["All notes"].tap()
-        XCTAssertTrue(anyElement(labelContaining: "Paywall launch call").waitForExistence(timeout: 5),
-                      "Restored note did not come back")
+        let edit = app.buttons["editTranscriptButton"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5), "No Edit transcript control")
+        edit.tap()
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 5), "Transcript editor did not open")
+        editor.tap()
+        editor.typeText(" Corrected by test.")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(anyElement(labelContaining: "Corrected by test.").waitForExistence(timeout: 5), "Edit was not saved")
+        XCTAssertTrue(anyElement(labelContaining: "thanks for joining").exists, "Rest of the transcript changed")
+        keep("EditedTranscript")
     }
 
     func testHomeOnly() throws {

@@ -249,7 +249,8 @@ article set; no new persistence.
 Three loops closed: custom vocabulary for Whisper (#loop 1), Daily highlights
 inline on the main screen (#loop 2 — also fixed the never-rendered feed
 dropdown from b987fe2), Calendar context via EventKit (#loop 3). Remaining
-Pocket-only items, still deliberately deferred: #4 MCP server, #6 third-party
-task apps, #7 mind map, speaker detection (Whisper can't diarize), dark theme
-(light-only is Shawn's 08-20 call). Full grade sheet:
-`docs/pocket-teardown-thesis.md` → "Gap status (2026-08-25)".
+Pocket-only items, still deliberately deferred: #6 third-party task apps,
+dark theme (light-only is Shawn's 08-20 call). Since closed: #4 MCP (3.10.0),
+#7 mind map (per-note), speaker detection (diarize model, 09-25), Ask about one
+note (10-01). Current grade sheet: `docs/pocket-teardown-thesis.md` →
+"Gap status (2026-10-01)".

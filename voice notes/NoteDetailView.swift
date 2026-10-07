@@ -125,6 +125,8 @@ struct NoteDetailView: View {
     // Enhanced-text inline edit + re-run state
     @State private var isEditingEnhanced = false
     @State private var enhancedDraft = ""
+    /// The inline editor is open on the transcript, not the enhanced note.
+    @State private var isEditingTranscript = false
     @State private var isReprocessing = false
     @State private var reprocessError: String?
     @State private var showingExcerptEditor = false
@@ -133,6 +135,7 @@ struct NoteDetailView: View {
     @State private var excerptError: String?
     @State private var speakerError: String?
     @State private var showingMindMap = false
+    @State private var showingAskNote = false
     @State private var exportedFile: ExportedFile?
     @State private var exportError: String?
     /// Set once a map exists for the current text; drives the Mind map line.
@@ -318,6 +321,13 @@ struct NoteDetailView: View {
 
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 12) {
+                    // Ask about this note (Pocket scopes Ask to one recording)
+                    Button(action: { showingAskNote = true }) {
+                        Image(systemName: "bubble.left.and.text.bubble.right")
+                            .foregroundStyle(.eeonTextPrimary)
+                    }
+                    .accessibilityLabel("Ask about this note")
+
                     // Share button — shares note text directly
                     Button(action: { showingTextShareSheet = true }) {
                         Image(systemName: "square.and.arrow.up")
@@ -397,6 +407,12 @@ struct NoteDetailView: View {
                                 Label("Clean Up Recording…", systemImage: "scissors")
                             }
                             .disabled(isSummarizingExcerpt || isRewriting || isReprocessing)
+                        }
+
+                        Button {
+                            showingAskNote = true
+                        } label: {
+                            Label("Ask About This Note", systemImage: "bubble.left.and.text.bubble.right")
                         }
 
                         Button {
@@ -511,7 +527,7 @@ struct NoteDetailView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("You can restore it from Notes › Recently Deleted for 30 days.")
+            Text("You can restore it for 30 days from Recently Deleted (in Settings or at the bottom of All Notes).")
         }
         .sheet(isPresented: $showingShareSheet) {
             ShareNoteView(note: note)
@@ -550,6 +566,9 @@ struct NoteDetailView: View {
         }
         .sheet(isPresented: $showingMindMap, onDismiss: refreshMindMapLine) {
             MindMapView(note: note)
+        }
+        .sheet(isPresented: $showingAskNote) {
+            AnswerSheet(scopedNote: note)
         }
         .onAppear(perform: refreshMindMapLine)
         .onAppear(perform: refreshTranscriptSpans)
@@ -1018,6 +1037,7 @@ struct NoteDetailView: View {
                 HStack(spacing: 12) {
                     Button("Cancel") {
                         isEditingEnhanced = false
+                        isEditingTranscript = false
                     }
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.eeonTextSecondary)
@@ -1025,7 +1045,11 @@ struct NoteDetailView: View {
                     Spacer()
 
                     Button("Save") {
-                        saveEnhancedEdit()
+                        if isEditingTranscript {
+                            saveTranscriptEdit()
+                        } else {
+                            saveEnhancedEdit()
+                        }
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
@@ -1053,6 +1077,20 @@ struct NoteDetailView: View {
                         .lineSpacing(6)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if showingTranscript, !(note.transcript ?? "").isEmpty {
+                    Button {
+                        // The stored text, so "Speaker A:" markers survive
+                        // (the view shows the names given to them).
+                        enhancedDraft = note.transcript ?? ""
+                        isEditingTranscript = true
+                        isEditingEnhanced = true
+                    } label: {
+                        Label("Edit transcript", systemImage: "pencil")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.eeonAccentAI)
+                    }
+                    .accessibilityIdentifier("editTranscriptButton")
                 }
                 if showingTranscript, canSyncTranscript {
                     Button {
@@ -1654,6 +1692,28 @@ struct NoteDetailView: View {
         reprocessError = nil
     }
 
+    /// Persist a correction to the transcript (a misheard name, a wrong
+    /// number). No AI call and nothing else is rewritten: the enhanced note
+    /// keeps its text until the user re-runs it. Search is refreshed so Ask
+    /// finds the corrected words, and sentences that still match stay tappable.
+    private func saveTranscriptEdit() {
+        let trimmed = enhancedDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer {
+            isEditingEnhanced = false
+            isEditingTranscript = false
+        }
+        guard !trimmed.isEmpty, trimmed != note.transcript else { return }
+        // `content` mirrors the transcript on voice notes; keep it in step
+        // unless the user has typed something different there.
+        if note.content == (note.transcript ?? "") || note.content.isEmpty {
+            note.content = trimmed
+        }
+        note.transcript = trimmed
+        note.updatedAt = Date()
+        try? modelContext.save()
+        Task { await EmbeddingService.shared.generateAndStoreEmbedding(for: note) }
+    }
+
     /// Re-run the full AI pipeline from the current enhanced text. Used by the
     /// always-visible "Re-run enhancement" control. The enhanced text (which may
     /// have been hand-corrected) is the source — never the stale transcript.
@@ -1827,15 +1887,12 @@ struct NoteDetailView: View {
         }
     }
 
-    /// Moves the note to Recently Deleted (30 days). The recording and photos
-    /// stay on disk until the bin lets go of it.
     private func deleteNote() {
+        // The recording is about to move into the bin; let go of it first.
         audioRecorder.stopPlaying()
-        guard RecentlyDeletedStore.trash(note, in: modelContext) else {
-            rewriteError = "Couldn't delete this note. Nothing was changed."
-            return
+        if NoteTrash.moveToTrash(note, context: modelContext) {
+            dismiss()
         }
-        dismiss()
     }
 
     private func deletePhoto(_ fileName: String) {

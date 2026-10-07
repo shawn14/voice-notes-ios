@@ -147,9 +147,50 @@ class RAGService {
         case .entity(let name):
             return try await answerEntity(query: query, articleName: name,
                                           articles: visibleArticles, allNotes: visibleNotes)
-        case .semantic:
+        case .semantic, .note:
             return try await answerSemantic(query: query, allNotes: visibleNotes, articles: visibleArticles)
         }
+    }
+
+    // MARK: - Single note ("Ask about this note")
+
+    /// Answers from one note's full transcript instead of searching the Library.
+    /// Pocket scopes Ask to a recording; the Library routes only ever see
+    /// excerpts (300–500 chars), which can't answer "what did X say at the end?"
+    func answerAboutNote(query: String, note: Note) async throws -> RAGResponse {
+        // ~15k tokens of transcript: covers a long meeting, bounded on cost
+        let maxChars = 60_000
+        let transcript = note.transcript?.isEmpty == false ? (note.transcript ?? "") : note.content
+        let body = transcript.count > maxChars
+            ? String(transcript.prefix(maxChars)) + "\n[Transcript truncated]"
+            : transcript
+
+        var cleanedUp = ""
+        if let enhanced = note.enhancedNoteText, !enhanced.isEmpty, enhanced != transcript {
+            cleanedUp = "\n\n--- CLEANED-UP VERSION ---\n\n\(String(enhanced.prefix(maxChars / 4)))"
+        }
+
+        let dateStr = note.createdAt.formatted(date: .abbreviated, time: .shortened)
+        let systemPrompt = """
+        \(ContextAssembler.flatPrefix(for: .rag))You are EEON, the user's memory assistant. Answer questions about ONE note, using only that note. Answer concisely; quote short phrases from the transcript when they settle the question. If the note doesn't contain the answer, say so plainly — do not speculate. End with exactly 2-3 lines prefixed "FOLLOWUP: ". No emojis.
+
+        --- NOTE: "\(note.displayTitle)", \(dateStr) ---
+
+        \(body.isEmpty ? "(empty note)" : body)\(cleanedUp)
+        """
+
+        let raw = try await callLLM(systemPrompt: systemPrompt, userPrompt: query, maxTokens: 900)
+        let (answer, followUps) = parseAnswerAndFollowUps(raw)
+        return RAGResponse(
+            answer: answer,
+            sourceNotes: [],  // The user is already on this note
+            suggestedFollowUps: followUps.isEmpty ? [
+                "What are the action items?",
+                "What was decided?",
+                "What's still open?"
+            ] : followUps,
+            route: .note
+        )
     }
 
     private static func routingQuestion(from query: String) -> String {

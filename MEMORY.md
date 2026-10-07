@@ -99,11 +99,11 @@ Release gate: `speakerLabelsJSON` is a new optional `Note` field. The app seed k
 
 ## Category gap pass — 2026-10-06
 
-Benchmarked Pocket, Plaud, Granola, Voicenotes, Otter, Letterly, AudioPen, Wispr Flow and Superwhisper against the source (`docs/research/2026-10-06-voice-note-gap-benchmark.md`). Four gaps closed in code: **Apple Watch capture**, **Recently Deleted (30 days)**, **tap a sentence to hear it**, **Translate a note**.
+Benchmarked Pocket, Plaud, Granola, Voicenotes, Otter, Letterly, AudioPen, Wispr Flow and Superwhisper against the source (`docs/research/2026-10-06-voice-note-gap-benchmark.md`). Four gaps closed in code: **Apple Watch capture**, **tap a sentence to hear it**, **Translate a note**, **Edit the transcript**. (Recently Deleted and Ask about one note, which the benchmark also surfaced, had already been built on 2026-10-01.)
 
 Decisions made in that pass, with the reason:
-- **Recently Deleted is a local archive, not a `deletedAt` flag.** A flag needs a CloudKit field and a filter at roughly 35 places that read notes; one missed filter leaks a deleted note into Ask, an export or the agent mirror. Moving the note out of the store makes every reader correct by construction. Cost: the bin is per device.
-- **Transcript timings are files, not a `Note` field.** Audio never leaves the phone, so its timings have no reason to sync.
+- **Transcript timings are files, not a `Note` field.** Audio never leaves the phone, so its timings have no reason to sync, and a stored field is a CloudKit schema change.
+- **Editing the transcript changes only the transcript.** No automatic re-enhancement or task re-extraction: a one-word fix should not rewrite a note the user may have hand-edited. "Re-run enhancement" is there when they want it.
 - **Translate is Pro**, following the standing rule that everything beyond Enhance is Pro. Letterly includes translation in its base plan; Shawn can reverse this.
-- **The Watch app does one thing: record.** No transcript, list or complication on the wrist. A complication is the obvious next step (Voicenotes leads with "tap the complication").
+- **The Watch app does one thing: record.** No transcript, list or complication on the wrist. Reliability first, per the 2026-09-01 strategy ("everyone else corrupts files"): the watch keeps its copy until the transfer is confirmed, and the phone tracks ingested ids in a ledger. A complication is the obvious next step.
 - **Not built, on purpose:** a Mac/web app and a system-wide dictation keyboard. Both are whole products; Shawn uses Wispr for dictation.

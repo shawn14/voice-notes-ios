@@ -118,7 +118,6 @@ struct voice_notesApp: App {
         // Screenshot seed — populates demo data in DEBUG builds when launched
         // with -SeedScreenshotData. Idempotent. No-op in production.
         #if DEBUG
-        RecentlyDeletedStore.verifySnapshotCoversNote()
         let seedContext = container.mainContext
         Task { @MainActor in
             if ProcessInfo.processInfo.arguments.contains("-SeedScreenshotData") {
@@ -436,9 +435,9 @@ struct voice_notesApp: App {
     /// Trigger intelligence refresh on app becoming active
     @MainActor
     private func triggerAppActiveRefresh() async {
-        RecentlyDeletedStore.purgeExpired(in: container.mainContext)
         Task.detached(priority: .utility) { TranscriptTimelineStore.pruneOrphans() }
         let context = container.mainContext
+        NoteTrash.purgeExpired()
         Task {
             await AIAccessService.shared.refreshCloudKitAccessIfPossible()
         }

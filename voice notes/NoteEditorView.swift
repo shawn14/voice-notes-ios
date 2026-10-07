@@ -458,7 +458,7 @@ struct NoteEditorView: View {
     }
 
     private func deleteNote() {
-        guard RecentlyDeletedStore.trash(note, in: modelContext) else { return }
+        NoteTrash.moveToTrash(note, context: modelContext)
         dismiss()
     }
 

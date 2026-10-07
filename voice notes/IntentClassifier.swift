@@ -21,6 +21,8 @@ enum QuestionRoute: Equatable, CustomStringConvertible {
     case timeRange(DateInterval)
     case entity(String?)
     case semantic
+    /// Ask scoped to one note (from the note screen). Never picked by the classifier.
+    case note
 
     var label: String {
         switch self {
@@ -29,6 +31,7 @@ enum QuestionRoute: Equatable, CustomStringConvertible {
         case .timeRange: return "timeRange"
         case .entity:    return "entity"
         case .semantic:  return "semantic"
+        case .note:      return "note"
         }
     }
 
@@ -41,6 +44,7 @@ enum QuestionRoute: Equatable, CustomStringConvertible {
         case .entity(let name?):        return "From: \(name)"
         case .entity(nil):              return "From: matched article"
         case .semantic:                 return "From: notes"
+        case .note:                     return "From: this note"
         }
     }
 

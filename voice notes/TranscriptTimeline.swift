@@ -58,18 +58,36 @@ nonisolated enum TranscriptTimelineStore {
         return timeline
     }
 
-    /// Remove timings whose recording is gone (a purged note, or a throwaway
-    /// dictation such as a Tune EEON answer). Run once per launch.
+    /// Remove timings whose recording is gone for good (a purged note, or a
+    /// throwaway dictation such as a Tune EEON answer). A recording sitting in
+    /// Recently Deleted (NoteTrash moves it to Trash/<id>/files) keeps its
+    /// timings, so a restored note is still tappable. Run once per launch.
     static func pruneOrphans() {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return }
         let documents = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let binned = recordingsInTrash()
         for file in files where file.pathExtension == "json" {
             let audioFileName = file.deletingPathExtension().lastPathComponent
+            if binned.contains(audioFileName) { continue }
             if !fm.fileExists(atPath: documents.appendingPathComponent(audioFileName).path) {
                 try? fm.removeItem(at: file)
             }
         }
+    }
+
+    /// File names held by Recently Deleted. Read from disk, not through
+    /// NoteTrash, so this stays callable off the main actor.
+    private static func recordingsInTrash() -> Set<String> {
+        let fm = FileManager.default
+        let trash = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Trash", isDirectory: true)
+        var names = Set<String>()
+        for entry in (try? fm.contentsOfDirectory(at: trash, includingPropertiesForKeys: nil)) ?? [] {
+            let held = entry.appendingPathComponent("files", isDirectory: true)
+            names.formUnion((try? fm.contentsOfDirectory(atPath: held.path)) ?? [])
+        }
+        return names
     }
 }
 
