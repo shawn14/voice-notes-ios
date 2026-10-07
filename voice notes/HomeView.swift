@@ -3362,10 +3362,11 @@ struct SettingsView: View {
 
     private func deleteAllDataAndSignOut() {
         // "All data" includes what is waiting in Recently Deleted.
-        RecentlyDeletedStore.purgeAll()
+        RecentlyDeletedStore.purgeAll(in: modelContext)
         // Delete all notes and their audio files
         for note in notes {
             note.deleteAudioFile()
+            note.deleteImageFiles()
             modelContext.delete(note)
         }
 

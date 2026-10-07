@@ -71,6 +71,56 @@ nonisolated struct DeletedNoteSnapshot: Codable, Sendable, Identifiable {
     var annotation: String?
     var derivedFromQueryId: String?
 
+    /// Missing keys fall back to a default, so a snapshot written by an older
+    /// build stays readable after `Note` gains a field.
+    nonisolated init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt) ?? Date()
+        tagNames = try c.decodeIfPresent([String].self, forKey: .tagNames) ?? []
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        content = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
+        transcript = try c.decodeIfPresent(String.self, forKey: .transcript)
+        audioFileName = try c.decodeIfPresent(String.self, forKey: .audioFileName)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+        projectId = try c.decodeIfPresent(UUID.self, forKey: .projectId)
+        column = try c.decodeIfPresent(String.self, forKey: .column) ?? ""
+        aiInsight = try c.decodeIfPresent(String.self, forKey: .aiInsight)
+        isFavorite = try c.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
+        isArchived = try c.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
+        audioDuration = try c.decodeIfPresent(Double.self, forKey: .audioDuration)
+        intentType = try c.decodeIfPresent(String.self, forKey: .intentType) ?? ""
+        intentConfidence = try c.decodeIfPresent(Double.self, forKey: .intentConfidence) ?? 0
+        extractedSubjectJSON = try c.decodeIfPresent(String.self, forKey: .extractedSubjectJSON)
+        suggestedNextStep = try c.decodeIfPresent(String.self, forKey: .suggestedNextStep)
+        nextStepTypeRaw = try c.decodeIfPresent(String.self, forKey: .nextStepTypeRaw)
+        missingInfoJSON = try c.decodeIfPresent(String.self, forKey: .missingInfoJSON)
+        nextStepResolvedAt = try c.decodeIfPresent(Date.self, forKey: .nextStepResolvedAt)
+        nextStepResolution = try c.decodeIfPresent(String.self, forKey: .nextStepResolution)
+        inferredProjectName = try c.decodeIfPresent(String.self, forKey: .inferredProjectName)
+        imageFileNamesJSON = try c.decodeIfPresent(String.self, forKey: .imageFileNamesJSON)
+        mentionedPeopleJSON = try c.decodeIfPresent(String.self, forKey: .mentionedPeopleJSON)
+        activeRewriteText = try c.decodeIfPresent(String.self, forKey: .activeRewriteText)
+        activeRewriteType = try c.decodeIfPresent(String.self, forKey: .activeRewriteType)
+        transcriptionStatus = try c.decodeIfPresent(String.self, forKey: .transcriptionStatus) ?? ""
+        embeddingData = try c.decodeIfPresent(Data.self, forKey: .embeddingData)
+        topicsJSON = try c.decodeIfPresent(String.self, forKey: .topicsJSON)
+        emotionalTone = try c.decodeIfPresent(String.self, forKey: .emotionalTone)
+        enhancedNoteText = try c.decodeIfPresent(String.self, forKey: .enhancedNoteText)
+        enhancedNoteEdited = try c.decodeIfPresent(Bool.self, forKey: .enhancedNoteEdited) ?? false
+        enhancedNoteEditedAt = try c.decodeIfPresent(Date.self, forKey: .enhancedNoteEditedAt)
+        summaryFormat = try c.decodeIfPresent(String.self, forKey: .summaryFormat)
+        quizJSON = try c.decodeIfPresent(String.self, forKey: .quizJSON)
+        personaExtractionsJSON = try c.decodeIfPresent(String.self, forKey: .personaExtractionsJSON)
+        calendarContextJSON = try c.decodeIfPresent(String.self, forKey: .calendarContextJSON)
+        speakerLabelsJSON = try c.decodeIfPresent(String.self, forKey: .speakerLabelsJSON)
+        sourceTypeRaw = try c.decodeIfPresent(String.self, forKey: .sourceTypeRaw) ?? ""
+        originalURL = try c.decodeIfPresent(String.self, forKey: .originalURL)
+        annotation = try c.decodeIfPresent(String.self, forKey: .annotation)
+        derivedFromQueryId = try c.decodeIfPresent(String.self, forKey: .derivedFromQueryId)
+    }
+
     /// Every stored `Note` attribute this snapshot carries.
     static let coveredFields: Set<String> = [
         "id", "title", "content", "transcript",
@@ -234,7 +284,16 @@ enum RecentlyDeletedStore {
             return false
         }
         context.delete(note)
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            // The delete did not stick, so the note is still live: a snapshot
+            // left behind would later let the bin purge a live note's files.
+            context.rollback()
+            try? FileManager.default.removeItem(at: fileURL(for: snapshot.id))
+            print("[RecentlyDeleted] delete failed, note left in place: \(error.localizedDescription)")
+            return false
+        }
         return true
     }
 
@@ -256,6 +315,9 @@ enum RecentlyDeletedStore {
     @discardableResult
     static func restore(_ snapshot: DeletedNoteSnapshot, in context: ModelContext) -> Note? {
         let id = snapshot.id
+        // A row can outlive its snapshot (purged while the list was open).
+        // Without the snapshot's files there is nothing left to restore.
+        guard FileManager.default.fileExists(atPath: fileURL(for: id).path) else { return nil }
         let existing = try? context.fetch(FetchDescriptor<Note>(predicate: #Predicate { $0.id == id })).first
         if let existing {
             // Already back (restored before, or it came down from iCloud).
@@ -285,30 +347,48 @@ enum RecentlyDeletedStore {
 
     // MARK: Remove for good
 
-    nonisolated static func purge(_ snapshot: DeletedNoteSnapshot) {
+    /// Remove a binned note and its recording and photos. A file a live note
+    /// still points to is never removed: if the note is back in the store
+    /// (a failed delete, or it returned from iCloud) only the snapshot goes.
+    static func purge(_ snapshot: DeletedNoteSnapshot, in context: ModelContext) {
+        purge([snapshot], in: context)
+    }
+
+    static func purge(_ snapshots: [DeletedNoteSnapshot], in context: ModelContext) {
+        guard !snapshots.isEmpty else { return }
+        // If the live notes cannot be read, keep every file and drop nothing.
+        guard let liveNotes = try? context.fetch(FetchDescriptor<Note>()) else { return }
+        var inUse = Set<String>()
+        for note in liveNotes {
+            if let audio = note.audioFileName { inUse.insert(audio) }
+            inUse.formUnion(note.imageFileNames)
+        }
+
         let fm = FileManager.default
-        if let audio = snapshot.audioFileName {
-            try? fm.removeItem(at: documents.appendingPathComponent(audio))
-            try? fm.removeItem(at: TranscriptTimelineStore.fileURL(forAudioFileName: audio))
+        for snapshot in snapshots {
+            if let audio = snapshot.audioFileName, !inUse.contains(audio) {
+                try? fm.removeItem(at: documents.appendingPathComponent(audio))
+                try? fm.removeItem(at: TranscriptTimelineStore.fileURL(forAudioFileName: audio))
+            }
+            for image in imageFileNames(in: snapshot) where !inUse.contains(image) {
+                try? fm.removeItem(at: documents.appendingPathComponent(image))
+            }
+            try? fm.removeItem(at: fileURL(for: snapshot.id))
         }
-        for image in imageFileNames(in: snapshot) {
-            try? fm.removeItem(at: documents.appendingPathComponent(image))
-        }
-        try? fm.removeItem(at: fileURL(for: snapshot.id))
     }
 
     /// Remove notes that have been in the bin longer than `retention`.
     /// Returns how many were removed.
     @discardableResult
-    nonisolated static func purgeExpired(now: Date = Date()) -> Int {
+    static func purgeExpired(now: Date = Date(), in context: ModelContext) -> Int {
         let expired = entries().filter { $0.purgeDate <= now }
-        expired.forEach(purge)
+        purge(expired, in: context)
         return expired.count
     }
 
     /// Empty the bin now (account / all-data deletion).
-    nonisolated static func purgeAll() {
-        entries().forEach(purge)
+    static func purgeAll(in context: ModelContext) {
+        purge(entries(), in: context)
     }
 
     nonisolated private static func imageFileNames(in snapshot: DeletedNoteSnapshot) -> [String] {

@@ -205,13 +205,27 @@ final class BackgroundCaptureService {
     /// A finished recording that arrived from outside this process (the Apple
     /// Watch). `url` must already be in Documents. `recordedAt` keeps the note
     /// at the time it was spoken, not the time the phone received it.
+    ///
+    /// Returns false, and makes nothing, when a note already owns this file.
+    /// The check and the insert run back to back on the main actor with no
+    /// suspension between them, so two callers cannot both pass it.
     @MainActor
-    func ingestRecording(at url: URL, recordedAt: Date?) async {
-        await saveAndProcess(url: url, recordedAt: recordedAt)
+    @discardableResult
+    func ingestRecording(at url: URL, recordedAt: Date?, duration: Double? = nil) async -> Bool {
+        guard let container else { return false }
+        let fileName = url.lastPathComponent
+        let owned = (try? container.mainContext.fetchCount(
+            FetchDescriptor<Note>(predicate: #Predicate { $0.audioFileName == fileName })
+        )) ?? 0
+        guard owned == 0 else { return false }
+        // Awaited directly: saveAndProcess inserts the note before its first
+        // suspension, which is what keeps the check above and the insert atomic.
+        await saveAndProcess(url: url, recordedAt: recordedAt, duration: duration)
+        return true
     }
 
     @MainActor
-    private func saveAndProcess(url: URL, recordedAt: Date? = nil) async {
+    private func saveAndProcess(url: URL, recordedAt: Date? = nil, duration: Double? = nil) async {
         guard let container else { return }
         let context = container.mainContext
         let fileName = url.lastPathComponent
@@ -219,6 +233,9 @@ final class BackgroundCaptureService {
         let note = Note(title: "", content: "", transcript: nil, audioFileName: fileName)
         if let recordedAt {
             note.createdAt = recordedAt
+        }
+        if let duration, duration > 0 {
+            note.audioDuration = duration
         }
         note.transcriptionStatus = "pending"
         context.insert(note)

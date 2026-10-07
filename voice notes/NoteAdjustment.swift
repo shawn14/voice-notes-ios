@@ -74,7 +74,8 @@ enum NoteAdjustment: String, CaseIterable, Identifiable {
 
 /// "Translate" in the same menu. Works like an adjustment: it replaces the
 /// text on screen and the one-level undo brings the original language back.
-/// The transcript is never touched, so re-running a format returns to it.
+/// The transcript is never touched. A note too long to translate in one pass
+/// fails with nothing changed (RewriteError.truncated), never half-translated.
 enum NoteTranslationLanguage: String, CaseIterable, Identifiable {
     case english = "English"
     case spanish = "Spanish"

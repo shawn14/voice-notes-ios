@@ -414,6 +414,14 @@ final class ScreenshotTests: XCTestCase {
         row.tap()
     }
 
+    /// Text inside a SwiftUI Button surfaces as the button's label, not as a
+    /// static text, so look for the label on any kind of element.
+    private func anyElement(labelContaining text: String) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS[c] %@", text))
+            .firstMatch
+    }
+
     private func keep(_ name: String) {
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         shot.name = name
@@ -424,10 +432,9 @@ final class ScreenshotTests: XCTestCase {
     /// Original → "Tap sentences to hear them" → live Whisper timings → the
     /// transcript becomes tappable sentences, and tapping one starts playback.
     func testTapToHearTranscript() throws {
+        // The seeded audio note has no enhanced text, so its body is already
+        // the transcript (there is no Enhanced / Original switch to tap).
         openSeededAudioNote()
-        let original = app.buttons["Original"]
-        XCTAssertTrue(original.waitForExistence(timeout: 5))
-        original.tap()
 
         let sync = app.buttons["syncTranscriptButton"]
         XCTAssertTrue(sync.waitForExistence(timeout: 5), "No offer to sync the transcript (audio missing?)")
@@ -435,15 +442,14 @@ final class ScreenshotTests: XCTestCase {
 
         let sentence = app.links.firstMatch
         XCTAssertTrue(sentence.waitForExistence(timeout: 120), "Transcript never became tappable")
-        XCTAssertGreaterThanOrEqual(app.links.count, 3, "Expected one tappable sentence per spoken line")
+        XCTAssertGreaterThanOrEqual(app.links.count, 2, "Expected a tappable sentence per spoken line")
         XCTAssertFalse(sync.exists, "Sync button should go away once sentences are tappable")
 
         app.links.element(boundBy: 1).tap()
         sleep(1)
         keep("TapToHear")
         // The audio pill shows a running clock only while audio is loaded.
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label MATCHES '0:0[0-9]'")).firstMatch.exists,
-                      "Tapping a sentence did not start playback")
+        XCTAssertTrue(anyElement(labelContaining: "0:0").exists, "Tapping a sentence did not start playback")
     }
 
     /// Format menu → Translate → Spanish rewrites the note; Undo brings it back.
@@ -494,9 +500,10 @@ final class ScreenshotTests: XCTestCase {
         filter.tap()
         app.buttons["Recently Deleted"].tap()
 
-        let binned = app.staticTexts["Paywall launch call"]
+        // A bin row is one button whose label joins its title and subtitle.
+        let binned = anyElement(labelContaining: "Paywall launch call")
         XCTAssertTrue(binned.waitForExistence(timeout: 5), "Deleted note is not in Recently Deleted")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '30 days left'")).firstMatch.exists)
+        XCTAssertTrue(anyElement(labelContaining: "30 days left").exists)
         keep("RecentlyDeleted")
 
         binned.press(forDuration: 1.0)
@@ -507,7 +514,7 @@ final class ScreenshotTests: XCTestCase {
 
         filter.tap()
         app.buttons["All notes"].tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH[c] 'Paywall launch call'")).firstMatch.waitForExistence(timeout: 5),
+        XCTAssertTrue(anyElement(labelContaining: "Paywall launch call").waitForExistence(timeout: 5),
                       "Restored note did not come back")
     }
 

@@ -177,9 +177,11 @@ enum RewriteService {
         case noAPIKey
         case noContent
         case apiError(String)
+        case truncated
 
         var errorDescription: String? {
             switch self {
+            case .truncated: return "This note is too long to do in one pass, so nothing was changed."
             case .noAPIKey: return "OpenAI API key not configured"
             case .noContent: return "No content to rewrite"
             case .apiError(let msg): return "Rewrite failed: \(msg)"
@@ -224,11 +226,22 @@ enum RewriteService {
             struct Choice: Codable {
                 struct Message: Codable { let content: String }
                 let message: Message
+                let finishReason: String?
+
+                enum CodingKeys: String, CodingKey {
+                    case message
+                    case finishReason = "finish_reason"
+                }
             }
             let choices: [Choice]
         }
 
         let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+        // "length" means the model ran out of room mid-text. Callers replace
+        // the note with what comes back, so a partial result must not return.
+        if chatResponse.choices.first?.finishReason == "length" {
+            throw RewriteError.truncated
+        }
         return chatResponse.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
             ?? "No response generated"
     }

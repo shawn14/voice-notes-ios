@@ -405,6 +405,8 @@ struct AllNotesView: View {
     @State private var deletedNotes: [DeletedNoteSnapshot] = []
     @State private var previewingDeleted: DeletedNoteSnapshot?
     @State private var confirmingEmptyBin = false
+    @State private var confirmingDeleteNow: DeletedNoteSnapshot?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var scope: Scope = .all
     @State private var query = ""
     @State private var editingNote: Note?
@@ -439,7 +441,7 @@ struct AllNotesView: View {
 
     private func deleteForGood(_ snapshot: DeletedNoteSnapshot) {
         withAnimation(.easeInOut(duration: 0.2)) {
-            RecentlyDeletedStore.purge(snapshot)
+            RecentlyDeletedStore.purge(snapshot, in: modelContext)
             reloadDeletedNotes()
         }
     }
@@ -484,11 +486,14 @@ struct AllNotesView: View {
                         .tint(.eeonAccentAI)
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            deleteForGood(snapshot)
+                        // Not `.destructive`: that removes the row before the
+                        // confirmation has been answered.
+                        Button {
+                            confirmingDeleteNow = snapshot
                         } label: {
                             Label("Delete Now", systemImage: "trash")
                         }
+                        .tint(.red)
                     }
                     .contextMenu {
                         Button {
@@ -497,7 +502,7 @@ struct AllNotesView: View {
                             Label("Restore", systemImage: "arrow.uturn.backward")
                         }
                         Button(role: .destructive) {
-                            deleteForGood(snapshot)
+                            confirmingDeleteNow = snapshot
                         } label: {
                             Label("Delete Now", systemImage: "trash")
                         }
@@ -574,9 +579,25 @@ struct AllNotesView: View {
         .onChange(of: scope) { _, newScope in
             if newScope == .deleted { reloadDeletedNotes() }
         }
+        // Expired notes are purged when the app comes forward; don't keep
+        // showing rows that are already gone.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, scope == .deleted { reloadDeletedNotes() }
+        }
+        .confirmationDialog(
+            "Delete this note for good?",
+            isPresented: Binding(get: { confirmingDeleteNow != nil }, set: { if !$0 { confirmingDeleteNow = nil } }),
+            titleVisibility: .visible,
+            presenting: confirmingDeleteNow
+        ) { snapshot in
+            Button("Delete Now", role: .destructive) { deleteForGood(snapshot) }
+            Button("Cancel", role: .cancel) { }
+        } message: { _ in
+            Text("The note and its recording are removed. This cannot be undone.")
+        }
         .confirmationDialog("Delete \(deletedNotes.count) notes for good?", isPresented: $confirmingEmptyBin, titleVisibility: .visible) {
             Button("Delete All", role: .destructive) {
-                RecentlyDeletedStore.purgeAll()
+                RecentlyDeletedStore.purgeAll(in: modelContext)
                 reloadDeletedNotes()
             }
             Button("Cancel", role: .cancel) { }

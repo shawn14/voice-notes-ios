@@ -13,11 +13,16 @@ import SwiftUI
 @main
 struct EEONWatchApp: App {
     @State private var recorder = WatchRecorder()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             RecordView(recorder: recorder)
                 .onAppear { recorder.activate() }
+        }
+        // Each time the app comes forward, re-queue anything that failed to send.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { recorder.activate() }
         }
     }
 }

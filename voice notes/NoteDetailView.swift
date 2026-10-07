@@ -113,6 +113,11 @@ struct NoteDetailView: View {
     /// Where each sentence of the Original transcript sits in the audio.
     /// Empty when the recording has no saved timings (see TranscriptTimeline).
     @State private var transcriptSpans: [TranscriptTimelineAligner.Span] = []
+    /// The exact string `transcriptSpans` index into. The tappable view is
+    /// built from this string, never from a separately produced copy.
+    @State private var alignedTranscript = ""
+    /// A timings file exists for this recording (even if nothing aligned).
+    @State private var hasTranscriptTimings = false
     @State private var isSyncingTranscript = false
     /// The text an adjustment replaced — one level of undo (tap again to redo).
     @State private var adjustmentUndoText: String?
@@ -992,9 +997,8 @@ struct NoteDetailView: View {
     @ViewBuilder
     private var noteBodySection: some View {
         let displayText: String = {
-            if showingOriginal {
-                guard let transcript = note.transcript else { return note.content }
-                return SpeakerAttribution.displayTranscript(transcript, labels: note.speakerLabels)
+            if showingTranscript {
+                return originalDisplayText
             } else {
                 return note.enhancedNoteText ?? note.transcript ?? note.content
             }
@@ -1030,10 +1034,10 @@ struct NoteDetailView: View {
                     .background(Capsule().fill(Color.eeonAccentAI))
                 }
             } else {
-                if showingOriginal, !transcriptSpans.isEmpty, !displayText.isEmpty {
+                if showingTranscript, !transcriptSpans.isEmpty, alignedTranscript == displayText {
                     // Tap a sentence to hear it; the one playing is tinted.
                     SyncedTranscriptText(
-                        text: displayText,
+                        text: alignedTranscript,
                         spans: transcriptSpans,
                         activeIndex: playingSpanIndex,
                         onTap: playFromSpan
@@ -1050,7 +1054,7 @@ struct NoteDetailView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                if showingOriginal, transcriptSpans.isEmpty, canSyncTranscript {
+                if showingTranscript, canSyncTranscript {
                     Button {
                         syncTranscriptWithAudio()
                     } label: {
@@ -1739,9 +1743,17 @@ struct NoteDetailView: View {
         return FileManager.default.fileExists(atPath: url.path)
     }
 
+    /// The body is showing the transcript: the Original tab, or a note that
+    /// has no enhanced text and so shows its transcript with no tabs at all.
+    private var showingTranscript: Bool {
+        showingOriginal || (note.enhancedNoteText ?? "").isEmpty
+    }
+
     /// Older recordings have no saved timings; offer to build them once.
+    /// Never offered again once timings exist: if they did not line up with
+    /// an edited transcript, running Whisper again would not change that.
     private var canSyncTranscript: Bool {
-        hasAudioFile && !(note.transcript ?? "").isEmpty
+        !hasTranscriptTimings && hasAudioFile && !(note.transcript ?? "").isEmpty
     }
 
     private var playingSpanIndex: Int? {
@@ -1753,9 +1765,14 @@ struct NoteDetailView: View {
         guard hasAudioFile, let fileName = note.audioFileName,
               let timeline = TranscriptTimelineStore.load(forAudioFileName: fileName) else {
             transcriptSpans = []
+            alignedTranscript = ""
+            hasTranscriptTimings = false
             return
         }
-        transcriptSpans = TranscriptTimelineAligner.align(transcript: originalDisplayText, timeline: timeline)
+        hasTranscriptTimings = true
+        let text = originalDisplayText
+        transcriptSpans = TranscriptTimelineAligner.align(transcript: text, timeline: timeline)
+        alignedTranscript = text
     }
 
     private func playFromSpan(_ index: Int) {
@@ -1789,8 +1806,10 @@ struct NoteDetailView: View {
             await MainActor.run {
                 refreshTranscriptSpans()
                 isSyncingTranscript = false
-                if transcriptSpans.isEmpty {
-                    rewriteError = failure ?? "Couldn't match this transcript to its audio."
+                if let failure, !hasTranscriptTimings {
+                    rewriteError = failure
+                } else if transcriptSpans.isEmpty {
+                    rewriteError = "This transcript has been edited too much to line up with its recording."
                 }
             }
         }
@@ -2462,6 +2481,9 @@ private struct SyncedTranscriptText: View, Equatable {
         Text(attributed)
             .font(.body.leading(.loose))
             .lineSpacing(6)
+            // Sentences are links; without this they would take the accent color.
+            .tint(Color.eeonTextPrimary)
+            .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .environment(\.openURL, OpenURLAction { url in
                 guard url.scheme == Self.scheme, let host = url.host, let index = Int(host) else {
@@ -2475,14 +2497,31 @@ private struct SyncedTranscriptText: View, Equatable {
 
     private static let scheme = "eeon-seek"
 
+    /// Built by slicing `text` with the spans' own indices (they were made
+    /// from this same string), so no index is ever carried across strings.
     private var attributed: AttributedString {
-        var result = AttributedString(text)
-        result.foregroundColor = Color.eeonTextPrimary
+        var result = AttributedString()
+        var position = text.startIndex
+
+        func plain(_ range: Range<String.Index>) -> AttributedString {
+            var piece = AttributedString(String(text[range]))
+            piece.foregroundColor = Color.eeonTextPrimary
+            return piece
+        }
+
         for (index, span) in spans.enumerated() {
-            guard let lower = AttributedString.Index(span.range.lowerBound, within: result),
-                  let upper = AttributedString.Index(span.range.upperBound, within: result) else { continue }
-            result[lower..<upper].link = URL(string: "\(Self.scheme)://\(index)")
-            result[lower..<upper].foregroundColor = index == activeIndex ? Color.eeonAccentAI : Color.eeonTextPrimary
+            guard span.range.lowerBound >= position, span.range.upperBound <= text.endIndex else { continue }
+            if span.range.lowerBound > position {
+                result += plain(position..<span.range.lowerBound)
+            }
+            var sentence = AttributedString(String(text[span.range]))
+            sentence.link = URL(string: "\(Self.scheme)://\(index)")
+            sentence.foregroundColor = index == activeIndex ? Color.eeonAccentAI : Color.eeonTextPrimary
+            result += sentence
+            position = span.range.upperBound
+        }
+        if position < text.endIndex {
+            result += plain(position..<text.endIndex)
         }
         return result
     }

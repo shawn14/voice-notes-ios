@@ -16,13 +16,14 @@ EEON's default integration posture is privacy-first: Sign in with Apple, SwiftDa
 
 ## Build Targets
 
-The Xcode project has three targets, all with spaces or capitals in the scheme name (always quote them):
+The Xcode project has these targets, some with spaces or capitals in the scheme name (always quote them):
 
 | Target | Scheme | Purpose |
 |--------|--------|---------|
 | Main app | `voice notes` | The iOS app itself |
 | Widget extension | `VoiceNotesWidgetExtension` | Home Screen + Lock Screen widgets, App Intent for one-tap recording |
 | Share extension | `EEONShareExtension` | Receive URLs/text from other apps; queue them for ingestion |
+| Watch app | `EEONWatch` | watchOS app (`voice.notes.voice-notes.watchkitapp`): one Record button; sends the audio to the iPhone. Embedded in the iOS app (`Embed Watch Content`, iOS only) |
 | UI tests | `voice notes UITests` | Fastlane screenshot automation only — no unit tests |
 
 The widget and share extension share state with the main app via the App Group `group.com.eeon.voicenotes` (see `SharedDefaults.swift`, which is duplicated into each target by file reference).
@@ -152,6 +153,10 @@ Notifications are scheduled by `NotificationScheduler`. To enable background run
 | `ExportService` | Bulk export of notes |
 | `DocumentExportService` | Markdown/file export fallback for user-owned data portability. It must not be presented as the primary AI Access flow. Old `documentExportEnabled` state is legacy; current auto-export uses `markdownVaultAutoExportEnabled` and should stay off unless the user explicitly exports data. If this fallback is used, verify the Mac-side file path actually contains notes before claiming an AI can read them |
 | `PeopleSpeakersSettingsView` | Settings -> Preferences -> People & Speakers. Global rename surface for extracted `MentionedPerson` records and saved per-note `speakerLabels`; merges duplicate person records, updates action owners, commitments, person knowledge articles, refreshed transcription vocabulary, and re-exports changed notes/articles. This is not automatic voice-print diarization |
+| `NoteTranslationLanguage` (in `NoteAdjustment.swift`) | Format menu → Adjust → **Translate** (12 languages, Pro like every non-Enhance template). Works like an adjustment: replaces `enhancedNoteText` in place, one-level Undo, transcript untouched. Asks for 4000 output tokens; `RewriteService` throws `truncated` on `finish_reason == "length"` so a cut-off result is never saved (this guard covers every rewrite, not just Translate) |
+| `TranscriptTimeline` / `TranscriptTimelineAligner` | Tap a sentence in the transcript to hear it. `TranscriptionService` saves Whisper's segment start/end times per recording as JSON in Application Support/`transcript-timelines`, keyed by audio file name (not a SwiftData field: audio never leaves the phone, and a stored field is a CloudKit schema change). The stored transcript is not Whisper's text (fillers cleaned, speaker paragraphs, user edits), so the aligner matches word by word, tolerates dropped/inserted words, and resyncs up to 400 words ahead after an unmatched passage; a sentence it cannot place is just not tappable. Recordings from before this have no timings: the note shows "Tap sentences to hear them", which re-runs Whisper once for timings only. Orphaned timing files are pruned on app-active |
+| `RecentlyDeletedStore` / `DeletedNoteSnapshot` | **Every user-initiated note delete goes through `RecentlyDeletedStore.trash`** (never `modelContext.delete(note)` directly). The note is written as a JSON snapshot to Application Support/`recently-deleted`, its recording and photos stay on disk, then the SwiftData record is deleted, so Home, Ask, exports, the agent mirror and other devices see an ordinary delete with no "is deleted" filter anywhere and no CloudKit field. Notes › filter › **Recently Deleted** restores (same id, so tasks/decisions reattach by `sourceNoteId`) or deletes now; expired entries (30 days) are purged on app-active. The bin is per device. `trash` returns false and changes nothing if the snapshot or the save fails. `purge` never removes a file a live note still references. **Adding a stored field to `Note` means adding it to `DeletedNoteSnapshot` in five places** (field, decoder, `init(note:)`, `apply(to:)`, `coveredFields`); a DEBUG launch check (`verifySnapshotCoversNote`) traps if you forget |
+| `WatchInboxService` | Phone side of the Watch app. Receives `watch-<uuid>.m4a` over `WCSession.transferFile`, moves it into Documents synchronously (the system deletes the received file when the delegate returns), and calls `BackgroundCaptureService.ingestRecording`, the same save-first pipeline as a widget capture. A UserDefaults ledger of ingested ids (`watchInboxIngestedIDs`) decides what has been handled, deliberately not "no note points at this file": a note can be missing because it was deleted elsewhere or the store is re-syncing, and adopting on that evidence would resurrect and duplicate notes |
 | `AgentMirrorService` | Opt-in encrypted note mirror for AI agents (see Locked Product Direction). Hash-diffed uploads to `/api/mirror`; server status via `/api/connect/status` |
 | `AuthService` | Sign in with Apple authentication |
 | `SubscriptionManager` | StoreKit 2 subscription management |
@@ -196,11 +201,11 @@ Auth: a CloudKit **management** token (Dashboard → account menu → Settings �
 - `AIHomeView.swift` — Home (2026-09-10, "Option A"): one-line greeting + date, Ask icon, avatar → sync-failure banner → one-line setup row (until calendar + Reminders are connected) → free-tier warning → **Calendar strip** (`CalendarMeetingsView(compact: true)`: "Today · N meetings ›" opens the pushed `CalendarScreen`; up to 3 meeting rows then More) → **Tasks line** ("N tasks due today ›", hidden when nothing is open) → **Notes** (3 most recent as one inset-grouped card, title / time · length · topic, then "More N ›" → `AllNotesView`) → bottom bar: **one Record button**. No lenses, tabs, filters, briefs, knowledge carousel, persona sections, or AI Prompt mode. Long-press Record → Type a note / Import a recording / Add a link or document (`SourcePickerSheet`). The Today / Week / Month choice persists in `UserDefaults` `calendarMeetingScope` and the strip follows it
 - `CalendarMeetingsView.swift` — Home's Calendar section: title + date line, ONE menu (Today/Week/Month, Refresh, Google/iPhone toggles), compact connect/empty states, `needsReauth` Reconnect banner. Only ever rendered inside Home; the old full-screen mode was removed
 - `TasksView.swift` — Pushed from Home: month/day-grouped rows (checkbox · text · due/owner/priority · chevron when a source note exists), one `ellipsis.circle` menu, Add Task capsule
-- `LibraryView.swift` — `AllNotesView` (behind Notes › See All): every note by month, `.searchable`, filter menu All / Favorites / Archived. `LibraryView` (collections) and `LibraryCollectionView` remain in the file but are unreachable
+- `LibraryView.swift` — `AllNotesView` (behind Notes › See All): every note by month, `.searchable`, filter menu All / Favorites / Archived / Recently Deleted. `LibraryView` (collections) and `LibraryCollectionView` remain in the file but are unreachable
 - `AssistantView.swift` — AI assistant / query response view
 - `TuneConversationView.swift` — Tune EEON personalization (profile + purpose fields)
 - `KnowledgeBaseView.swift` — Reference material upload/browse (in Settings); `KnowledgeOverviewView` includes Memory Map, a visual graph of compiled people/projects/topics; `KnowledgeArticleDetailView` renders compiled articles
-- `NoteDetailView.swift` — Note viewing: audio pill, title, speakers, format/adjust menu, enhanced/original body, a **Tasks** card (this note's `ExtractedAction`s, toggles mirror to Reminders), quiz card (study notes only), photos, persona chips, wiki connections. Clean Up Recording (excerpt cleanup) lives in the ellipsis menu. The old collapsed Extractions/transcript sections were never rendered and are gone
+- `NoteDetailView.swift` — Note viewing: audio pill, title, speakers, format/adjust/translate menu, tappable transcript (`SyncedTranscriptText`), enhanced/original body, a **Tasks** card (this note's `ExtractedAction`s, toggles mirror to Reminders), quiz card (study notes only), photos, persona chips, wiki connections. Clean Up Recording (excerpt cleanup) lives in the ellipsis menu. The old collapsed Extractions/transcript sections were never rendered and are gone
 - `NoteEditorView.swift` — Note editing with transcription and extraction
 - `ExtractionChipsView.swift` — Visual chips for extracted decisions, actions, commitments, people
 - `PaywallView.swift` — Subscription purchase flow with StoreKit 2
@@ -261,11 +266,28 @@ Direct URLSession calls (no SDK) in `SummaryService.swift` and sibling services:
 - `pro_monthly` ($9.99), `pro_annual` ($79.99)
 - Configured in `Products.storekit`
 
+## Apple Watch app (`EEONWatch`), added 2026-10-06
+
+`WatchRecorder` records AAC (22 kHz mono, about 15 MB an hour) to the watch's Documents/`recordings`, then queues the file with `WCSession.transferFile`; the watch's copy is deleted only after the system reports the transfer finished, and anything still on disk is re-queued each time the app comes forward. An audio interruption (call, Siri, alarm) ends the note and sends what was captured. Nothing is transcribed on the watch.
+
+**Built, not verified on a watch** (as of 2026-10-06): it compiles and links for watchOS, and the phone's file-claiming and ledger code pass a harness, but recording, wrist-down recording (`UIBackgroundModes: audio` in `EEONWatch/Info.plist`), the transfer, and the built Info.plist have never run. Check those on Shawn's watch before describing the watch app as working.
+
+**Release gate (not done):** the next `fastlane beta`/`release app:voice-notes` will fail at signing until (1) bundle id `voice.notes.voice-notes.watchkitapp` is registered, (2) `~/projects/fastlane-configs/fastlane/Fastfile` fetches a distribution profile for it (today only `golf` and `cal` are in the watch-profile branch) and lists the watch bundle in its artifact requirements, and (3) App Store Connect has Apple Watch screenshots. `MARKETING_VERSION` now also lives in the watch target and must be bumped with the app's. The Wi-Fi device install below may also need a development profile for the watch app. Every iOS build now needs Xcode's watchOS platform.
+
 ## Testing
 
 UI tests only (no unit tests — see `TODOS.md` #1 for the planned first unit-test target). Screenshot automation via Fastlane:
 - Launch args: `-UITestMode`, `-SkipOnboarding` for test-specific behavior; `-SeedScreenshotData` (DEBUG only) runs `ScreenshotSeed.swift`, which inserts a curated founder persona — compiled articles, focus items, sample notes, and a pre-baked `homeLayoutJSON` (still seeded; Home ignores it since 2026-09-10) — so screenshots bypass the LLM compile loop. `ScreenshotTests` finds Home controls by accessibility label: `Calendar options`, `All tasks`, `Ask EEON` — rename those labels and the screenshot lane breaks silently
 - `AuthService.debugSignIn()` available in DEBUG builds
+
+**Compile gate when Xcode has no iOS platform installed** (2026-10-06: Xcode 26.2 had only an iOS 26.5 simulator runtime, so every scheme build died with "iOS 26.2 is not installed" and there was no simulator). Swift can still be compiled and linked against the SDK by building the target directly and continuing past the asset-catalog step, which is the only part that needs the runtime:
+```bash
+xcodebuild -quiet -target "voice notes UITests" -configuration Debug SYMROOT=<scratch>/build OBJROOT=<scratch>/obj \
+  CODE_SIGNING_ALLOWED=NO -IDEBuildingContinueBuildingAfterErrors=YES build
+```
+Pass = the only errors are `actool` "No simulator runtime" lines (one per asset catalog). No `-sdk` flag: the watch target must build for watchOS. This proves compilation only; nothing can be run. Do not exclude `*.xcassets` to get a clean build, the color symbols (`Color.eeonAccent…`) are generated from it. Running the app needs `xcodebuild -downloadPlatform iOS` (about 10.5 GB).
+
+`ScreenshotTests` also has `testTapToHearTranscript`, `testTranslateNote` and `testRecentlyDeletedRestore` (2026-10-06). They compile but were written without a simulator and have never run; expect to adjust element queries on first run.
 
 ## Installing on Shawn's iPhone (Wi-Fi, no cable) — and proving agents can read his notes
 

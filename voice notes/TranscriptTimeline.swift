@@ -143,11 +143,16 @@ nonisolated enum TranscriptTimelineAligner {
         }
     }
 
+    /// After a line fails to match where the previous one ended, how far ahead
+    /// to look for it. Covers a paragraph the user added or a passage that was
+    /// rewritten, so one unmatched stretch does not strand everything after it.
+    private static let resyncWindow = 400
+
     /// Place each timed line on the transcript. Spans come back in order and
     /// never overlap.
     static func align(transcript: String, timeline: TranscriptTimeline) -> [Span] {
-        let transcriptTokens = tokens(in: transcript)
-        guard !transcriptTokens.isEmpty else { return [] }
+        let written = tokens(in: transcript)
+        guard !written.isEmpty else { return [] }
 
         var spans: [Span] = []
         var cursor = 0
@@ -156,52 +161,80 @@ nonisolated enum TranscriptTimelineAligner {
             let spoken = tokens(in: line.text).map(\.text)
             guard !spoken.isEmpty else { continue }
 
-            var first: Int?
-            var last: Int?
-            var hits = 0
-            var position = cursor
-
-            for (offset, word) in spoken.enumerated() {
-                guard position < transcriptTokens.count else { break }
-                let limit = min(position + lookahead, transcriptTokens.count)
-                var found: Int?
-                for candidate in position..<limit where transcriptTokens[candidate].text == word {
-                    // Adjacent is always trusted. A jump ahead must be
-                    // confirmed by the following word, or it is a coincidence.
-                    if candidate == position {
-                        found = candidate
-                        break
-                    }
-                    let nextSpoken = offset + 1 < spoken.count ? spoken[offset + 1] : nil
-                    let nextWritten = candidate + 1 < transcriptTokens.count ? transcriptTokens[candidate + 1].text : nil
-                    if let nextSpoken, nextSpoken == nextWritten {
-                        found = candidate
-                        break
-                    }
-                }
-                if let found {
-                    if first == nil { first = found }
-                    last = found
-                    hits += 1
-                    position = found + 1
-                }
+            var match = matchLine(spoken, in: written, from: cursor)
+            if match == nil, let anchor = resyncPosition(for: spoken, in: written, from: cursor) {
+                match = matchLine(spoken, in: written, from: anchor)
             }
+            guard let match else { continue }
 
-            guard let first, let last else { continue }
-            // A few stray common words are not a sentence: most of what was
-            // said has to be there. Short lines ("Yes.") match whole or not at
-            // all.
-            let needed = spoken.count < 4 ? spoken.count : max(2, (spoken.count * 2 + 4) / 5)
-            if hits < needed { continue }
-
-            var end = transcriptTokens[last].range.upperBound
+            var end = written[match.last].range.upperBound
             while end < transcript.endIndex, !transcript[end].isWhitespace, !transcript[end].isLetter, !transcript[end].isNumber {
                 end = transcript.index(after: end)
             }
-            spans.append(Span(range: transcriptTokens[first].range.lowerBound..<end, start: line.start, end: line.end))
-            cursor = last + 1
+            spans.append(Span(range: written[match.first].range.lowerBound..<end, start: line.start, end: line.end))
+            cursor = match.last + 1
         }
         return spans
+    }
+
+    /// Walk the spoken words through the transcript starting at `start`,
+    /// allowing dropped and inserted words. Nil unless most of the line is there.
+    private static func matchLine(_ spoken: [String], in written: [Token], from start: Int) -> (first: Int, last: Int)? {
+        var first: Int?
+        var last: Int?
+        var hits = 0
+        var position = start
+
+        for (offset, word) in spoken.enumerated() {
+            guard position < written.count else { break }
+            let limit = min(position + lookahead, written.count)
+            var found: Int?
+            for candidate in position..<limit where written[candidate].text == word {
+                // Adjacent is always trusted. A jump ahead must be confirmed
+                // by the following word, or it is a coincidence.
+                if candidate == position {
+                    found = candidate
+                    break
+                }
+                let nextSpoken = offset + 1 < spoken.count ? spoken[offset + 1] : nil
+                let nextWritten = candidate + 1 < written.count ? written[candidate + 1].text : nil
+                if let nextSpoken, nextSpoken == nextWritten {
+                    found = candidate
+                    break
+                }
+            }
+            if let found {
+                if first == nil { first = found }
+                last = found
+                hits += 1
+                position = found + 1
+            }
+        }
+
+        guard let first, let last else { return nil }
+        // A few stray common words are not a sentence: most of what was said
+        // has to be there. Short lines ("Yes.") match whole or not at all.
+        let needed = spoken.count < 4 ? spoken.count : max(2, (spoken.count * 2 + 4) / 5)
+        return hits >= needed ? (first, last) : nil
+    }
+
+    /// Where, within `resyncWindow` words after `start`, three consecutive
+    /// spoken words appear together. Lines shorter than that cannot resync.
+    private static func resyncPosition(for spoken: [String], in written: [Token], from start: Int) -> Int? {
+        guard spoken.count >= 3 else { return nil }
+        let end = min(start + resyncWindow, written.count)
+        guard end - start >= 3 else { return nil }
+        // The line's opening words may be the ones that were edited, so try
+        // the first few places it could be picked up.
+        for offset in 0...min(3, spoken.count - 3) {
+            for candidate in start...(end - 3)
+            where written[candidate].text == spoken[offset]
+                && written[candidate + 1].text == spoken[offset + 1]
+                && written[candidate + 2].text == spoken[offset + 2] {
+                return candidate
+            }
+        }
+        return nil
     }
 
     /// The span playing at `time`, or nil before the first one.

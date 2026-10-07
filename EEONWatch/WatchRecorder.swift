@@ -43,6 +43,10 @@ final class WatchRecorder: NSObject {
     /// Shorter than this is a mis-tap, not a note (matches the phone's guard).
     static let minimumDuration: TimeInterval = 0.8
 
+    /// Set while `start()` is waiting on the microphone prompt, so a second
+    /// tap cannot begin a second recording.
+    @ObservationIgnored private var isStarting = false
+    @ObservationIgnored private var interruptionObserver: NSObjectProtocol?
     @ObservationIgnored private var recorder: AVAudioRecorder?
     @ObservationIgnored private var currentURL: URL?
     @ObservationIgnored private var session: WCSession? {
@@ -64,8 +68,28 @@ final class WatchRecorder: NSObject {
         if session.delegate == nil {
             session.delegate = self
             session.activate()
+            observeInterruptions()
         } else {
             requeueStranded()
+        }
+    }
+
+    /// A call, Siri or an alarm pauses the recorder without telling its
+    /// delegate. Rather than show a running clock over a recording that has
+    /// stopped, end the note there and send what was captured.
+    private func observeInterruptions() {
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            guard raw == AVAudioSession.InterruptionType.began.rawValue else { return }
+            Task { @MainActor in
+                guard let self, self.isRecording else { return }
+                self.stop()
+                self.problem = "Recording ended by an interruption"
+            }
         }
     }
 
@@ -74,8 +98,12 @@ final class WatchRecorder: NSObject {
     func toggle() {
         if isRecording {
             stop()
-        } else {
-            Task { await start() }
+        } else if !isStarting {
+            isStarting = true
+            Task {
+                await start()
+                isStarting = false
+            }
         }
     }
 
@@ -158,7 +186,7 @@ final class WatchRecorder: NSObject {
             includingPropertiesForKeys: [.creationDateKey]
         )) ?? []
         for file in files where file.pathExtension == "m4a" && !queued.contains(file.lastPathComponent) {
-            if file == currentURL { continue }
+            if file.lastPathComponent == currentURL?.lastPathComponent { continue }
             let recordedAt = (try? file.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
             session.transferFile(file, metadata: [
                 "id": file.deletingPathExtension().lastPathComponent,

@@ -436,10 +436,8 @@ struct voice_notesApp: App {
     /// Trigger intelligence refresh on app becoming active
     @MainActor
     private func triggerAppActiveRefresh() async {
-        Task.detached(priority: .utility) {
-            RecentlyDeletedStore.purgeExpired()
-            TranscriptTimelineStore.pruneOrphans()
-        }
+        RecentlyDeletedStore.purgeExpired(in: container.mainContext)
+        Task.detached(priority: .utility) { TranscriptTimelineStore.pruneOrphans() }
         let context = container.mainContext
         Task {
             await AIAccessService.shared.refreshCloudKitAccessIfPossible()
