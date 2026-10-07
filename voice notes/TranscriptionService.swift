@@ -147,7 +147,11 @@ actor TranscriptionService {
         guard let segments = result.segments, !segments.isEmpty else {
             return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        let kept = segments.filter { seg in
+        return keptSegments(segments).map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated private static func keptSegments(_ segments: [TranscriptionResponse.Segment]) -> [TranscriptionResponse.Segment] {
+        segments.filter { seg in
             let noSpeech = seg.noSpeechProb ?? 0
             let logprob = seg.avgLogprob ?? 0
             let compression = seg.compressionRatio ?? 0
@@ -155,7 +159,19 @@ actor TranscriptionService {
             let repetitionHallucination = compression > 2.4 && logprob < -0.5
             return !(silentHallucination || repetitionHallucination)
         }
-        return kept.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The same segments `cleanedTranscript` keeps, with their audio times, so
+    /// a sentence in the transcript can be played back (TranscriptTimeline).
+    /// `offset` shifts a chunk of a long recording to its place in the file.
+    nonisolated static func timelineLines(from result: TranscriptionResponse, offset: Double = 0) -> [TranscriptTimeline.Line] {
+        guard let segments = result.segments else { return [] }
+        return keptSegments(segments).compactMap { seg in
+            guard let start = seg.start, let end = seg.end else { return nil }
+            let text = seg.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            return TranscriptTimeline.Line(start: start + offset, end: end + offset, text: text)
+        }
     }
 
     func transcribe(audioURL: URL) async throws -> String {
@@ -250,6 +266,7 @@ actor TranscriptionService {
 
         let result = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
         let cleaned = Self.cleanedTranscript(from: result)
+        TranscriptTimelineStore.save(Self.timelineLines(from: result), forAudioFileName: audioURL.lastPathComponent)
         if cleaned.isEmpty {
             throw TranscriptionError.noSpeechDetected
         }
@@ -345,28 +362,32 @@ actor TranscriptionService {
         }
 
         // Transcribe chunks in parallel for ~30% faster processing
-        let transcripts = try await withThrowingTaskGroup(of: (Int, String).self) { group in
+        let chunks = try await withThrowingTaskGroup(of: (Int, String, [TranscriptTimeline.Line]).self) { group in
             for (index, chunkURL) in chunkURLs.enumerated() {
                 group.addTask {
-                    let transcript = try await self.transcribeChunk(audioURL: chunkURL)
+                    let (transcript, lines) = try await self.transcribeChunk(
+                        audioURL: chunkURL,
+                        offset: Double(index) * chunkDuration
+                    )
                     // Clean up chunk file after transcription
                     try? FileManager.default.removeItem(at: chunkURL)
-                    return (index, transcript)
+                    return (index, transcript, lines)
                 }
             }
 
             // Collect results and sort by index to maintain order
-            var results: [(Int, String)] = []
+            var results: [(Int, String, [TranscriptTimeline.Line])] = []
             for try await result in group {
                 results.append(result)
             }
-            return results.sorted { $0.0 < $1.0 }.map { $0.1 }
+            return results.sorted { $0.0 < $1.0 }
         }
 
-        let joined = transcripts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        let joined = chunks.map { $0.1 }.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         if joined.isEmpty {
             throw TranscriptionError.noSpeechDetected
         }
+        TranscriptTimelineStore.save(chunks.flatMap { $0.2 }, forAudioFileName: audioURL.lastPathComponent)
         return joined
     }
 
@@ -394,7 +415,7 @@ actor TranscriptionService {
         return outputURL
     }
 
-    private func transcribeChunk(audioURL: URL) async throws -> String {
+    private func transcribeChunk(audioURL: URL, offset: Double) async throws -> (String, [TranscriptTimeline.Line]) {
         let url = URL(string: "https://api.openai.com/v1/audio/transcriptions")!
 
         let audioData = try Data(contentsOf: audioURL)
@@ -447,7 +468,7 @@ actor TranscriptionService {
         }
 
         let result = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
-        return Self.cleanedTranscript(from: result)
+        return (Self.cleanedTranscript(from: result), Self.timelineLines(from: result, offset: offset))
     }
 }
 
@@ -458,12 +479,16 @@ nonisolated struct TranscriptionResponse: Codable, Sendable {
 
     nonisolated struct Segment: Codable, Sendable {
         let text: String
+        let start: Double?
+        let end: Double?
         let noSpeechProb: Double?
         let avgLogprob: Double?
         let compressionRatio: Double?
 
         enum CodingKeys: String, CodingKey {
             case text
+            case start
+            case end
             case noSpeechProb = "no_speech_prob"
             case avgLogprob = "avg_logprob"
             case compressionRatio = "compression_ratio"
