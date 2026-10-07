@@ -202,13 +202,24 @@ final class BackgroundCaptureService {
     /// Save-first, process-second. The note lands as "pending" before any
     /// network call, so a reaped process loses nothing — the existing
     /// foreground drain (voice_notesApp) finishes pending notes.
+    /// A finished recording that arrived from outside this process (the Apple
+    /// Watch). `url` must already be in Documents. `recordedAt` keeps the note
+    /// at the time it was spoken, not the time the phone received it.
     @MainActor
-    private func saveAndProcess(url: URL) async {
+    func ingestRecording(at url: URL, recordedAt: Date?) async {
+        await saveAndProcess(url: url, recordedAt: recordedAt)
+    }
+
+    @MainActor
+    private func saveAndProcess(url: URL, recordedAt: Date? = nil) async {
         guard let container else { return }
         let context = container.mainContext
         let fileName = url.lastPathComponent
 
         let note = Note(title: "", content: "", transcript: nil, audioFileName: fileName)
+        if let recordedAt {
+            note.createdAt = recordedAt
+        }
         note.transcriptionStatus = "pending"
         context.insert(note)
         UsageService.shared.incrementNoteCount()
