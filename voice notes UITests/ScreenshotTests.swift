@@ -393,6 +393,124 @@ final class ScreenshotTests: XCTestCase {
 
     // MARK: - Individual Screen Tests (for debugging)
 
+    // MARK: - 2026-10-06 gap pass: tap-to-hear, Translate, Recently Deleted
+    //
+    // Written when this Mac had no iOS simulator runtime for Xcode 26.2, so
+    // these three compiled but had not yet run. Run them before trusting them.
+
+    private var speakerFixture: String {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/two-speakers.m4a").path
+    }
+
+    private func openSeededAudioNote() {
+        app.terminate()
+        launchApp(extraArguments: ["-UITestPro", "-SeedSpeakerAudio", speakerFixture])
+        sleep(3)
+        dismissGatesIfNeeded()
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] 'Paywall launch call'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "Seeded audio note not found")
+        row.tap()
+    }
+
+    private func keep(_ name: String) {
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
+    /// Original → "Tap sentences to hear them" → live Whisper timings → the
+    /// transcript becomes tappable sentences, and tapping one starts playback.
+    func testTapToHearTranscript() throws {
+        openSeededAudioNote()
+        let original = app.buttons["Original"]
+        XCTAssertTrue(original.waitForExistence(timeout: 5))
+        original.tap()
+
+        let sync = app.buttons["syncTranscriptButton"]
+        XCTAssertTrue(sync.waitForExistence(timeout: 5), "No offer to sync the transcript (audio missing?)")
+        sync.tap()
+
+        let sentence = app.links.firstMatch
+        XCTAssertTrue(sentence.waitForExistence(timeout: 120), "Transcript never became tappable")
+        XCTAssertGreaterThanOrEqual(app.links.count, 3, "Expected one tappable sentence per spoken line")
+        XCTAssertFalse(sync.exists, "Sync button should go away once sentences are tappable")
+
+        app.links.element(boundBy: 1).tap()
+        sleep(1)
+        keep("TapToHear")
+        // The audio pill shows a running clock only while audio is loaded.
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label MATCHES '0:0[0-9]'")).firstMatch.exists,
+                      "Tapping a sentence did not start playback")
+    }
+
+    /// Format menu → Translate → Spanish rewrites the note; Undo brings it back.
+    func testTranslateNote() throws {
+        openSeededAudioNote()
+        let menu = app.buttons["formatMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        let translate = app.buttons["Translate"]
+        XCTAssertTrue(translate.waitForExistence(timeout: 5), "Translate missing from the format menu")
+        translate.tap()
+        let spanish = app.buttons["Spanish"]
+        XCTAssertTrue(spanish.waitForExistence(timeout: 5))
+        spanish.tap()
+
+        let translated = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'lanzamiento' OR label CONTAINS[c] 'gracias'")).firstMatch
+        XCTAssertTrue(translated.waitForExistence(timeout: 60), "Note was not translated to Spanish")
+        keep("Translated")
+
+        menu.tap()
+        let undo = app.buttons["Undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5), "No Undo after translating")
+        undo.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'thanks for joining'")).firstMatch.waitForExistence(timeout: 5),
+                      "Undo did not bring the original language back")
+    }
+
+    /// Delete → the note leaves Home → Notes filter › Recently Deleted shows
+    /// it with days left → Restore puts it back.
+    func testRecentlyDeletedRestore() throws {
+        openSeededAudioNote()
+        app.buttons["Note options"].tap()
+        let delete = app.buttons["Delete Note"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.tap()
+        let confirm = app.buttons["Delete"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+
+        let homeRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] 'Paywall launch call'")).firstMatch
+        XCTAssertTrue(homeRow.waitForNonExistence(timeout: 5), "Deleted note still on Home")
+
+        let more = app.buttons["More"]
+        XCTAssertTrue(more.waitForExistence(timeout: 5), "Home has no More link to all notes")
+        more.tap()
+        let filter = app.buttons["Filter notes"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 5))
+        filter.tap()
+        app.buttons["Recently Deleted"].tap()
+
+        let binned = app.staticTexts["Paywall launch call"]
+        XCTAssertTrue(binned.waitForExistence(timeout: 5), "Deleted note is not in Recently Deleted")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '30 days left'")).firstMatch.exists)
+        keep("RecentlyDeleted")
+
+        binned.press(forDuration: 1.0)
+        let restore = app.buttons["Restore"]
+        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        restore.tap()
+        XCTAssertTrue(binned.waitForNonExistence(timeout: 5), "Restored note still listed as deleted")
+
+        filter.tap()
+        app.buttons["All notes"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH[c] 'Paywall launch call'")).firstMatch.waitForExistence(timeout: 5),
+                      "Restored note did not come back")
+    }
+
     func testHomeOnly() throws {
         sleep(3)
         snapshot("Home")

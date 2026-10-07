@@ -110,6 +110,10 @@ struct NoteDetailView: View {
     @State private var quizError: String?
     @State private var isRewriting = false
     @State private var rewriteError: String?
+    /// Where each sentence of the Original transcript sits in the audio.
+    /// Empty when the recording has no saved timings (see TranscriptTimeline).
+    @State private var transcriptSpans: [TranscriptTimelineAligner.Span] = []
+    @State private var isSyncingTranscript = false
     /// The text an adjustment replaced — one level of undo (tap again to redo).
     @State private var adjustmentUndoText: String?
 
@@ -502,7 +506,7 @@ struct NoteDetailView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This cannot be undone.")
+            Text("You can restore it from Notes › Recently Deleted for 30 days.")
         }
         .sheet(isPresented: $showingShareSheet) {
             ShareNoteView(note: note)
@@ -543,6 +547,9 @@ struct NoteDetailView: View {
             MindMapView(note: note)
         }
         .onAppear(perform: refreshMindMapLine)
+        .onAppear(perform: refreshTranscriptSpans)
+        .onChange(of: note.transcript) { _, _ in refreshTranscriptSpans() }
+        .onChange(of: note.speakerLabelsJSON) { _, _ in refreshTranscriptSpans() }
         .sheet(isPresented: $showingSpeakerEditor) {
             SpeakerLabelEditorSheet(labels: speakerDrafts) { labels in
                 note.speakerLabels = labels
@@ -598,7 +605,7 @@ struct NoteDetailView: View {
         } message: {
             Text(aiError ?? "Unknown error")
         }
-        .alert("Rewrite Error", isPresented: .init(
+        .alert("Couldn't Finish", isPresented: .init(
             get: { rewriteError != nil },
             set: { if !$0 { rewriteError = nil } }
         )) {
@@ -1023,7 +1030,16 @@ struct NoteDetailView: View {
                     .background(Capsule().fill(Color.eeonAccentAI))
                 }
             } else {
-                if !displayText.isEmpty {
+                if showingOriginal, !transcriptSpans.isEmpty, !displayText.isEmpty {
+                    // Tap a sentence to hear it; the one playing is tinted.
+                    SyncedTranscriptText(
+                        text: displayText,
+                        spans: transcriptSpans,
+                        activeIndex: playingSpanIndex,
+                        onTap: playFromSpan
+                    )
+                    .equatable()
+                } else if !displayText.isEmpty {
                     // Enhanced notes carry light inline markdown (**bold**
                     // section labels on longer notes). Render it; fall back to
                     // the raw string if parsing ever fails.
@@ -1033,6 +1049,25 @@ struct NoteDetailView: View {
                         .lineSpacing(6)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if showingOriginal, transcriptSpans.isEmpty, canSyncTranscript {
+                    Button {
+                        syncTranscriptWithAudio()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isSyncingTranscript {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "waveform")
+                            }
+                            Text(isSyncingTranscript ? "Matching words to audio…" : "Tap sentences to hear them")
+                        }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.eeonAccentAI)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSyncingTranscript)
+                    .accessibilityIdentifier("syncTranscriptButton")
                 }
                 // Edit + re-run controls — only on the Enhanced view of a note
                 // that actually has enhanced text to edit / re-run.
@@ -1133,11 +1168,20 @@ struct NoteDetailView: View {
                             Label(adjustment.title, systemImage: adjustment.icon)
                         }
                     }
+                    Menu {
+                        ForEach(NoteTranslationLanguage.allCases) { language in
+                            Button(language.rawValue) {
+                                applyTranslation(language)
+                            }
+                        }
+                    } label: {
+                        Label("Translate", systemImage: "character.bubble")
+                    }
                     if adjustmentUndoText != nil {
                         Button {
                             undoAdjustment()
                         } label: {
-                            Label("Undo adjustment", systemImage: "arrow.uturn.backward")
+                            Label("Undo", systemImage: "arrow.uturn.backward")
                         }
                     }
                 }
@@ -1156,6 +1200,7 @@ struct NoteDetailView: View {
                 .overlay(Capsule().strokeBorder(Color.eeonAccentAI.opacity(0.35), lineWidth: 1))
                 .contentShape(Capsule())
             }
+            .accessibilityIdentifier("formatMenu")
             .disabled(isRewriting)
 
             if isRewriting {
@@ -1487,7 +1532,14 @@ struct NoteDetailView: View {
     // MARK: - Adjustments (in place, undoable)
 
     private func applyAdjustment(_ adjustment: NoteAdjustment) {
-        let template = adjustment.template
+        applyInPlace(adjustment.template)
+    }
+
+    private func applyTranslation(_ language: NoteTranslationLanguage) {
+        applyInPlace(language.template, maxTokens: NoteTranslationLanguage.maxTokens)
+    }
+
+    private func applyInPlace(_ template: RewriteTemplate, maxTokens: Int = 1500) {
         if template.isPro && !SubscriptionManager.shared.isSubscribed {
             showingPaywall = true
             return
@@ -1507,7 +1559,7 @@ struct NoteDetailView: View {
         isRewriting = true
         Task {
             do {
-                let result = try await RewriteService.rewrite(transcript: source, template: template)
+                let result = try await RewriteService.rewrite(transcript: source, template: template, maxTokens: maxTokens)
                 await MainActor.run {
                     adjustmentUndoText = source
                     note.enhancedNoteText = result
@@ -1673,6 +1725,77 @@ struct NoteDetailView: View {
         }
     }
 
+    // MARK: - Tap a sentence to hear it
+
+    /// The transcript exactly as the Original view shows it; spans index into
+    /// this string, so it must be the one handed to `SyncedTranscriptText`.
+    private var originalDisplayText: String {
+        guard let transcript = note.transcript else { return note.content }
+        return SpeakerAttribution.displayTranscript(transcript, labels: note.speakerLabels)
+    }
+
+    private var hasAudioFile: Bool {
+        guard let url = note.audioURL else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    /// Older recordings have no saved timings; offer to build them once.
+    private var canSyncTranscript: Bool {
+        hasAudioFile && !(note.transcript ?? "").isEmpty
+    }
+
+    private var playingSpanIndex: Int? {
+        guard audioRecorder.isPlaying || audioRecorder.currentTime > 0 else { return nil }
+        return TranscriptTimelineAligner.activeIndex(in: transcriptSpans, at: audioRecorder.currentTime)
+    }
+
+    private func refreshTranscriptSpans() {
+        guard hasAudioFile, let fileName = note.audioFileName,
+              let timeline = TranscriptTimelineStore.load(forAudioFileName: fileName) else {
+            transcriptSpans = []
+            return
+        }
+        transcriptSpans = TranscriptTimelineAligner.align(transcript: originalDisplayText, timeline: timeline)
+    }
+
+    private func playFromSpan(_ index: Int) {
+        guard transcriptSpans.indices.contains(index), let url = note.audioURL else { return }
+        if !audioRecorder.isPlaying {
+            if audioRecorder.currentTime > 0 {
+                audioRecorder.resumePlaying()
+            } else {
+                try? audioRecorder.playAudio(url: url)
+            }
+        }
+        audioRecorder.seek(to: transcriptSpans[index].start)
+    }
+
+    /// Re-run Whisper on the saved audio only to learn where each sentence
+    /// is. The note's transcript and enhanced text are left alone.
+    private func syncTranscriptWithAudio() {
+        guard let url = note.audioURL, let apiKey = APIKeys.openAI, !apiKey.isEmpty else {
+            rewriteError = "Couldn't reach transcription."
+            return
+        }
+        isSyncingTranscript = true
+        Task {
+            var failure: String?
+            do {
+                let service = TranscriptionService(apiKey: apiKey, language: LanguageSettings.shared.selectedLanguage)
+                _ = try await service.transcribe(audioURL: url)
+            } catch {
+                failure = error.localizedDescription
+            }
+            await MainActor.run {
+                refreshTranscriptSpans()
+                isSyncingTranscript = false
+                if transcriptSpans.isEmpty {
+                    rewriteError = failure ?? "Couldn't match this transcript to its audio."
+                }
+            }
+        }
+    }
+
     private func togglePlayback() {
         guard let url = note.audioURL else { return }
 
@@ -1685,16 +1808,14 @@ struct NoteDetailView: View {
         }
     }
 
+    /// Moves the note to Recently Deleted (30 days). The recording and photos
+    /// stay on disk until the bin lets go of it.
     private func deleteNote() {
-        if let fileName = note.audioFileName {
-            let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent(fileName)
-            try? FileManager.default.removeItem(at: url)
+        audioRecorder.stopPlaying()
+        guard RecentlyDeletedStore.trash(note, in: modelContext) else {
+            rewriteError = "Couldn't delete this note. Nothing was changed."
+            return
         }
-        // Delete image files
-        note.deleteImageFiles()
-        modelContext.delete(note)
-        try? modelContext.save()
         dismiss()
     }
 
@@ -2322,6 +2443,49 @@ final class NoteShareItemSource: NSObject, UIActivityItemSource {
         ))
     }
     .modelContainer(for: [Note.self, Project.self], inMemory: true)
+}
+
+/// The Original transcript with each timed sentence tappable. Equatable so the
+/// 10-per-second playback clock only rebuilds it when the playing sentence
+/// changes.
+private struct SyncedTranscriptText: View, Equatable {
+    let text: String
+    let spans: [TranscriptTimelineAligner.Span]
+    let activeIndex: Int?
+    let onTap: (Int) -> Void
+
+    static func == (lhs: SyncedTranscriptText, rhs: SyncedTranscriptText) -> Bool {
+        lhs.text == rhs.text && lhs.activeIndex == rhs.activeIndex && lhs.spans == rhs.spans
+    }
+
+    var body: some View {
+        Text(attributed)
+            .font(.body.leading(.loose))
+            .lineSpacing(6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .environment(\.openURL, OpenURLAction { url in
+                guard url.scheme == Self.scheme, let host = url.host, let index = Int(host) else {
+                    return .systemAction
+                }
+                onTap(index)
+                return .handled
+            })
+            .accessibilityIdentifier("syncedTranscript")
+    }
+
+    private static let scheme = "eeon-seek"
+
+    private var attributed: AttributedString {
+        var result = AttributedString(text)
+        result.foregroundColor = Color.eeonTextPrimary
+        for (index, span) in spans.enumerated() {
+            guard let lower = AttributedString.Index(span.range.lowerBound, within: result),
+                  let upper = AttributedString.Index(span.range.upperBound, within: result) else { continue }
+            result[lower..<upper].link = URL(string: "\(Self.scheme)://\(index)")
+            result[lower..<upper].foregroundColor = index == activeIndex ? Color.eeonAccentAI : Color.eeonTextPrimary
+        }
+        return result
+    }
 }
 
 /// A generated export file, presented in the share sheet.

@@ -118,6 +118,7 @@ struct voice_notesApp: App {
         // Screenshot seed — populates demo data in DEBUG builds when launched
         // with -SeedScreenshotData. Idempotent. No-op in production.
         #if DEBUG
+        RecentlyDeletedStore.verifySnapshotCoversNote()
         let seedContext = container.mainContext
         Task { @MainActor in
             if ProcessInfo.processInfo.arguments.contains("-SeedScreenshotData") {
@@ -218,6 +219,7 @@ struct voice_notesApp: App {
         // Pocket-style background capture: intents perform in this process,
         // reaching the service through CaptureBridge (see CaptureIntents.swift).
         BackgroundCaptureService.shared.configure(container: container)
+        WatchInboxService.shared.configure(container: container)
         BackgroundDiarizationService.shared.configure(container: container)
         AgentMirrorService.shared.container = container
         DataIntentBridge.container = container
@@ -434,6 +436,10 @@ struct voice_notesApp: App {
     /// Trigger intelligence refresh on app becoming active
     @MainActor
     private func triggerAppActiveRefresh() async {
+        Task.detached(priority: .utility) {
+            RecentlyDeletedStore.purgeExpired()
+            TranscriptTimelineStore.pruneOrphans()
+        }
         let context = container.mainContext
         Task {
             await AIAccessService.shared.refreshCloudKitAccessIfPossible()
