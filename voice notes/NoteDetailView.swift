@@ -1564,9 +1564,10 @@ struct NoteDetailView: View {
 
     private func makeAgentBrief() -> AgentHandoffBrief {
         func source(_ item: Note) -> AgentHandoffSource {
-            AgentHandoffSource(id: item.id, title: item.displayTitle,
-                               text: item.enhancedNoteText ?? item.transcript ?? item.content,
-                               date: item.createdAt)
+            AgentHandoffSource.capture(id: item.id, title: item.displayTitle,
+                                       transcript: item.transcript, content: item.content,
+                                       enhanced: item.enhancedNoteText, edited: item.enhancedNoteEdited,
+                                       editedAt: item.enhancedNoteEditedAt, date: item.createdAt)
         }
         let project = allProjects.first { $0.id == note.projectId && !$0.isArchived }
         let projectName = project?.name ?? note.inferredProjectName

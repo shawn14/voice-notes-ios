@@ -1,0 +1,1 @@
+main/main.swift:23: Precondition failed: Source text must not close its own quotation

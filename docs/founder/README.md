@@ -26,3 +26,11 @@ No SwiftData schema changes. No release or metadata upload performed for this fe
 Restore Xcode's matching iOS platform, then run the focused test on a freshly enumerated iPad and iPhone. Verify clipboard contents and related-project inclusion through the native app, not just the formatter. Exercise a real consenting user's agent using the copied brief against an appropriate project workspace and record what it actually produces. Only then extend project organization or result feedback, and decide the release scope separately from main's unverified Watch changes.
 
 Independent refuter compiled and ran the actual formatter successfully and inspected all 20 connector receipt results plus the real-service script. It did not rerun the service flow. Native sheet, clipboard, project selection, and external execution remain unverified. Source delimiters are presentation, not a security boundary: an agent must continue treating captured note text as reference material.
+
+## Source fidelity — 2026-10-08
+
+The handoff now includes the original transcript (or note content) first, plus a separately labeled AI rewrite or user-edited note. User edits carry their existing edit timestamp. If original text is absent, the brief labels that explicitly; an all-empty capture says no source text is available. No stored model fields changed. The helper itself caps related context at eight notes, including for non-UI callers.
+
+Actual formatter regression: source text containing a closing quotation tag failed before the fix (`source-fidelity/red.txt`). The same check passes after escaping quotation markup. A fresh refuter also found unescaped note-title metadata; titles and project labels now escape markup and flatten line breaks, and the refuter's exact case passed on recheck. Formatter checks cover differing transcript/AI rewrite, user edits, empty/absent originals, bounds, body quotation and metadata. Receipt `source-fidelity/green.txt`. Quotation formatting is not a guarantee against semantic prompt injection; notes remain reference material.
+
+This proves the Foundation helper and its source-selection behavior on real supplied values. The caller is wired to existing Note fields; actual SwiftData selection, native rendering/clipboard, and a named agent acting on the packet remain unverified while the platform gate persists.

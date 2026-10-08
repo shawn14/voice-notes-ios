@@ -312,3 +312,8 @@
 - Current branch `codex/eeon-founder-handoff`: replaced stale CloudKit-token primary setup with hosted URL-only OAuth; added Claude Code, Codex, Gemini CLI instructions and an honest Grokbot fallback. Added project contract `os.yaml`.
 - Actual locked MCP SDK passed7 checks against deployed EEON: disposable mirror, OAuth discovery/DCR/PKCE/approval, initialization,8 memory-tool schemas, source search/read, revocation, cleanup. Standing script `mcp/test/hosted-client.mjs`; receipt `docs/founder/sdk-proof.log`. No model calls or installed agent configuration changed.
 - Local MCP compiled and all12 existing tests passed. These are distinct from live/native proofs. Native named-client read-and-act receipts remain outstanding; app UI platform blocker persists. Details `docs/founder/AGENT-COMPATIBILITY.md`.
+
+## 2026-10-08 — founder source fidelity
+- Founder handoff now preserves transcript/content and labels the AI rewrite or user edit separately, including edit timestamp and original-text availability. Formatter directly enforces8-related-note bound. No SwiftData/schema changes.
+- Reproduced actual source-quotation defect red; formatter green after escaping body text. Independent refuter found title/project metadata gap; fixed and independently rechecked green. Durable receipts `docs/founder/source-fidelity/` and explanation `docs/founder/README.md`.
+- Proven layer remains Foundation formatter; native caller/UI/clipboard and native agent execution still require actual runtime proof. No merge/release.

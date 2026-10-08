@@ -1,0 +1,3 @@
+PASS: actual brief formatter — request, project context, truncation, access states, source IDs, and completion boundaries
+PASS: source quotation, original/AI/edited provenance, missing-original honesty, eight-note bound
+PASS: literal source metadata and empty-source honesty
