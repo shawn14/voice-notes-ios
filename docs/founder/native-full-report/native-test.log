@@ -1,0 +1,275 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project .FounderPhoneQA.xcodeproj -scheme "voice notes UITests" -destination id=500C672F-D33A-485F-AAA5-4E38F59FD3AF -derivedDataPath .build/founder-full-report -resultBundlePath .build/full-report-result.xcresult "-only-testing:voice notes UITests/ScreenshotTests/testFounderAgentResultFullReport" "-only-testing:voice notes UITests/ScreenshotTests/testFounderAgentResultReadOnlyFailure" -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-
+
+Build settings from command line:
+    CODE_SIGN_IDENTITY = -
+    CODE_SIGNING_ALLOWED = YES
+
+2026-10-08 16:05:41.757 xcodebuild[29388:3983788] not able to deal with ivar '_storeKitConfigurationFileReference' of type '@"_TtC13IDEFoundation24IDESchemeOptionReference"' at offset 520
+Writing result bundle at path:
+	/private/tmp/eeon-native-claude/.build/full-report-result.xcresult
+
+2026-10-08 16:09:35.714272-0500 voice notes UITests-Runner[31461:4002671] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-10-08 16:10:32.752.
+Test Suite 'voice notes UITests.xctest' started at 2026-10-08 16:10:32.765.
+Test Suite 'ScreenshotTests' started at 2026-10-08 16:10:32.766.
+Test Case '-[voice_notes_UITests.ScreenshotTests testFounderAgentResultFullReport]' started.
+    t =     0.00s Start Test at 2026-10-08 16:10:32.771
+    t =     1.64s Set Up
+2026-10-08 16:10:34.462734-0500 voice notes UITests-Runner[31461:4002671] Couldn't detect/set language...
+2026-10-08 16:10:34.463982-0500 voice notes UITests-Runner[31461:4002671] Couldn't detect/set locale...
+2026-10-08 16:10:34.465411-0500 voice notes UITests-Runner[31461:4002671] Couldn't detect/set launch_arguments...
+    t =     1.70s     Open voice.notes.voice-notes
+    t =     1.71s         Launch voice.notes.voice-notes
+    t =    17.21s             Setting up automation session
+    t =    24.91s             Wait for voice.notes.voice-notes to idle
+    t =    27.69s Terminate voice.notes.voice-notes:32095
+    t =    29.08s Open voice.notes.voice-notes
+    t =    29.10s     Launch voice.notes.voice-notes
+    t =    32.99s         Setting up automation session
+    t =    35.76s         Wait for voice.notes.voice-notes to idle
+    t =    38.32s Waiting 2.0s for "Allow" Button to exist
+    t =    39.33s     Checking `Expect predicate `existsNoRetry == 1` for object "Allow" Button`
+    t =    39.33s         Checking existence of `"Allow" Button`
+    t =    40.18s         Capturing element debug description
+    t =    40.33s     Checking `Expect predicate `existsNoRetry == 1` for object "Allow" Button`
+    t =    40.33s         Checking existence of `"Allow" Button`
+    t =    40.40s         Capturing element debug description
+    t =    40.40s     Checking existence of `"Allow" Button`
+    t =    40.45s Collecting debug information to assist test failure triage
+    t =    40.45s     Requesting snapshot of accessibility hierarchy for app with pid 29511
+    t =    40.62s Waiting 2.0s for "Continue without account" Button to exist
+    t =    41.70s     Checking `Expect predicate `existsNoRetry == 1` for object "Continue without account" Button`
+    t =    41.70s         Checking existence of `"Continue without account" Button`
+    t =    42.00s         Capturing element debug description
+    t =    42.63s     Checking `Expect predicate `existsNoRetry == 1` for object "Continue without account" Button`
+    t =    42.64s         Checking existence of `"Continue without account" Button`
+    t =    42.91s         Capturing element debug description
+    t =    42.94s     Checking existence of `"Continue without account" Button`
+    t =    43.13s Collecting debug information to assist test failure triage
+    t =    43.14s     Requesting snapshot of accessibility hierarchy for app with pid 32211
+    t =    43.29s Checking existence of `"Debug: Skip to signed in" Button`
+    t =    43.37s Waiting 2.0s for Button (First Match) to exist
+    t =    44.48s     Checking `Expect predicate `existsNoRetry == 1` for object Button (First Match)`
+    t =    44.48s         Checking existence of `Button (First Match)`
+    t =    44.58s Find the Button (First Match)
+    t =    44.84s Tap "Standup with Lena, 3:55 PM · 6m · Pricing" Button
+    t =    44.85s     Wait for voice.notes.voice-notes to idle
+    t =    45.00s     Find the "Standup with Lena, 3:55 PM · 6m · Pricing" Button
+    t =    45.21s     Check for interrupting elements affecting "Standup with Lena, 3:55 PM · 6m · Pricing" Button
+    t =    45.30s         Wait for com.apple.springboard to idle
+    t =    45.66s     Found 1 interrupting element:
+    t =    45.66s         Find the "“EEON” Would Like to Send You Notifications" Alert
+    t =    45.78s "“EEON” Would Like to Send You Notifications" Alert from Application 'com.apple.springboard'
+    t =    45.78s     Invoking UI interruption monitors for "“EEON” Would Like to Send You Notifications" Alert from Application 'com.apple.springboard'
+    t =    45.78s         Find the "“EEON” Would Like to Send You Notifications" Alert
+    t =    45.85s         Checking existence of `Button (Elements matching predicate 'userTestingAttributes CONTAINS "cancel-button"')`
+    t =    45.98s         Get all elements bound by accessibility element for: Elements matching predicate 'userTestingAttributes CONTAINS "default-button"'
+    t =    46.14s         Checking existence of `"Allow" Button`
+    t =    46.22s Default interruption handler attempting to dismiss alert by tapping "Allow" Button.
+    t =    46.23s         Tap "Allow" Button
+    t =    46.23s             Wait for com.apple.springboard to idle
+    t =    46.32s             Find the "Allow" Button
+    t =    46.45s             Check for interrupting elements affecting "Allow" Button
+    t =    46.64s             Synthesize event
+    t =    47.12s             Wait for com.apple.springboard to idle
+    t =    47.38s         Waiting 1.0s for Alert to not exist
+    t =    48.38s             Checking `Expect predicate `existsNoRetry == 0` for object Alert`
+    t =    48.38s                 Checking existence of `Alert`
+    t =    48.44s             Checking existence of `Alert`
+    t =    48.49s         Verifying handling...
+    t =    48.57s Confirmed successful handling of interrupting element
+    t =    48.57s     Synthesize event
+    t =    49.02s     Wait for voice.notes.voice-notes to idle
+    t =    50.41s Waiting 5.0s for "Note options" Button to exist
+    t =    51.49s     Checking `Expect predicate `existsNoRetry == 1` for object "Note options" Button`
+    t =    51.49s         Checking existence of `"Note options" Button`
+    t =    51.64s Tap "Note options" Button
+    t =    51.64s     Wait for voice.notes.voice-notes to idle
+    t =    51.71s     Find the "Note options" Button
+    t =    51.96s     Check for interrupting elements affecting "Note options" Button
+    t =    52.15s     Synthesize event
+    t =    52.56s     Wait for voice.notes.voice-notes to idle
+    t =    55.19s Tap "addAgentResult" Button
+    t =    55.19s     Wait for voice.notes.voice-notes to idle
+    t =    55.21s     Find the "addAgentResult" Button
+    t =    55.40s     Check for interrupting elements affecting "addAgentResult" Button
+    t =    55.68s     Synthesize event
+    t =    56.25s     Wait for voice.notes.voice-notes to idle
+    t =    57.68s Waiting 5.0s for "agentResultReport" TextView to exist
+    t =    58.75s     Checking `Expect predicate `existsNoRetry == 1` for object "agentResultReport" TextView`
+    t =    58.75s         Checking existence of `"agentResultReport" TextView`
+    t =    58.87s Find the "saveAgentResult" Button
+    t =    58.95s Tap "agentResultReport" TextView
+    t =    58.95s     Wait for voice.notes.voice-notes to idle
+    t =    59.00s     Find the "agentResultReport" TextView
+    t =    59.29s     Check for interrupting elements affecting "agentResultReport" TextView
+    t =    59.39s     Synthesize event
+    t =    59.71s     Wait for voice.notes.voice-notes to idle
+    t =    61.13s Type '# EEON Draft Landi...' into "agentResultReport" TextView
+    t =    61.13s     Wait for voice.notes.voice-notes to idle
+    t =    61.48s     Find the "agentResultReport" TextView
+    t =    61.66s     Check for interrupting elements affecting "agentResultReport" TextView
+    t =    61.79s     Synthesize event
+    t =   127.45s     Wait for voice.notes.voice-notes to idle
+    t =   127.47s Find the "saveAgentResult" Button
+    t =   127.57s Tap "saveAgentResult" Button
+    t =   127.57s     Wait for voice.notes.voice-notes to idle
+    t =   127.57s     Find the "saveAgentResult" Button
+    t =   127.65s     Check for interrupting elements affecting "saveAgentResult" Button
+    t =   127.76s     Synthesize event
+    t =   128.07s     Wait for voice.notes.voice-notes to idle
+    t =   129.81s Checking `Expect predicate `exists == 0` for object "agentResultReport" TextView`
+    t =   129.82s     Checking existence of `"agentResultReport" TextView`
+    t =   129.86s Terminate voice.notes.voice-notes:32211
+    t =   130.95s Open voice.notes.voice-notes
+    t =   130.95s     Launch voice.notes.voice-notes
+    t =   131.38s         Setting up automation session
+    t =   133.83s         Wait for voice.notes.voice-notes to idle
+    t =   136.02s Waiting 2.0s for "Allow" Button to exist
+    t =   137.05s     Checking `Expect predicate `existsNoRetry == 1` for object "Allow" Button`
+    t =   137.05s         Checking existence of `"Allow" Button`
+    t =   137.09s         Capturing element debug description
+    t =   138.02s     Checking `Expect predicate `existsNoRetry == 1` for object "Allow" Button`
+    t =   138.02s         Checking existence of `"Allow" Button`
+    t =   138.05s         Capturing element debug description
+    t =   138.06s     Checking existence of `"Allow" Button`
+    t =   138.08s Collecting debug information to assist test failure triage
+    t =   138.09s     Requesting snapshot of accessibility hierarchy for app with pid 29511
+    t =   138.14s Waiting 2.0s for "Continue without account" Button to exist
+    t =   139.18s     Checking `Expect predicate `existsNoRetry == 1` for object "Continue without account" Button`
+    t =   139.18s         Checking existence of `"Continue without account" Button`
+    t =   139.29s         Capturing element debug description
+    t =   140.15s     Checking `Expect predicate `existsNoRetry == 1` for object "Continue without account" Button`
+    t =   140.15s         Checking existence of `"Continue without account" Button`
+    t =   140.17s         Capturing element debug description
+    t =   140.17s     Checking existence of `"Continue without account" Button`
+    t =   140.20s Collecting debug information to assist test failure triage
+    t =   140.20s     Requesting snapshot of accessibility hierarchy for app with pid 32893
+    t =   140.24s Checking existence of `"Debug: Skip to signed in" Button`
+    t =   140.26s Waiting 5.0s for Button (First Match) to exist
+    t =   141.29s     Checking `Expect predicate `existsNoRetry == 1` for object Button (First Match)`
+    t =   141.29s         Checking existence of `Button (First Match)`
+    t =   141.32s Tap Button (First Match)
+    t =   141.32s     Wait for voice.notes.voice-notes to idle
+    t =   141.33s     Find the Button (First Match)
+    t =   141.35s     Check for interrupting elements affecting "Agent result: Standup with Lena, 4:12 PM" Button
+    t =   141.38s     Synthesize event
+    t =   141.69s     Wait for voice.notes.voice-notes to idle
+    t =   142.39s Waiting 5.0s for Any (First Match) to exist
+    t =   143.43s     Checking `Expect predicate `existsNoRetry == 1` for object Any (First Match)`
+    t =   143.43s         Checking existence of `Any (First Match)`
+    t =   143.51s Waiting 5.0s for "agentResultSource" Button to exist
+    t =   144.55s     Checking `Expect predicate `existsNoRetry == 1` for object "agentResultSource" Button`
+    t =   144.55s         Checking existence of `"agentResultSource" Button`
+    t =   144.76s Added attachment named 'FounderAgentResult'
+    t =   144.76s Tear Down
+Test Case '-[voice_notes_UITests.ScreenshotTests testFounderAgentResultFullReport]' passed (145.426 seconds).
+Test Case '-[voice_notes_UITests.ScreenshotTests testFounderAgentResultReadOnlyFailure]' started.
+    t =     0.00s Start Test at 2026-10-08 16:12:58.197
+    t =     0.05s Set Up
+2026-10-08 16:12:58.253788-0500 voice notes UITests-Runner[31461:4002671] Couldn't detect/set language...
+2026-10-08 16:12:58.254030-0500 voice notes UITests-Runner[31461:4002671] Couldn't detect/set locale...
+2026-10-08 16:12:58.254135-0500 voice notes UITests-Runner[31461:4002671] Couldn't detect/set launch_arguments...
+    t =     0.06s     Open voice.notes.voice-notes
+    t =     0.06s         Launch voice.notes.voice-notes
+    t =     0.06s             Terminate voice.notes.voice-notes:32893
+    t =     1.33s             Setting up automation session
+    t =     2.74s             Wait for voice.notes.voice-notes to idle
+    t =     4.55s Terminate voice.notes.voice-notes:33013
+    t =     5.61s Open voice.notes.voice-notes
+    t =     5.62s     Launch voice.notes.voice-notes
+    t =     5.83s         Setting up automation session
+    t =     7.25s         Wait for voice.notes.voice-notes to idle
+    t =     9.13s Waiting 2.0s for "Allow" Button to exist
+    t =    10.16s     Checking `Expect predicate `existsNoRetry == 1` for object "Allow" Button`
+    t =    10.16s         Checking existence of `"Allow" Button`
+    t =    10.20s         Capturing element debug description
+    t =    11.13s     Checking `Expect predicate `existsNoRetry == 1` for object "Allow" Button`
+    t =    11.13s         Checking existence of `"Allow" Button`
+    t =    11.15s         Capturing element debug description
+    t =    11.15s     Checking existence of `"Allow" Button`
+    t =    11.17s Collecting debug information to assist test failure triage
+    t =    11.17s     Requesting snapshot of accessibility hierarchy for app with pid 29511
+    t =    11.21s Waiting 2.0s for "Continue without account" Button to exist
+    t =    12.24s     Checking `Expect predicate `existsNoRetry == 1` for object "Continue without account" Button`
+    t =    12.24s         Checking existence of `"Continue without account" Button`
+    t =    12.34s         Capturing element debug description
+    t =    13.21s     Checking `Expect predicate `existsNoRetry == 1` for object "Continue without account" Button`
+    t =    13.21s         Checking existence of `"Continue without account" Button`
+    t =    13.24s         Capturing element debug description
+    t =    13.24s     Checking existence of `"Continue without account" Button`
+    t =    13.26s Collecting debug information to assist test failure triage
+    t =    13.26s     Requesting snapshot of accessibility hierarchy for app with pid 33033
+    t =    13.29s Checking existence of `"Debug: Skip to signed in" Button`
+    t =    13.30s Waiting 2.0s for Button (First Match) to exist
+    t =    14.34s     Checking `Expect predicate `existsNoRetry == 1` for object Button (First Match)`
+    t =    14.34s         Checking existence of `Button (First Match)`
+    t =    14.37s Find the Button (First Match)
+    t =    14.39s Tap "Standup with Lena, 3:55 PM · 6m · Pricing" Button
+    t =    14.39s     Wait for voice.notes.voice-notes to idle
+    t =    14.39s     Find the "Standup with Lena, 3:55 PM · 6m · Pricing" Button
+    t =    14.41s     Check for interrupting elements affecting "Standup with Lena, 3:55 PM · 6m · Pricing" Button
+    t =    14.43s     Synthesize event
+    t =    14.72s     Wait for voice.notes.voice-notes to idle
+    t =    14.99s Waiting 5.0s for "Note options" Button to exist
+    t =    16.02s     Checking `Expect predicate `existsNoRetry == 1` for object "Note options" Button`
+    t =    16.02s         Checking existence of `"Note options" Button`
+    t =    16.09s Tap "Note options" Button
+    t =    16.09s     Wait for voice.notes.voice-notes to idle
+    t =    16.09s     Find the "Note options" Button
+    t =    16.12s     Check for interrupting elements affecting "Note options" Button
+    t =    16.16s     Synthesize event
+    t =    16.46s     Wait for voice.notes.voice-notes to idle
+    t =    17.65s Tap "addAgentResult" Button
+    t =    17.65s     Wait for voice.notes.voice-notes to idle
+    t =    17.66s     Find the "addAgentResult" Button
+    t =    17.72s     Check for interrupting elements affecting "addAgentResult" Button
+    t =    17.77s     Synthesize event
+    t =    18.06s     Wait for voice.notes.voice-notes to idle
+    t =    19.28s Waiting 5.0s for "agentResultReport" TextView to exist
+    t =    20.31s     Checking `Expect predicate `existsNoRetry == 1` for object "agentResultReport" TextView`
+    t =    20.31s         Checking existence of `"agentResultReport" TextView`
+    t =    20.37s Tap "agentResultReport" TextView
+    t =    20.37s     Wait for voice.notes.voice-notes to idle
+    t =    20.37s     Find the "agentResultReport" TextView
+    t =    20.41s     Check for interrupting elements affecting "agentResultReport" TextView
+    t =    20.45s     Synthesize event
+    t =    20.75s     Wait for voice.notes.voice-notes to idle
+    t =    21.27s Type 'Marco said the onb...' into "agentResultReport" TextView
+    t =    21.27s     Wait for voice.notes.voice-notes to idle
+    t =    21.66s     Find the "agentResultReport" TextView
+    t =    21.73s     Check for interrupting elements affecting "agentResultReport" TextView
+    t =    21.78s     Synthesize event
+    t =    23.36s     Wait for voice.notes.voice-notes to idle
+    t =    23.36s Tap "saveAgentResult" Button
+    t =    23.36s     Wait for voice.notes.voice-notes to idle
+    t =    23.36s     Find the "saveAgentResult" Button
+    t =    23.42s     Check for interrupting elements affecting "saveAgentResult" Button
+    t =    23.47s     Synthesize event
+    t =    23.77s     Wait for voice.notes.voice-notes to idle
+    t =    24.53s Waiting 5.0s for "agentResultError" StaticText to exist
+    t =    25.55s     Checking `Expect predicate `existsNoRetry == 1` for object "agentResultError" StaticText`
+    t =    25.55s         Checking existence of `"agentResultError" StaticText`
+    t =    25.61s Find the "agentResultReport" TextView
+    t =    25.66s Find the "saveAgentResult" Button
+    t =    25.80s Added attachment named 'FounderAgentResultSaveFailure'
+    t =    25.80s Tear Down
+Test Case '-[voice_notes_UITests.ScreenshotTests testFounderAgentResultReadOnlyFailure]' passed (26.152 seconds).
+Test Suite 'ScreenshotTests' passed at 2026-10-08 16:13:24.349.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 171.578 (171.584) seconds
+Test Suite 'voice notes UITests.xctest' passed at 2026-10-08 16:13:24.351.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 171.578 (171.585) seconds
+Test Suite 'Selected tests' passed at 2026-10-08 16:13:24.351.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 171.578 (171.599) seconds
+2026-10-08 16:13:24.871 xcodebuild[29388:3983788] [MT] IDETestOperationsObserverDebug: 459.780 elapsed -- Testing started completed.
+2026-10-08 16:13:24.874 xcodebuild[29388:3983788] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-10-08 16:13:24.874 xcodebuild[29388:3983788] [MT] IDETestOperationsObserverDebug: 459.780 sec, +459.780 sec -- end
+
+Test session results, code coverage, and logs:
+	/tmp/eeon-native-claude/.build/full-report-result.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

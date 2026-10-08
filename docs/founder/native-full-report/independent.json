@@ -1,0 +1,38 @@
+{
+  "passed": true,
+  "checks": {
+    "exactly_one_new_note": true,
+    "original_12_note_fields_unchanged": true,
+    "full_4_action_rows_unchanged": true,
+    "projects_unchanged": true,
+    "full_report_verbatim_including_trailing_newline": true,
+    "explicit_project_matches_source": true,
+    "annotation_source_exact": true,
+    "result_title_correct": true
+  },
+  "store": "/Users/shawncarpenter/Library/Developer/CoreSimulator/Devices/500C672F-D33A-485F-AAA5-4E38F59FD3AF/data/Containers/Shared/AppGroup/C18488CF-023B-4059-8871-53DE45D26069/Library/Application Support/default.store",
+  "originalNotes": 12,
+  "tasks": 4,
+  "newResults": 1,
+  "reportCharacters": 3918,
+  "reportSha256": "789c7fe96a51f7eddb993688823cc44957ea9e02fd24372f3234ebacaf401553",
+  "resultReportSha256": "789c7fe96a51f7eddb993688823cc44957ea9e02fd24372f3234ebacaf401553",
+  "runtime": {
+    "passedTests": 2,
+    "failedTests": 0,
+    "device": "iPhone 16 Pro simulator",
+    "os": "26.2 (23C52)",
+    "observedLog": "Save followed by termination/relaunch and result source control lookup; readonly save failure with editor value checked."
+  },
+  "screenshots": {
+    "saved": "Actual post-relaunch title, source link and report beginning visible; full offscreen portion proven via direct DB equality.",
+    "failure": "Permission error and retained short draft visible with keyboard and Save result."
+  },
+  "limits": [
+    "No failed-draft relaunch",
+    "No CloudKit/physical device/OAuth/release",
+    "No full-report next brief",
+    "Source control existence only; no source tap in this run",
+    "Report source IDs are from earlier packet; current source association does not validate citations"
+  ]
+}

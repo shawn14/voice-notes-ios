@@ -1,0 +1,22 @@
+{
+  "actualQATrailingNewlineLossRejected": true,
+  "redExit": 1,
+  "redReason": "AssertionError: Returned actual report changed",
+  "exactOriginalRestoredInFinally": true,
+  "restoredGreen": {
+    "passed": true,
+    "method": "actual QA SQLite versus real pre-save snapshot",
+    "sourceID": "c2b45b62-b5d2-4ae9-90e1-b4c59c01b3ce",
+    "resultID": "c102f8a5-0abc-4726-b643-82e9b90e87ce",
+    "originalNotesUnchanged": 12,
+    "taskRowsUnchanged": 4,
+    "resultCount": 1,
+    "projectName": "EEON",
+    "explicitProjectIDExercised": true,
+    "exactActualReportExcerpt": false,
+    "exactActualFullReport": true,
+    "nextBriefChecked": false,
+    "nextBriefSourceIDs": [],
+    "scope": "seeded simulator full report; no physical recording, CloudKit sync, connector writes or production release"
+  }
+}
