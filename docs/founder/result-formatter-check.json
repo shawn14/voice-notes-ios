@@ -1,0 +1,10 @@
+{
+  "blankAndOversizeRejected" : true,
+  "method" : "actual production helper with actual native-agent report and copied source packet",
+  "passed" : true,
+  "reportCharacters" : 3918,
+  "scope" : "formatter only; no native UI or SwiftData persistence proof",
+  "sourceAnnotationRoundTrip" : true,
+  "sourceID" : "B77B8019-1129-4B4B-917E-53D30872C5BB",
+  "verbatimReport" : true
+}

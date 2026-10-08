@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import SwiftData
 
 struct AgentHandoffView: View {
     @Environment(\.dismiss) private var dismiss
@@ -74,5 +75,63 @@ struct AgentHandoffView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
         }
+    }
+}
+
+/// Explicit reviewed paste; no connector write, extraction or task mutations.
+struct AgentResultView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    let source: Note
+    @State private var report = ""
+    @State private var saveError: String?
+    @State private var saving = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Save the report from your agent beside this note.")
+                Text(source.displayTitle).font(.headline)
+                Text("Claims remain agent-reported. Your original capture and task status stay unchanged.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                TextEditor(text: $report)
+                    .accessibilityIdentifier("agentResultReport")
+                    .overlay(Rectangle().stroke(.secondary.opacity(0.3)))
+                if let saveError { Text(saveError).foregroundStyle(.red).accessibilityIdentifier("agentResultError") }
+            }
+            .padding()
+            .navigationTitle("Add agent result")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save result") { save() }
+                        .disabled(saving || report.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityIdentifier("saveAgentResult")
+                }
+            }
+        }
+        .interactiveDismissDisabled(saving)
+    }
+
+    private func save() {
+        guard !saving else { return }
+        saving = true
+        defer { saving = false }
+        do {
+            let draft = try AgentResultDraft(sourceID: source.id, sourceTitle: source.displayTitle, report: report)
+            let result = Note(title: draft.title, content: draft.content, projectId: source.projectId)
+            result.inferredProjectName = source.inferredProjectName
+            result.sourceType = .derived
+            result.annotation = draft.annotation
+            modelContext.insert(result)
+            do { try modelContext.save() }
+            catch {
+                // Remove only this attempted insert; do not roll back other edits.
+                modelContext.delete(result)
+                throw error
+            }
+            dismiss()
+        } catch { saveError = error.localizedDescription }
     }
 }

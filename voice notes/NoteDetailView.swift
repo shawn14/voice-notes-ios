@@ -151,6 +151,7 @@ struct NoteDetailView: View {
     @State private var showCopiedFeedback = false
     @State private var agentCopyMessage: String?
     @State private var showingAgentHandoff = false
+    @State private var showingAgentResult = false
 
     // Paywall for PRO rewrite templates
     @State private var showingPaywall = false
@@ -434,6 +435,13 @@ struct NoteDetailView: View {
                             Label("Prepare Agent Brief", systemImage: "sparkle.magnifyingglass")
                         }
 
+                        Button {
+                            showingAgentResult = true
+                        } label: {
+                            Label("Add Agent Result", systemImage: "arrow.down.doc")
+                        }
+                        .accessibilityIdentifier("addAgentResult")
+
                         // Free, like Pocket's: it's the demo that sells the rest.
                         Button {
                             showingMindMap = true
@@ -544,6 +552,9 @@ struct NoteDetailView: View {
         }
         .sheet(isPresented: $showingAgentHandoff) {
             AgentHandoffView(brief: makeAgentBrief())
+        }
+        .sheet(isPresented: $showingAgentResult) {
+            AgentResultView(source: note)
         }
         .sheet(isPresented: $showingShareSheet) {
             ShareNoteView(note: note)
@@ -965,6 +976,16 @@ struct NoteDetailView: View {
                     }
                     .foregroundStyle(.blue)
                 }
+            }
+
+            if let source = agentResultSource {
+                NavigationLink(destination: NoteDetailView(note: source)) {
+                    Label("Open source note", systemImage: "arrow.turn.up.left")
+                }
+                .accessibilityIdentifier("agentResultSource")
+            } else if AgentResultDraft.sourceID(annotation: note.annotation) != nil {
+                Text("Source note is unavailable or in Recently Deleted.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             // Annotation if present
@@ -1560,6 +1581,13 @@ struct NoteDetailView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    private var agentResultSource: Note? {
+        guard let sourceID = AgentResultDraft.sourceID(annotation: note.annotation), sourceID != note.id else { return nil }
+        var descriptor = FetchDescriptor<Note>(predicate: #Predicate { $0.id == sourceID })
+        descriptor.fetchLimit = 1
+        return libraryVisibleNotes((try? modelContext.fetch(descriptor)) ?? []).first
     }
 
     private func makeAgentBrief() -> AgentHandoffBrief {

@@ -555,6 +555,46 @@ final class ScreenshotTests: XCTestCase {
         snapshot("FounderAgentBrief")
     }
 
+    /// A verbatim excerpt of the actual native agent report, not invented work.
+    func testFounderAgentResult() throws {
+        dismissGatesIfNeeded()
+        XCTAssertTrue(tapSeededNote(), "Seeded source missing")
+        let options = app.buttons["Note options"]
+        guard options.waitForExistence(timeout: 5) else {
+            keep("ResultSourceNavigationFailure")
+            XCTFail(app.debugDescription)
+            return
+        }
+        options.tap()
+        app.buttons["addAgentResult"].tap()
+        let editor = app.textViews["agentResultReport"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        let save = app.buttons["saveAgentResult"]
+        XCTAssertFalse(save.isEnabled, "Blank result must not save")
+        let report = #"""
+## Reported Completion From Notes
+- Marco said the onboarding copy is done.
+
+This is recorded as a note statement only. The actual onboarding copy was not included in the packet, so it was not independently verified or inserted.
+"""#
+        editor.tap()
+        editor.typeText(report)
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: editor)
+        XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 5), .completed, "Successful save should close editor")
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "-SeedScreenshotData" }
+        app.launch()
+        dismissGatesIfNeeded()
+        let result = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Agent result: Standup with Lena")).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 5), "Saved result must survive relaunch")
+        result.tap()
+        XCTAssertTrue(anyElement(labelContaining: "Agent-reported result").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["agentResultSource"].waitForExistence(timeout: 5), "Result must retain a source link")
+        keep("FounderAgentResult")
+    }
+
     func testHomeOnly() throws {
         sleep(3)
         snapshot("Home")

@@ -101,3 +101,39 @@ struct AgentHandoffBrief {
         return result
     }
 }
+
+/// Returned work stays a report, not a task completion or original capture.
+struct AgentResultDraft {
+    enum ValidationError: LocalizedError {
+        case empty, tooLong
+        var errorDescription: String? {
+            switch self {
+            case .empty: return "Paste an agent result before saving."
+            case .tooLong: return "This result is too long. Keep the report under 100,000 characters and link to larger artifacts."
+            }
+        }
+    }
+    let sourceID: UUID
+    let sourceTitle: String
+    let report: String
+    init(sourceID: UUID, sourceTitle: String, report: String) throws {
+        guard !report.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ValidationError.empty }
+        guard report.count <= 100_000 else { throw ValidationError.tooLong }
+        self.sourceID = sourceID
+        self.sourceTitle = sourceTitle
+        self.report = report
+    }
+    var title: String { "Agent result: " + sourceTitle }
+    var annotation: String {
+        "Agent-reported result\nSource note ID: " + sourceID.uuidString
+    }
+    var content: String {
+        "Agent-reported result. Saving this report does not independently verify its claims or complete tasks.\nSource note ID: " + sourceID.uuidString + "\n\n## Agent report\n" + report
+    }
+    static func sourceID(annotation: String?) -> UUID? {
+        guard let annotation else { return nil }
+        let lines = annotation.components(separatedBy: "\n")
+        guard lines.count == 2, lines[0] == "Agent-reported result", lines[1].hasPrefix("Source note ID: ") else { return nil }
+        return UUID(uuidString: String(lines[1].dropFirst("Source note ID: ".count)))
+    }
+}

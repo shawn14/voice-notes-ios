@@ -1,0 +1,15 @@
+{
+  "blankAndOversizeRejected": true,
+  "extraChecks": "Independent exact-content, unicode/whitespace, malformed annotation and boundary checks passed",
+  "helperSHA256": "d2ea6736c49a1568d52862e4f02620ecbc7a5eee8e41b061676ea72105f7a743",
+  "independent": true,
+  "limitation": "Formatter only; native UI, SwiftData save/failure handling and project linking remain untested.",
+  "method": "actual production helper with actual native-agent report and copied source packet",
+  "passed": true,
+  "reportCharacters": 3918,
+  "reportSHA256": "789c7fe96a51f7eddb993688823cc44957ea9e02fd24372f3234ebacaf401553",
+  "scope": "formatter only; no native UI or SwiftData persistence proof",
+  "sourceAnnotationRoundTrip": true,
+  "sourceID": "B77B8019-1129-4B4B-917E-53D30872C5BB",
+  "verbatimReport": true
+}

@@ -35,4 +35,14 @@ Requires an explicit result-only schema, source/project ownership checks, duplic
 2. Drive actual copied-packet/handoff-result.md through the real save path in a disposable app, then relaunch and read source/project association and exact report from SwiftData. Reject blank input; force a save error and retain draft; save must leave original note and task status untouched.
 3. Fresh verifier checks real persisted result plus next handoff retrieval. Update standing UI proof and source receipts, then consider release scope separately.
 
-No return UI, persistence proof, write scope, schema migration, new service, main merge or release has been performed by this design.
+## Local implementation checkpoint
+
+Reviewed paste is implemented provisionally as the first local slice while Shawn's optional preference is unanswered. Source Note options opens Add agent result. AgentResultView creates a separate derived note, copies explicit projectId and inferredProjectName, and preserves the pasted report with a visible agent-reported disclaimer. Stable source metadata uses the existing annotation field; its exact two-line format round-trips through AgentResultDraft.sourceID. The result's title section can open its surviving visible source by UUID; deleted/missing source is labeled unavailable. No model schema changed.
+
+Save uses a throwing ModelContext.save, removes only its attempted insert on failure, and retains the editor/report. No extraction, embedding, background execution, publishing or task-completion call is added.
+
+The actual formatter compiled and preserved the3918character real Codex report from copied-packet/handoff-result.md, including its original browser-proof limitation. Blank/oversize inputs were rejected; exact source annotation round-tripped. Receipt result-formatter-check.json. This is formatter evidence only. SwiftUI/UITest source syntax parses; app type checking, native save/failure/relaunch, project readback and source navigation are not proven.
+
+Standing native test ScreenshotTests.testFounderAgentResult uses a verbatim excerpt of that real report, checks blank save disabled, saves, relaunches without reseeding, and checks result/source link. It has not run. Disk is12.88GiB, below the15GiB heavy-build reserve; no build was started.
+
+No connector write scope, schema migration, new service, main merge or release has been performed.
