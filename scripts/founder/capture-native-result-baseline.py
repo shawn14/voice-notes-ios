@@ -27,4 +27,11 @@ while time.monotonic()<end:
         finally:
             if c:c.close()
     time.sleep(2)
+# On failure retain runtime flag/outcome diagnostics, never a post-save baseline.
+apps=Path.home()/'Library/Developer/CoreSimulator/Devices'/device/'data/Containers/Data/Application'
+for receipt in apps.glob('*/Library/Caches/FounderFixtureEvents.json'):
+    try:
+        events=json.loads(receipt.read_text())
+        print(json.dumps({'fixtureDiagnosticPath':str(receipt),'events':events[-20:]},indent=2))
+    except (OSError,ValueError,TypeError):pass
 raise SystemExit('No pre-save baseline captured; do not substitute a post-save snapshot')

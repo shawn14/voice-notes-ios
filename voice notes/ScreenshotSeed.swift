@@ -23,6 +23,7 @@ enum ScreenshotSeed {
     /// Idempotent — only seeds on a fresh container.
     @MainActor
     static func seedIfNeeded(in context: ModelContext) {
+        recordFounderFixtureEvent("seed-entry")
         guard ProcessInfo.processInfo.arguments.contains("-SeedScreenshotData") else { return }
         // Before the idempotency guard: an earlier run's founder notes must
         // not stop the audio note from being seeded.
@@ -49,6 +50,7 @@ enum ScreenshotSeed {
     private static func seedExplicitFounderProjectIfNeeded(in context: ModelContext) {
         #if targetEnvironment(simulator)
         let args = ProcessInfo.processInfo.arguments
+        recordFounderFixtureEvent("project-gate")
         guard args.contains("-UITestMode"), args.contains("-SeedFounderExplicitProject") else { return }
         do {
             let projects = try context.fetch(FetchDescriptor<Project>())
@@ -70,7 +72,36 @@ enum ScreenshotSeed {
                 context.insert(other)
             }
             try context.save()
-        } catch { print("[FounderProjectProof] Seed failed: \(error)") }
+            recordFounderFixtureEvent("project-save", fields: ["intendedProjectID": intended.id.uuidString, "otherProjectID": sameNameOther.id.uuidString, "assignedSources": notes.filter { sourceTitles.contains($0.title) }.count])
+        } catch {
+            let failure = error as NSError
+            recordFounderFixtureEvent("project-error", fields: ["errorDomain": failure.domain, "errorCode": failure.code])
+            print("[FounderProjectProof] Seed failed: \(error)")
+        }
+        #endif
+    }
+
+    /// Bounded QA receipts: flag booleans and fixture outcome only, never note
+    /// text, all launch arguments, credentials, or physical/release diagnostics.
+    private static func recordFounderFixtureEvent(_ stage: String, fields: [String: Any] = [:]) {
+        #if targetEnvironment(simulator)
+        let args = ProcessInfo.processInfo.arguments
+        var event = fields
+        event["stage"] = stage
+        event["time"] = ISO8601DateFormatter().string(from: Date())
+        event["pid"] = ProcessInfo.processInfo.processIdentifier
+        event["uiTestMode"] = args.contains("-UITestMode")
+        event["seedScreenshotData"] = args.contains("-SeedScreenshotData")
+        event["explicitProject"] = args.contains("-SeedFounderExplicitProject")
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+        let file = caches.appendingPathComponent("FounderFixtureEvents.json")
+        do {
+            try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
+            var events = (try? Data(contentsOf: file)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [[String: Any]] } ?? []
+            events.append(event)
+            let data = try JSONSerialization.data(withJSONObject: Array(events.suffix(20)), options: [.sortedKeys])
+            try data.write(to: file, options: .atomic)
+        } catch { print("[FounderProjectProof] Diagnostic write failed") }
         #endif
     }
 
