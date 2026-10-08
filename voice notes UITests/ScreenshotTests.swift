@@ -521,6 +521,31 @@ final class ScreenshotTests: XCTestCase {
         keep("EditedTranscript")
     }
 
+    func testFounderAgentBrief() throws {
+        dismissGatesIfNeeded()
+        XCTAssertTrue(tapSeededNote(), "Seeded note not found")
+        let prepare = app.buttons["prepareAgentBrief"]
+        XCTAssertTrue(prepare.waitForExistence(timeout: 5))
+        prepare.tap()
+        let request = app.textViews["agentHandoffRequest"]
+        XCTAssertTrue(request.waitForExistence(timeout: 5))
+        app.buttons["Build"].tap()
+        XCTAssertTrue((request.value as? String ?? "").contains("Implement the idea"))
+        request.tap()
+        request.press(forDuration: 1.2)
+        let selectAll = app.menuItems["Select All"]
+        if selectAll.waitForExistence(timeout: 2) { selectAll.tap() }
+        request.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: (request.value as? String ?? "").count))
+        request.typeText("Build a landing page for this project")
+        app.buttons["Draft"].tap()
+        XCTAssertEqual(request.value as? String, "Build a landing page for this project")
+        let copy = app.buttons["copyAgentBrief"]
+        XCTAssertTrue(copy.isHittable)
+        copy.tap()
+        XCTAssertTrue(app.buttons["Brief copied"].waitForExistence(timeout: 3))
+        snapshot("FounderAgentBrief")
+    }
+
     func testHomeOnly() throws {
         sleep(3)
         snapshot("Home")

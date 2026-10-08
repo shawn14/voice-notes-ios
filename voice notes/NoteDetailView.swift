@@ -150,6 +150,7 @@ struct NoteDetailView: View {
     // Copy feedback
     @State private var showCopiedFeedback = false
     @State private var agentCopyMessage: String?
+    @State private var showingAgentHandoff = false
 
     // Paywall for PRO rewrite templates
     @State private var showingPaywall = false
@@ -227,6 +228,18 @@ struct NoteDetailView: View {
                         // current format (2026-08-26). See formatMenu.
                         formatMenu
                             .padding(.bottom, 12)
+
+                        Button {
+                            showingAgentHandoff = true
+                        } label: {
+                            Label("Prepare agent brief", systemImage: "arrow.up.right")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("prepareAgentBrief")
+                        .padding(.bottom, 12)
 
                         // 4. Body text (hero content)
                         noteBodySection
@@ -416,9 +429,9 @@ struct NoteDetailView: View {
                         }
 
                         Button {
-                            sendToAgent()
+                            showingAgentHandoff = true
                         } label: {
-                            Label("Send to an Agent", systemImage: "sparkle.magnifyingglass")
+                            Label("Prepare Agent Brief", systemImage: "sparkle.magnifyingglass")
                         }
 
                         // Free, like Pocket's: it's the demo that sells the rest.
@@ -528,6 +541,9 @@ struct NoteDetailView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("You can restore it for 30 days from Recently Deleted (in Settings or at the bottom of All Notes).")
+        }
+        .sheet(isPresented: $showingAgentHandoff) {
+            AgentHandoffView(brief: makeAgentBrief())
         }
         .sheet(isPresented: $showingShareSheet) {
             ShareNoteView(note: note)
@@ -1546,21 +1562,33 @@ struct NoteDetailView: View {
         .padding(.top, 4)
     }
 
-    /// Copies a prompt that makes Claude Code / Codex / Cursor read this exact
-    /// note through the EEON connector and act on it.
-    private func sendToAgent() {
-        let title = note.title.isEmpty ? "Untitled note" : note.title
-        UIPasteboard.general.string = "Use the EEON connector: call get_note with id \(note.id.uuidString) (\"\(title)\"), read it, and do what the note says."
-        agentCopyMessage = AIAccessService.shared.isConnected
-            ? "Copied — paste into your agent"
-            : "Copied — connect in Settings → AI agents first"
-        withAnimation { showCopiedFeedback = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-            withAnimation {
-                showCopiedFeedback = false
-                agentCopyMessage = nil
-            }
+    private func makeAgentBrief() -> AgentHandoffBrief {
+        func source(_ item: Note) -> AgentHandoffSource {
+            AgentHandoffSource(id: item.id, title: item.displayTitle,
+                               text: item.enhancedNoteText ?? item.transcript ?? item.content,
+                               date: item.createdAt)
         }
+        let project = allProjects.first { $0.id == note.projectId && !$0.isArchived }
+        let projectName = project?.name ?? note.inferredProjectName
+        var descriptor: FetchDescriptor<Note>?
+        if let projectId = project?.id {
+            descriptor = FetchDescriptor<Note>(
+                predicate: #Predicate { $0.projectId == projectId },
+                sortBy: [SortDescriptor(\Note.createdAt, order: .reverse)])
+        } else if let name = projectName, !name.isEmpty {
+            descriptor = FetchDescriptor<Note>(
+                predicate: #Predicate { $0.inferredProjectName == name },
+                sortBy: [SortDescriptor(\Note.createdAt, order: .reverse)])
+        }
+        var related: [Note] = []
+        if var descriptor {
+            descriptor.fetchLimit = 20
+            related = libraryVisibleNotes((try? modelContext.fetch(descriptor)) ?? [])
+                .filter { $0.id != note.id }
+        }
+        return AgentHandoffBrief(primary: source(note), project: project?.name ?? note.inferredProjectName,
+                                 related: Array(related.prefix(8)).map(source),
+                                 connected: AIAccessService.shared.isConnected)
     }
 
     private func copyNoteText() {

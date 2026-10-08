@@ -1,0 +1,20 @@
+PASS phone one-tap connect returns a primary token
+PASS phone mirror upload notes=1
+PASS no-token initialize → 401 + WWW-Authenticate
+PASS protected resource metadata names the auth server
+PASS auth server metadata: S256 + registration
+PASS dynamic client registration
+PASS registration rejects javascript: redirect
+PASS authorize page shows client name, QR and code
+PASS authorize refuses an unregistered redirect_uri
+PASS browser waits while phone has not approved
+PASS phone sees which agent is asking
+PASS phone approves (code typed lowercase with dash)
+PASS browser is sent back to the agent with code + state
+PASS token exchange with PKCE verifier
+PASS authorization code is single-use
+PASS agent token: search_memory finds the phone note
+PASS agent token: get_note returns the text
+PASS agent token cannot write the mirror
+PASS phone status lists the agent and its last read
+PASS after Disconnect the agent token is refused
