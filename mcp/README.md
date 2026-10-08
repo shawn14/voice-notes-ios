@@ -69,3 +69,5 @@ A client with stdio MCP support can launch that command. The export must already
 - `vault_status`
 
 `list_articles`, `get_article`, `open_loops`, and `people` work in CloudKit mode and in the markdown fallback. CloudKit mode maps private `CD_Note` records plus compiled `CD_KnowledgeArticle` records into the same read-only memory document shape.
+
+Native Gemini probe: `node test/hosted-client.mjs https://www.eeon.com --native-gemini --receipt-dir=<absolute-folder>`. Uses isolated Gemini storage and privately reuses existing Google OAuth login. Current native attempt is blocked by Google client eligibility before any source/task call; see `../docs/founder/native-gemini/`. This is not a compatibility pass.

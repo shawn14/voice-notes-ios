@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -89,9 +89,10 @@ try {
   assert(!note.isError)
   assert(JSON.stringify(note).includes('Keep unfinished work distinct'))
   pass('SDK search and get_note read the real mirrored source')
-  if (process.argv.includes('--native-codex') || process.argv.includes('--native-claude')) {
+  if (process.argv.includes('--native-codex') || process.argv.includes('--native-claude') || process.argv.includes('--native-gemini')) {
     const isClaude = process.argv.includes('--native-claude')
-    const agentName = isClaude ? 'Claude Code' : 'Codex'
+    const isGemini = process.argv.includes('--native-gemini')
+    const agentName = isClaude ? 'Claude Code' : isGemini ? 'Gemini CLI' : 'Codex'
     const workspace = await mkdtemp(join(tmpdir(), 'eeon-codex-proof-'))
     try {
       let args = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'workspace-write', '--json',
@@ -104,7 +105,22 @@ try {
         await writeFile(configPath, JSON.stringify({ mcpServers: { eeon: { type: 'http', url: url.toString(), headers: { Authorization: `Bearer ${tokens.access_token}` } } } }), { mode: 0o600 })
         args = ['--print', '--restricted', '--strict-mcp-config', '--mcp-config', configPath, '--no-session-persistence', '--output-format', 'stream-json', '--verbose', '--tools', 'Write', '--allowedTools', 'mcp__eeon__get_note,Write']
       }
-      const child = spawn(isClaude ? 'claude' : 'codex', args, { cwd: workspace, env: { ...process.env, EEON_PROOF_AGENT_TOKEN: tokens.access_token }, stdio: ['pipe', 'pipe', 'pipe'] })
+      let geminiHome
+      if (isGemini) {
+        geminiHome = join(workspace, '.agent-home')
+        const configDir = join(geminiHome, '.gemini')
+        await mkdir(configDir, { recursive: true, mode: 0o700 })
+        // Reuse existing Google login privately; isolate all settings/session writes.
+        await writeFile(join(configDir, 'oauth_creds.json'), await readFile(join(homedir(), '.gemini', 'oauth_creds.json')), { mode: 0o600 })
+        await writeFile(join(configDir, 'settings.json'), JSON.stringify({
+          security: { auth: { selectedType: 'oauth-personal' } },
+          tools: { core: ['write_file'], allowed: ['write_file', 'mcp_eeon_get_note'] },
+          mcp: { allowed: ['eeon'] },
+          mcpServers: { eeon: { httpUrl: url.toString(), headers: { Authorization: `Bearer ${tokens.access_token}` }, includeTools: ['get_note'], trust: true } }
+        }), { mode: 0o600 })
+        args = ['--prompt', 'Complete the integration test described on stdin.', '--skip-trust', '--approval-mode', 'auto_edit', '--output-format', 'stream-json', '--allowed-mcp-server-names', 'eeon']
+      }
+      const child = spawn(isClaude ? 'claude' : isGemini ? 'gemini' : 'codex', args, { cwd: workspace, env: { ...process.env, EEON_PROOF_AGENT_TOKEN: tokens.access_token, ...(geminiHome ? { GEMINI_CLI_HOME: geminiHome } : {}) }, stdio: ['pipe', 'pipe', 'pipe'] })
       let events = '', diagnostics = ''
       child.stdout.on('data', data => { events += data })
       child.stderr.on('data', data => { diagnostics += data })
@@ -113,13 +129,17 @@ try {
       child.stdin.end(`Use the EEON MCP get_note tool to read note ID ${noteId}. Then create launch-plan.md in this workspace from that source. Include the project name, a practical next step, and a section explicitly separating unfinished work from completed work. Do not access other notes, contact anyone, publish, deploy, or run external services. Do not claim anything was completed merely because it appears in the note. This is a disposable integration test. Report the source note ID and output path.`)
       let code
       try { code = await completed } finally { clearTimeout(timeout) }
-      assert.equal(code, 0, `Native ${agentName} exits successfully (diagnostics withheld to avoid credential leakage)`)
       const records = events.split('\n').filter(Boolean).map(line => JSON.parse(line))
       const receiptDir = process.argv.find(arg => arg.startsWith('--receipt-dir='))?.slice('--receipt-dir='.length)
       const redact = value => value.replaceAll(tokens.access_token, '[REDACTED]').replaceAll(primary, '[REDACTED]').replaceAll(verifier, '[REDACTED]')
-      const trace = isClaude ? records.filter(record => ['assistant', 'user', 'result'].includes(record.type)).map(record => JSON.parse(redact(JSON.stringify(record)))) : records.map(record => ({ type: record.type, item: record.item ? { type: record.item.type, status: record.item.status, server: record.item.server, tool: record.item.tool, arguments: record.item.type === 'mcp_tool_call' ? JSON.parse(redact(JSON.stringify(record.item.arguments ?? {}))) : undefined, result: record.item.type === 'mcp_tool_call' ? JSON.parse(redact(JSON.stringify(record.item.result ?? {}))) : undefined, error: record.item.error, text: record.item.type === 'agent_message' ? redact(record.item.text ?? '') : undefined } : undefined }))
+      if (receiptDir) { await mkdir(receiptDir, { recursive: true }); await writeFile(join(receiptDir, 'native-diagnostics.txt'), redact(diagnostics), { mode: 0o600 }) }
+      assert.equal(code, 0, `Native ${agentName} exits successfully (diagnostics saved privately when receipt-dir supplied)`)
+      const trace = isGemini ? records.map(record => JSON.parse(redact(JSON.stringify(record)))) : isClaude ? records.filter(record => ['assistant', 'user', 'result'].includes(record.type)).map(record => JSON.parse(redact(JSON.stringify(record)))) : records.map(record => ({ type: record.type, item: record.item ? { type: record.item.type, status: record.item.status, server: record.item.server, tool: record.item.tool, arguments: record.item.type === 'mcp_tool_call' ? JSON.parse(redact(JSON.stringify(record.item.arguments ?? {}))) : undefined, result: record.item.type === 'mcp_tool_call' ? JSON.parse(redact(JSON.stringify(record.item.result ?? {}))) : undefined, error: record.item.error, text: record.item.type === 'agent_message' ? redact(record.item.text ?? '') : undefined } : undefined }))
       if (receiptDir) { await mkdir(receiptDir, { recursive: true }); await writeFile(join(receiptDir, 'native-trace.json'), JSON.stringify(trace, null, 2)) }
-      if (isClaude) {
+      if (isGemini) {
+        const uses = records.filter(record => record.type === 'tool_use' && /(?:^|_)get_note$/.test(record.tool_name) && record.parameters?.id === noteId)
+        assert(uses.length && records.some(record => record.type === 'tool_result' && record.status === 'success' && uses.some(use => use.tool_id === record.tool_id)), 'Native Gemini trace proves successful source tool call')
+      } else if (isClaude) {
         const uses = records.flatMap(record => record.message?.content ?? []).filter(item => item.type === 'tool_use' && item.name === 'mcp__eeon__get_note' && item.input?.id === noteId)
         const results = records.flatMap(record => record.message?.content ?? []).filter(item => item.type === 'tool_result' && !item.is_error && uses.some(use => use.id === item.tool_use_id))
         assert(uses.length && results.some(result => JSON.stringify(result).includes('Orbit')), 'Native Claude trace proves successful source tool call')

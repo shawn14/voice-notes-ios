@@ -1,0 +1,8 @@
+{
+  "artifact": "cached founder QA simulator app",
+  "signature": "ad-hoc; existing source entitlements",
+  "cloudKitEntitlement": true,
+  "iCloudContainerEntitlement": true,
+  "uiTestRerun": false,
+  "reason": "disk below15GiB build reserve; no native UI pass claim"
+}
