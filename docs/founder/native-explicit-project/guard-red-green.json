@@ -1,0 +1,27 @@
+{
+  "actualClipboardCorruptionRejected": true,
+  "redExit": 1,
+  "redReason": "AssertionError: Next brief source text differs from actual database",
+  "exactClipboardRestored": true,
+  "restoredGreen": {
+    "passed": true,
+    "method": "actual QA SQLite versus real pre-save snapshot",
+    "sourceID": "bd2fd2e2-9f91-46d7-be3b-bee6ece3a71e",
+    "resultID": "5d2dd6d6-2d7e-49a1-a0c9-8a1b7658ed21",
+    "originalNotesUnchanged": 12,
+    "taskRowsUnchanged": 4,
+    "resultCount": 1,
+    "projectName": "EEON",
+    "explicitProjectIDExercised": true,
+    "exactActualReportExcerpt": true,
+    "nextBriefChecked": true,
+    "nextBriefSourceIDs": [
+      "bd2fd2e29f9146d7be3bbee6ece3a71e",
+      "5d2dd6d62d7e49a1a0c98a1b7658ed21",
+      "3ff800eb1d4f438abee5e4c14f24a44f",
+      "0522858b349b4d3ea186d9c7450d879f",
+      "9e308e8fe5914e84a7abe950b6dc08ef"
+    ],
+    "scope": "seeded simulator excerpt; no full-report UI, physical recording, CloudKit sync, connector writes or production release"
+  }
+}

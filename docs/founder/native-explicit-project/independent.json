@@ -1,0 +1,36 @@
+{
+  "result": "pass within scope",
+  "checks": {
+    "original_12_selected_fields_unchanged": true,
+    "full_4_action_rows_unchanged": true,
+    "project_rows_unchanged": true,
+    "exactly_one_result": true,
+    "nonnull_project_inherited": true,
+    "actual_report_excerpt_verbatim": true,
+    "source_annotation_uuid": true,
+    "clipboard_exact_five_intended_ids": true,
+    "clipboard_original_excerpts_verbatim": true,
+    "result_in_next_brief": true,
+    "same_named_other_project_excluded": true
+  },
+  "observed": {
+    "notes_before": 12,
+    "notes_after": 13,
+    "actions": 4,
+    "same_named_projects": 2,
+    "clipboard_sources": 5,
+    "report_excerpt_chars": 228
+  },
+  "runtime": "iPhone 16 Pro iOS Simulator 26.2 (23C52); 2 UI tests passed in 126.163 seconds",
+  "visual_observations": [
+    "Saved result after relaunch visibly reports claims as unverified and has Open source note control.",
+    "Read-only save screenshot shows permission error, retained text, keyboard and Save result."
+  ],
+  "navigation_evidence": "Actual XCTest log taps source after terminate/relaunch, observes Standup with Lena, prepares/copies next brief; independent simctl clipboard read.",
+  "limitations": [
+    "Native saved real report excerpt, not full report.",
+    "Original note comparison covers selected baseline fields; full task rows checked.",
+    "Simulator only; no physical device, CloudKit, production, release or native OAuth.",
+    "Screens show duplicated raw UUID and unrendered Markdown."
+  ]
+}

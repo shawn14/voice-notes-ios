@@ -18,7 +18,7 @@ Independent evidence is in independent-evidence.json. guard-red-green.json recor
 
 Owned simulator/build/temp data were removed after all receipts were saved. Source and QA project are retained; no release.
 
-## Explicit project and next-handoff gate — prepared, not run
+## Explicit project and next-handoff gate — later run
 
 `testFounderAgentResultExplicitProject` uses DEBUG+simulator+UITestMode-only `-SeedFounderExplicitProject`. It creates two real SwiftData Project records both named EEON with different UUIDs, assigns the primary and three related source notes to the intended ID, and adds a same-name wrong-project note. This is reserved QA data, never a production or physical-phone fixture.
 
@@ -27,3 +27,5 @@ The flow shares the existing result-save/relaunch test, then actually taps Open 
 Run on a fresh signed disposable simulator when disk reserve is restored; focus only this explicit-project case plus ReadOnlyFailure. Use capture-native-result-baseline.py with `--require-explicit-project` so the snapshot cannot race and capture the initial unassigned seed. After both tests, verify-native-result.py with `--check-next-brief` requires real source/result IDs, unchanged original/task/project fields, two real same-name project records, exact intended-project clipboard set, exact quoted originals, and returned result included. Save actual clipboard/screens/receipts and obtain fresh independent verification before claiming this boundary passed.
 
 Only Swift source syntax and Python syntax were parsed for this extension. Neither native fixture/type checking nor either new script option has been exercised against runtime state. The previous637a0d3 proof remains inferred-project/excerpt-only and is not retroactively expanded.
+
+The later actual explicit-ID/source-link/next-brief proof is recorded separately in [native-explicit-project](../native-explicit-project/README.md). Earlier evidence in this folder remains inferred-name/excerpt only. The baseline entrypoint and extended guard were actually exercised in that later run.
