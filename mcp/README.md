@@ -1,148 +1,61 @@
-# EEON MCP
+# EEON agent access
 
-Read-only MCP server for EEON memory. The preferred source is the user's private CloudKit database; the markdown/iCloud Drive vault remains a local fallback.
+EEON is a voice and project memory source for the user's own agent. The primary connection is the hosted, URL-only OAuth connector at **https://www.eeon.com/api/mcp**. The phone uploads an opt-in encrypted text mirror; audio is not mirrored. Folder export and this local stdio package are optional data-export fallbacks.
 
-## Why CloudKit
+## Connect an agent
 
-EEON already stores notes in SwiftData backed by the private CloudKit container `iCloud.aivoiceeeon`. Apple's CloudKit Web Services support user-authenticated access to that same private database, so an AI tool can read notes after the user signs in with Apple. That avoids the confusing iPhone Files picker and works even when the phone is not near the Mac.
+On iPhone: EEON → Settings → AI agents → **Let AI agents read my notes**. Then add the hosted connector on the computer and approve the browser's QR/code from EEON. Do not paste tokens into an agent config or chat.
 
-The product model is:
+Claude Code (real terminal):
 
-- EEON for iPhone only needs private iCloud sync to be on.
-- Each AI workspace adds the EEON connector and authorizes access with Apple.
-- The connector reads the user's private CloudKit `CD_Note` records on demand.
-- Folder export is only an "Export My Data" fallback, not the primary AI connection.
+```sh
+claude mcp add --transport http eeon https://www.eeon.com/api/mcp
+claude mcp login eeon
+```
 
-CloudKit requirements:
+Codex:
 
-- Private-note access needs a CloudKit **user** token for the Apple ID that owns the EEON notes.
-- A CloudKit **management** token is useful for schema/admin work, but it cannot read private notes.
-- A CloudKit Web Services API token is only needed for the browser sign-in flow used by remote/non-local AI workspaces.
-- Production environment for App Store/TestFlight notes; development for locally installed debug builds.
+```sh
+codex mcp add eeon --url https://www.eeon.com/api/mcp
+codex mcp login eeon
+```
 
-## Build
+Gemini CLI:
 
-```bash
+```sh
+gemini mcp add --transport http eeon https://www.eeon.com/api/mcp
+```
+
+Then start Gemini and run `/mcp auth eeon`. Gemini's official docs describe OAuth for remote HTTP servers; this setup is not yet verified end to end with an actual Gemini session.
+
+Grokbot or another agent: use its supported remote MCP HTTP + OAuth client with the same URL. No Grokbot installation or authoritative client configuration was found on this Mac; do not invent commands or claim tested compatibility. If that client cannot authenticate a remote connector, use the copyable agent brief or Markdown export instead. A fallback does not provide ongoing access to the note library.
+
+## Founder workflow
+
+Capture an idea or project update. On the founder handoff branch, Note Detail → **Prepare agent brief** lets the user choose Plan, Build, Draft, or Review, edit the request, inspect the source context, and copy it into the chosen agent workspace. This native UI remains unverified until Xcode's matching iOS platform is restored. The agent reads the cited source IDs through `get_note` when connected, works in its own project workspace, and reports output, verification, and unfinished work. EEON does not implicitly start an unattended execution queue.
+
+## Verification and support status
+
+- The deployed raw OAuth lifecycle has a standing 20-check test in `v0-eeon-app-design/scripts/e2e-agent-oauth.mjs`.
+- Standard MCP SDK proof: `node mcp/test/hosted-client.mjs https://www.eeon.com`. It uses a disposable encrypted mirror, actual SDK OAuth discovery/PKCE and HTTP transport, lists tools, finds/reads the source, and revokes the connection. It never uses customer notes, saved agent settings, or model calls. A protocol pass is not a native-client pass.
+- Native Claude Code, Codex, Gemini and Grokbot execution flows need individual read-and-act receipts before advertised support. Installed CLI syntax was inspected for Claude Code2.1.294, Codex0.157.1, Gemini0.61.0 on2026-10-08.
+- A stale Authorization header disables Claude Code OAuth. Remove the stale entry and re-add URL-only. Turning AI agents off on the phone revokes agents and deletes the mirror.
+
+Official setup references: [Claude Code](https://code.claude.com/docs/en/mcp), [Codex](https://learn.chatgpt.com/docs/extend/mcp?surface=cli), [Gemini CLI](https://geminicli.com/docs/tools/mcp-server/).
+
+## Local fallback
+
+```sh
 cd mcp
-npm install
+npm ci
 npm run build
 npm test
+node dist/src/index.js --vault "<EEON export folder>"
 ```
 
-## Doctor
+A client with stdio MCP support can launch that command. The export must already exist and be current; the local server does not sync the phone. This is optional export support, not the recommended connection.
 
-Run the doctor before claiming that an AI can see EEON notes:
-
-```bash
-cd mcp
-npm run doctor
-```
-
-The doctor checks:
-
-- whether the local MCP package is built
-- whether Claude's EEON MCP entry is still pointed at the old folder export
-- whether the Mac has CloudKit management-token access
-- whether private `CD_Note` records are readable in Production and Development CloudKit
-
-It prints sample metadata only, not note bodies.
-
-## CloudKit Setup
-
-### Local Mac / `cktool`
-
-This matches the existing Apple developer-tool setup. Save a CloudKit user token for `cktool`, then run the MCP in CloudKit mode:
-
-```bash
-xcrun cktool save-token --type user
-EEON_SOURCE=cloudkit EEON_CLOUDKIT_ENVIRONMENT=production node "/Users/shawncarpenter/projects/voice notes/mcp/dist/src/index.js"
-```
-
-Check whether the MCP can see notes without printing note bodies:
-
-```bash
-EEON_SOURCE=cloudkit EEON_CLOUDKIT_ENVIRONMENT=production npm run check:cloudkit
-```
-
-If this reports that no user token is saved, the existing token is the management token, not private-note user auth.
-
-### CloudKit Web Services
-
-Create a CloudKit API token in CloudKit Console:
-
-- Container: `iCloud.aivoiceeeon`
-- Environment: `production` for TestFlight/App Store data, `development` for debug data
-- Sign In Callback URL: `http://127.0.0.1:43777/callback`
-
-Then authenticate the connector:
-
-```bash
-cd mcp
-EEON_CLOUDKIT_API_TOKEN="<api token>" EEON_CLOUDKIT_ENVIRONMENT=production npm run auth
-```
-
-Run the MCP using CloudKit Web Services:
-
-```bash
-EEON_SOURCE=cloudkit EEON_CLOUDKIT_API_TOKEN="<api token>" node "/Users/shawncarpenter/projects/voice notes/mcp/dist/src/index.js"
-```
-
-The auth command stores the Apple user token in `~/.config/eeon-mcp/cloudkit.json` with `0600` permissions. The server is read-only. It does not write CloudKit records.
-
-## Claude Code
-
-Preferred local setup:
-
-```bash
-cd mcp
-npm run build
-npm run connect:claude
-```
-
-This rewrites the project-scoped Claude MCP entry to CloudKit mode, runs Apple's interactive `cktool` user-token prompt, then runs the doctor. It removes the old `--vault` folder dependency and does not store CloudKit API tokens or note contents in Claude config. Paste CloudKit tokens only into your Terminal prompt, never into chat.
-
-If the user token is already saved, this lighter path is enough:
-
-```bash
-cd mcp
-npm run build
-npm run install:claude -- --apply
-npm run doctor
-```
-
-## Hosted Connector Direction
-
-For "AI agents anywhere," the product needs a hosted EEON connector. The iPhone app keeps syncing notes to private CloudKit. The AI client connects to EEON's hosted MCP endpoint, EEON starts Apple/CloudKit user auth, and the connector reads private `CD_Note` records on demand after the user approves access. The hosted connector must store CloudKit web auth tokens encrypted per user/workspace and rotate the token whenever Apple returns a replacement token.
-
-Apple constraints that shape the UX:
-
-- A CloudKit API token is reusable per container/environment.
-- Private database reads require user authentication.
-- CloudKit web auth tokens rotate after use and are short-lived.
-- The user still needs to approve access in Apple sign-in; there is no silent "all AIs can read iCloud" mode.
-
-CloudKit source via local `cktool` user token:
-
-```bash
-claude mcp add eeon --env EEON_SOURCE=cloudkit --env EEON_CLOUDKIT_ENVIRONMENT=production -- node "/Users/shawncarpenter/projects/voice notes/mcp/dist/src/index.js"
-```
-
-CloudKit source via Web Services:
-
-```bash
-claude mcp add eeon --env EEON_SOURCE=cloudkit --env EEON_CLOUDKIT_API_TOKEN="<api token>" --env EEON_CLOUDKIT_ENVIRONMENT=production -- node "/Users/shawncarpenter/projects/voice notes/mcp/dist/src/index.js"
-```
-
-Markdown fallback:
-
-```bash
-claude mcp add eeon -- node "/Users/shawncarpenter/projects/voice notes/mcp/dist/src/index.js" --vault "<EEON export folder>"
-```
-
-Known fallback paths:
-
-- `~/Library/Mobile Documents/iCloud~aivoiceeeon/Documents/EEON Vault`
-- `~/Library/Mobile Documents/com~apple~CloudDocs/EEON Vault`
+**Superseded:** the old primary setup through `eeon-connect-claude`, `eeon-cloudkit-install-claude`, or a pasted CloudKit user token. Those utilities remain for explicit legacy diagnostics. CloudKit management tokens cannot read private notes; rotating web-auth tokens cannot promise durable unattended access. Do not use them as the default onboarding path.
 
 ## Tools
 

@@ -18,7 +18,8 @@
     "install:claude": "node dist/src/install-claude.js",
     "connect:claude": "node dist/src/connect-claude.js",
     "build": "tsc",
-    "test": "node --test dist/test/e2e.test.js"
+    "test": "node --test dist/test/e2e.test.js",
+    "test:hosted": "node test/hosted-client.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

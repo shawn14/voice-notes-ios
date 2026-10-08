@@ -307,3 +307,8 @@
 - Isolated branch `codex/eeon-founder-handoff`: visible Note Detail handoff, editable Plan/Build/Draft/Review request, bounded recent project context, preview and clipboard copy. No schema change or product release.
 - Real deployed OAuth connector passed 20 checks with disposable data and cleanup; actual formatter check passed. Receipt and resume instructions: `docs/founder/README.md`.
 - Native UI remains unverified: Xcode cannot select iOS destinations because its iOS26.2 platform is missing. Stop on infrastructure failure; restore platform before native testing. Agent execution/result feedback remains unproven. Existing deletion fix build171 submission is separate.
+
+## 2026-10-08 — cross-agent compatibility foundation
+- Current branch `codex/eeon-founder-handoff`: replaced stale CloudKit-token primary setup with hosted URL-only OAuth; added Claude Code, Codex, Gemini CLI instructions and an honest Grokbot fallback. Added project contract `os.yaml`.
+- Actual locked MCP SDK passed7 checks against deployed EEON: disposable mirror, OAuth discovery/DCR/PKCE/approval, initialization,8 memory-tool schemas, source search/read, revocation, cleanup. Standing script `mcp/test/hosted-client.mjs`; receipt `docs/founder/sdk-proof.log`. No model calls or installed agent configuration changed.
+- Local MCP compiled and all12 existing tests passed. These are distinct from live/native proofs. Native named-client read-and-act receipts remain outstanding; app UI platform blocker persists. Details `docs/founder/AGENT-COMPATIBILITY.md`.
