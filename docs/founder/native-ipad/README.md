@@ -1,0 +1,7 @@
+# Native iPad handoff proof — 2026-10-08
+
+Actual iPad Air11-inch(M3) simulator on iOS26.2, app and runner built from founder branch using cached phone-only QA project. Existing app entitlements preserved with CODE_SIGNING_ALLOWED=YES and CODE_SIGN_IDENTITY=-. Shipping Watch configuration was not edited. The unsigned QA run was red at launch; the signed run passed testFounderAgentBrief (115.679s, exit0).
+
+Real native flow: open Standup with Lena, prepare brief, select Build, replace the request, switch to Draft while preserving the custom request, and copy. The actual simulator clipboard is saved in copied-brief.md: original transcript plus separately labeled AI rewrite, project EEON and three related project sources with UUIDs. Source access was offline; the packet honestly says agent access is disconnected. brief-screen.png shows the native sheet during the flow; test-summary.json is the actual completed Xcode result.
+
+Fresh independent live clipboard/database verification passed all10 checks. The actual installed MachO contains simulator CloudKit and app-group entitlements (simulator entitlements live in __TEXT/__entitlements; codesign blob alone is insufficient). Standing read-only clipboard/database guard: python3 scripts/founder/verify-native-clipboard.py <QA-device-UUID> <actual-default.store-path>, after the UI test. No physical-device, iPhone, connected-note, native OAuth login or release claim. Claude/Codex source-to-plan proofs are separate; this receipt does not prove an agent acted on this exact clipboard packet.

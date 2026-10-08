@@ -1,0 +1,42 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "B4919346-2C3E-45E9-A18F-7C9237BB3A28",
+        "deviceName" : "EEON Founder Signed QA",
+        "modelName" : "iPad Air 11-inch (M3)",
+        "osBuildNumber" : "23C52",
+        "osVersion" : "26.2",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 0,
+      "passedTests" : 1,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "voice notes UITests · Built with macOS 15.6",
+  "expectedFailures" : 0,
+  "failedTests" : 0,
+  "finishTime" : 1791488116.02,
+  "passedTests" : 1,
+  "result" : "Passed",
+  "skippedTests" : 0,
+  "startTime" : 1791487906.462,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+
+  ],
+  "title" : "Test - voice notes UITests",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 1
+}
