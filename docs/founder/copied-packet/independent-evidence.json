@@ -1,0 +1,27 @@
+{
+  "inputSha256": "f798b45148cb2017bb92728a93878075807fe52d3c65f544242cb287b32ede98",
+  "matchesReceipt": true,
+  "allSourceIdsInRenderedHTMLAndHandoff": true,
+  "desktop": {
+    "viewportWidth": 1440,
+    "scrollWidth": 1440,
+    "workingSurfaceTop": 145.296875,
+    "overflowElements": 0
+  },
+  "mobile": {
+    "viewportWidth": 390,
+    "scrollWidth": 390,
+    "workingSurfaceTop": 567.4921875,
+    "overflowElements": 0
+  },
+  "captureButtonsDisabled": 2,
+  "navigation": "Browse knowledge clicked; URL #knowledge; section top -0.0078125",
+  "browserWarningsAndErrors": [],
+  "iconBlue": "rgb(21, 94, 239)",
+  "sourceFidelity": "All four notes preserved; Marco completion explicitly unverified, pricing and product unknown; older layout idea labeled idea; capture design constraint represented",
+  "limitations": [
+    "Seeded offline copied packet; not physical recording or native OAuth",
+    "Standalone local draft; not main app release",
+    "Handoff says brief.md existed at agent run, but final receipt folder has no brief.md; canonical source packet hash independently matches receipt"
+  ]
+}

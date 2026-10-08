@@ -1,0 +1,95 @@
+{
+  "passed": true,
+  "views": [
+    {
+      "anchors": [
+        {
+          "exists": true,
+          "href": "#home"
+        },
+        {
+          "exists": true,
+          "href": "#knowledge"
+        },
+        {
+          "exists": true,
+          "href": "#design"
+        },
+        {
+          "exists": true,
+          "href": "#open"
+        },
+        {
+          "exists": true,
+          "href": "#knowledge"
+        }
+      ],
+      "buttons": [
+        {
+          "disabled": true,
+          "text": "Capture a note"
+        },
+        {
+          "disabled": true,
+          "text": "Capture"
+        }
+      ],
+      "draft": true,
+      "footerTop": 813,
+      "height": 900,
+      "overflow": false,
+      "unavailable": true,
+      "width": 1440,
+      "workingBottom": 177.1953125,
+      "workingTop": 145.296875
+    },
+    {
+      "anchors": [
+        {
+          "exists": true,
+          "href": "#home"
+        },
+        {
+          "exists": true,
+          "href": "#knowledge"
+        },
+        {
+          "exists": true,
+          "href": "#design"
+        },
+        {
+          "exists": true,
+          "href": "#open"
+        },
+        {
+          "exists": true,
+          "href": "#knowledge"
+        }
+      ],
+      "buttons": [
+        {
+          "disabled": true,
+          "text": "Capture a note"
+        },
+        {
+          "disabled": true,
+          "text": "Capture"
+        }
+      ],
+      "draft": true,
+      "footerTop": 757,
+      "height": 844,
+      "overflow": false,
+      "unavailable": true,
+      "width": 390,
+      "workingBottom": 631.2890625,
+      "workingTop": 567.4921875
+    }
+  ],
+  "navigation": {
+    "url": "http://127.0.0.1:48373/#knowledge",
+    "headingVisible": true
+  },
+  "errors": [],
+  "scope": "local draft browser proof; capture intentionally unavailable, no publication"
+}
