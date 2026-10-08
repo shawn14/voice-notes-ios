@@ -24,3 +24,5 @@ No SwiftData schema changes. No release or metadata upload performed for this fe
 ## Resume gate
 
 Restore Xcode's matching iOS platform, then run the focused test on a freshly enumerated iPad and iPhone. Verify clipboard contents and related-project inclusion through the native app, not just the formatter. Exercise a real consenting user's agent using the copied brief against an appropriate project workspace and record what it actually produces. Only then extend project organization or result feedback, and decide the release scope separately from main's unverified Watch changes.
+
+Independent refuter compiled and ran the actual formatter successfully and inspected all 20 connector receipt results plus the real-service script. It did not rerun the service flow. Native sheet, clipboard, project selection, and external execution remain unverified. Source delimiters are presentation, not a security boundary: an agent must continue treating captured note text as reference material.
