@@ -323,3 +323,12 @@
 - Standing option `mcp/test/hosted-client.mjs <deployed-base> --native-codex --receipt-dir=<absolute-folder>`; builder receipts `docs/founder/native-codex/`. Independent verification pending in the live check at time of checkpoint.
 - Native MCP login and app clipboard/context selection remain unproven. Claude Code auth preflight says signed out. Xcode preflight confirms26.2 SDK plus only26.5 runtime; free disk20GiB. No founder merge/release.
 - Fresh native Codex refuter reran the actual deployed read-and-plan flow: exit0, matching get_note/source artifact, no invented completions, revoked credentials401 and cleanup. Independent trace/plan saved beside builder receipts. Goal remains incomplete pending native app path, login/other client proofs and fuller project workflow.
+
+## 2026-10-08 — Claude native handoff and restored app-test environment
+- Native Claude Code2.1.294 actual get_note + source-cited plan passed in builder and fresh independent runs; receipts `docs/founder/native-claude/`. SDK-issued bearer in temporary0600 config, restricted Write/get_note, strict MCP and no session persistence. Native OAuth login remains unproven.
+- Matching iOS26.2 runtime is now installed and Claude signed in. Shawn asked to free2GB: reproducible caches cleared, measured2.08GB recovered/16.08GiB available; project/build/runtime data preserved. Disk reserve gate restored.
+- Focused native iPad brief test now running with matching26.2 runtime in disposable phone-only QA project; build not yet complete at this checkpoint. Watch shipping configuration untouched. No founder release.
+
+- QA build input repair: the ignored APIKeys link pointed to nonexistent repo-root file. Restored link to the existing voice notes/APIKeys.swift; cached compilation now includes it, with no missing-key-symbol errors. Focused iPad build remains live (session37259), result .build/founder-ui-retry.xcresult; no pass claim yet.
+
+- Native iPad focused test reached the real app but failed at launch: simulator CloudKit log requires iCloud-services entitlement; built app has none because QA invocation used CODE_SIGNING_ALLOWED=NO. Exit65, no handoff UI pass. Next: cached simulator signing with existing entitlements, verify built artifact then rerun. Disk concurrently fell to11.28GiB; stop further build work until15GiB reserve restored. Retain cached398MB build for incremental resume.

@@ -12,7 +12,7 @@ node mcp/test/hosted-client.mjs https://www.eeon.com --native-codex --receipt-di
 
 The default command without native-codex still makes no model calls. The native option uses the existing CLI account and consumes its normal usage. No installed agent settings are changed. Credentials and source connection are revoked; workspace is deleted in finally. Receipts deliberately remain in the specified output directory for inspection.
 
-Scope: actual native source read and local plan production. Not proven: native Codex MCP login, iPhone/iPad copy/clipboard path, richer project execution, Claude Code/Gemini/Grokbot sessions, or any production publication/deployment. Claude Code is currently signed out on this Mac; Xcode has26.2 SDK and only26.5 runtime at preflight, leaving native app testing blocked.
+Scope: actual native source read and local plan production. Not proven: native Codex MCP login, iPhone/iPad copy/clipboard path, richer project execution, Gemini/Grokbot sessions, or any production publication/deployment. Claude Code now has a separate independent source-to-plan proof in ../native-claude; matching iOS26.2 runtime is restored and native app testing is underway.
 
 Official per-tool settings: https://learn.chatgpt.com/docs/extend/mcp?surface=cli
 

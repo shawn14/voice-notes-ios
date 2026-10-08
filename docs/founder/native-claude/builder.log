@@ -1,0 +1,8 @@
+PASS disposable source uploaded
+PASS SDK discovery + dynamic registration + PKCE reach actual approval
+PASS SDK initializes and accepts server capabilities
+PASS SDK validates discovery of all eight memory tools
+PASS SDK search and get_note read the real mirrored source
+PASS native Claude Code actual get_note trace + inspected launch-plan.md; authentication seeded from disposable SDK OAuth, native login flow not tested
+PASS disconnect revokes SDK credentials
+PASS disposable connection cleanup completed

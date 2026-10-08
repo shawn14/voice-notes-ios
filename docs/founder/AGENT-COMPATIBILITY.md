@@ -4,7 +4,7 @@ Primary path: one remote MCP URL, OAuth browser approval on the phone, then boun
 
 | Client | Setup evidence | Native OAuth/source read/work execution |
 | --- | --- | --- |
-| Claude Code 2.1.294 | Installed CLI help and official HTTP/OAuth docs inspected. Prior repo runbook records native OAuth discovery. | This founder flow has not been exercised in a native session. |
+| Claude Code 2.1.294 | Installed CLI help and official HTTP/OAuth docs inspected. Prior repo runbook records native OAuth discovery. | Actual get_note and source-cited plan creation independently passed with temporary SDK-issued bearer; native OAuth login and phone path remain untested. |
 | Codex 0.157.1 | Installed CLI exposes mcp add/login; official setup docs inspected. | Actual get_note + source-cited launch-plan creation passed in an isolated ephemeral run with a temporary SDK-issued agent token. Native MCP login remains untested. |
 | Gemini CLI 0.61.0 | Installed CLI MCP help and official HTTP/OAuth docs inspected; login is interactive `/mcp auth eeon`. | Not exercised. |
 | Grokbot | No installed binary or canonical configuration found in checked local sources. | Not exercised; no invented command. |
@@ -16,6 +16,6 @@ The local export server builds and all12 existing tests pass. Fixture/CloudKit-a
 
 Official references: [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Codex MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli), [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/).
 
-Remaining release requirements: native iPad/iPhone handoff and clipboard/context checks, each named client's actual authorized source read, and a real project task producing an inspected result. Native testing remains blocked by Xcode's missing matching iOS platform. None of this branch's founder workflow has been merged or released.
+Remaining release requirements: native iPad/iPhone handoff and clipboard/context checks, each named client's actual authorized source read, and a real project task producing an inspected result. The matching iOS26.2 runtime is restored; focused iPad test compiled but failed during launch with missing CloudKit entitlement in the unsigned QA artifact. Simulator signing must be corrected before the UI is proven. None of this branch's founder workflow has been merged or released.
 
-Independent refuter reran the deployed SDK proof: exit0, all7 checks passed. It confirmed that the receipt proves revocation and denied access; it does not independently read storage to prove physical mirror deletion. Other tool behavior, native UI, and native-agent work execution are still unproven. No release or native-client support claim follows from this result.
+Independent refuter reran the deployed SDK proof: exit0, all7 checks passed. It confirmed that the receipt proves revocation and denied access; it does not independently read storage to prove physical mirror deletion. Other tool behavior and native UI remain unproven. Native Claude/Codex source-to-plan execution is recorded separately above. No release or native-client support claim follows from this result.
