@@ -1,0 +1,10 @@
+{
+  "actualReportBodyExact": true,
+  "resultCount": 1,
+  "sourceAnnotationMatchesActualOriginal": true,
+  "sourceProjectID": null,
+  "noteCount": 12,
+  "projectCount": 0,
+  "beforeBaselineCaptured": false,
+  "limits": "No unchanged-original/task/project proof for this run; explicit fixture absent; no readability pass"
+}

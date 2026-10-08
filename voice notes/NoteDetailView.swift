@@ -1098,7 +1098,7 @@ struct NoteDetailView: View {
                     .background(Capsule().fill(Color.eeonAccentAI))
                 }
             } else {
-                if !showingTranscript, let report = agentResultReport, displayText == note.content {
+                if !showingOriginal, let report = agentResultReport, displayText == note.content {
                     Text("This report contains the agent’s claims. Saving it does not verify the work or complete tasks.")
                         .font(.subheadline).foregroundStyle(.eeonTextSecondary)
                         .accessibilityIdentifier("agentResultDisclosure")
