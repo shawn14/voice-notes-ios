@@ -355,3 +355,8 @@
 ## 2026-10-08 — iPhone seeded flow passes on rerun
 - Signed focused iPhone16Pro/iOS26.2 test exit0,37.830s. Actual copied clipboard versus read-only SwiftData guard passes4distinctsourceIDs, custom request and exact originals/separate rewrite. No navigation product fix made; prior failure cause remains unresolved.
 - Fastlane screenshot output folder missing and result has no screenshot attachments; no visual proof claimed. Added XCTest final-screen attachment for next runs (not rerun). Actual receipts docs/founder/native-iphone/. No physical/connected/native-auth/write-back/release claim.
+
+## 2026-10-08 — result-return reuse and product checkpoint
+- Bounded existing AppleCharts CLI pull:5apps/107recentreviews, raw docs/founder/result-return-market.md. Limited sample does not validate automatic agent writes; classification caveats recorded.
+- Actual outgoing artifact exists; inbound generic ingest lacks explicit source/project metadata and existing editor lacks explicit save-error handling. Scoped proposed return path/design docs/founder/result-return-design.md reuses existing notes and protects provenance, drafts and task status. Asked Shawn reviewed paste versus connector writes; choice pending, no return UI/writes built.
+- Corrected stale founder overview/compatibility text using actual iPhone/iPad/Codex evidence; broader goal remains incomplete.

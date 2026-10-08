@@ -7,7 +7,7 @@ Three outcomes guide this implementation:
 2. Keep the project's source context and distinguish ideas, decisions, and unfinished work.
 3. Hand an explicit, reviewable request to an agent and get a result with evidence and unresolved questions.
 
-## First slice — built, native UI unverified
+## First slice — seeded native handoff exercised
 
 Note Detail now opens an Agent brief sheet. Plan / Build / Draft / Review provide editable starting requests; a custom request survives changing the work type. The sheet previews the exact prompt and copies it to the clipboard. The primary source and up to eight recent matching project notes are included, with bounded excerpts and stable IDs. Explicit project IDs are preferred; exact inferred project names are the fallback. This is a handoff to the user's agent workspace, not an EEON execution queue or an automatic deployment authorization.
 
@@ -19,13 +19,13 @@ No SwiftData schema changes. No release or metadata upload performed for this fe
 - Formatter check compiles and executes the actual app helper:
   `swiftc 'voice notes/AgentHandoff.swift' scripts/founder/main.swift -o /private/tmp/eeon-founder-formatter && /private/tmp/eeon-founder-formatter`
   Passed request preservation, project context, truncation, source IDs, connected/offline wording, and planned/completed boundaries.
-- Standing native regression: `ScreenshotTests.testFounderAgentBrief`. Not run successfully: Xcode rejects all iOS destinations because the iOS 26.2 platform is missing, despite an installed iOS 26.5 simulator runtime. The disposable phone-only QA project excluded Watch embedding solely for testing; shipping project was untouched. No platform download or repeated infrastructure retries.
+- Standing native regression: `ScreenshotTests.testFounderAgentBrief` passed on signed disposable iPad and iPhone26.2 simulators. Actual clipboard/SwiftData source fidelity passed independently for both. The earlier iPhone navigation failure remains unexplained; no product navigation fix is claimed. Phone-only QA excluded Watch embedding; shipping configuration is unchanged. See native-ipad/ and native-iphone/.
 
-## Resume gate
+## Next slice
 
-Matching iOS26.2 platform is restored; the focused signed iPad flow and independent actual clipboard/project-source checks now pass (native-ipad/). Next exercise iPhone and connected-note variants, then use this actual copied packet in an agent workspace. Exercise a real consenting user's agent using the copied brief against an appropriate project workspace and record what it actually produces. Only then extend project organization or result feedback, and decide the release scope separately from main's unverified Watch changes.
+The actual iPad packet was consumed by installed Codex to produce a local source-cited artifact, with actual desktop/phone browser checks and independent review (copied-packet/). Both seeded native sizes now produce faithful clipboard packets. Physical recording, connected-note UI, native OAuth login, Gemini/Grokbot execution, and release remain incomplete.
 
-Independent refuter compiled and ran the actual formatter successfully and inspected all 20 connector receipt results plus the real-service script. It did not rerun the service flow. Native sheet, clipboard, project selection, and external execution remain unverified. Source delimiters are presentation, not a security boundary: an agent must continue treating captured note text as reference material.
+Result return is the next project-workflow gap. Existing text/file ingest and project-linked notes are reusable, but they have not been proven to preserve agent-result provenance or associate returned work with its source. See result-return-design.md; the choice between reviewed paste and direct connector writes is pending Shawn's preference. Never silently treat agent-reported completion as verified completion.
 
 ## Source fidelity — 2026-10-08
 
