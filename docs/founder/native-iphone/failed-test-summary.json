@@ -1,0 +1,49 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "EF09CAFC-3A42-4449-AA7C-3EFF20DA37C5",
+        "deviceName" : "EEON Founder Phone QA",
+        "modelName" : "iPhone 16 Pro",
+        "osBuildNumber" : "23C52",
+        "osVersion" : "26.2",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 1,
+      "passedTests" : 0,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "voice notes UITests · Built with macOS 15.6",
+  "expectedFailures" : 0,
+  "failedTests" : 1,
+  "finishTime" : 1791489729.662,
+  "passedTests" : 0,
+  "result" : "Failed",
+  "skippedTests" : 0,
+  "startTime" : 1791489644.685,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+    {
+      "failureText" : "XCTAssertTrue failed",
+      "targetName" : "voice notes UITests",
+      "testIdentifier" : 1,
+      "testIdentifierString" : "ScreenshotTests/testFounderAgentBrief()",
+      "testIdentifierURL" : "test://com.apple.xcode/.FounderPhoneQA/voice%20notes%20UITests/ScreenshotTests/testFounderAgentBrief",
+      "testName" : "testFounderAgentBrief()"
+    }
+  ],
+  "title" : "Test - voice notes UITests",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 1
+}

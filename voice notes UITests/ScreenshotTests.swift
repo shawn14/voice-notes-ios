@@ -525,7 +525,15 @@ final class ScreenshotTests: XCTestCase {
         dismissGatesIfNeeded()
         XCTAssertTrue(tapSeededNote(), "Seeded note not found")
         let prepare = app.buttons["prepareAgentBrief"]
-        XCTAssertTrue(prepare.waitForExistence(timeout: 5))
+        guard prepare.waitForExistence(timeout: 5) else {
+            keep("FounderNoteNavigationFailure")
+            let hierarchy = XCTAttachment(string: app.debugDescription)
+            hierarchy.name = "FounderNoteNavigationHierarchy"
+            hierarchy.lifetime = .keepAlways
+            add(hierarchy)
+            XCTFail("Seeded note tap did not reach the agent brief control. Inspect retained screen and hierarchy.")
+            return
+        }
         prepare.tap()
         let request = app.textViews["agentHandoffRequest"]
         XCTAssertTrue(request.waitForExistence(timeout: 5))
