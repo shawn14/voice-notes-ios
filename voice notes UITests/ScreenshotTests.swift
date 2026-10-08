@@ -595,6 +595,28 @@ This is recorded as a note statement only. The actual onboarding copy was not in
         keep("FounderAgentResult")
     }
 
+    func testFounderAgentResultReadOnlyFailure() throws {
+        app.terminate()
+        app.launchArguments.append("-AgentResultReadOnlyProof")
+        app.launch()
+        dismissGatesIfNeeded()
+        XCTAssertTrue(tapSeededNote())
+        let options = app.buttons["Note options"]
+        XCTAssertTrue(options.waitForExistence(timeout: 5))
+        options.tap()
+        app.buttons["addAgentResult"].tap()
+        let editor = app.textViews["agentResultReport"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        let report = "Marco said the onboarding copy is done. This is recorded as a note statement only."
+        editor.tap()
+        editor.typeText(report)
+        app.buttons["saveAgentResult"].tap()
+        XCTAssertTrue(app.staticTexts["agentResultError"].waitForExistence(timeout: 5), "Real read-only store must reject save")
+        XCTAssertEqual(editor.value as? String, report, "Failed save must retain the exact draft")
+        XCTAssertTrue(app.buttons["saveAgentResult"].isEnabled, "Draft must remain editable")
+        keep("FounderAgentResultSaveFailure")
+    }
+
     func testHomeOnly() throws {
         sleep(3)
         snapshot("Home")

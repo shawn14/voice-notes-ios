@@ -124,11 +124,30 @@ struct AgentResultView: View {
             result.inferredProjectName = source.inferredProjectName
             result.sourceType = .derived
             result.annotation = draft.annotation
-            modelContext.insert(result)
-            do { try modelContext.save() }
+            var saveContext = modelContext
+            #if DEBUG
+            // Exercise a real rejected SwiftData write only on a simulator.
+            // The physical phone and release app cannot select this store.
+            #if targetEnvironment(simulator)
+            var proofContainer: ModelContainer?
+            if ProcessInfo.processInfo.arguments.contains("-UITestMode"),
+               ProcessInfo.processInfo.arguments.contains("-AgentResultReadOnlyProof"),
+               let config = modelContext.container.configurations.first {
+                let readOnly = ModelConfiguration(schema: modelContext.container.schema,
+                                                  url: config.url, allowsSave: false,
+                                                  cloudKitDatabase: .none)
+                proofContainer = try ModelContainer(for: modelContext.container.schema, configurations: [readOnly])
+                saveContext = proofContainer!.mainContext
+                saveContext.autosaveEnabled = false
+            }
+            defer { withExtendedLifetime(proofContainer) {} }
+            #endif
+            #endif
+            saveContext.insert(result)
+            do { try saveContext.save() }
             catch {
                 // Remove only this attempted insert; do not roll back other edits.
-                modelContext.delete(result)
+                saveContext.delete(result)
                 throw error
             }
             dismiss()

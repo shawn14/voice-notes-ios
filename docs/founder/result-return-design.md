@@ -46,3 +46,7 @@ The actual formatter compiled and preserved the3918character real Codex report f
 Standing native test ScreenshotTests.testFounderAgentResult uses a verbatim excerpt of that real report, checks blank save disabled, saves, relaunches without reseeding, and checks result/source link. It has not run. Disk is12.88GiB, below the15GiB heavy-build reserve; no build was started.
 
 No connector write scope, schema migration, new service, main merge or release has been performed.
+
+## Native checkpoint superseding the previous unverified status
+
+Both signed iPhone16Pro/iOS26.2 result tests now pass with independently checked actual database and XCTest screens: native-result/. Exactly one new source-linked note across relaunch, exact actualreport excerpt,11original captured fields and4task rows unchanged, real read-only persistence rejection retains editable draft and stores no secondresult. Explicit projectId is null in this seed: inferredEEON only, not explicit-ID proof. Full report UI/source-link tap/failed draft relaunch/physical capture andCloudKit remain untested. No release.

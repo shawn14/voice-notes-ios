@@ -1,0 +1,177 @@
+{
+  "store": "/Users/shawncarpenter/Library/Developer/CoreSimulator/Devices/D59CA20E-FFCF-446D-8B9E-913F64965879/data/Containers/Shared/AppGroup/1B480D5D-F042-4566-9609-BE91E1A0DB76/Library/Application Support/default.store",
+  "notes": [
+    {
+      "ZID": "29e27488caa54d8f8b3d72de62f744c7",
+      "ZTITLE": "Your Purpose",
+      "ZCONTENT": "I want EEON to organize my notes across all my businesses, surface where my momentum actually is, and call me out when I'm drifting from what I said matters most. Frame everything for execution readiness.",
+      "ZTRANSCRIPT": null,
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": null,
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "fbef7d8a28024b8ca81705a7ce3de29e",
+      "ZTITLE": "Flash Cards revival?",
+      "ZCONTENT": "Should I bring Flash AI Cards back this quarter or shelve? Capture density has been near zero for 12 days. Probably shelve.",
+      "ZTRANSCRIPT": "Should I bring Flash AI Cards back this quarter or shelve? Capture density has been near zero for 12 days. Probably shelve.",
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": "Flash AI Cards",
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "8945199aa24543d4b5ee36b5d2c1db4c",
+      "ZTITLE": "Standup with Lena",
+      "ZCONTENT": "ok so um remind me to send Lena the pricing deck by Friday at five, Marco said the onboarding copy is done, and we decided blue not coral for the icon",
+      "ZTRANSCRIPT": "ok so um remind me to send Lena the pricing deck by Friday at five, Marco said the onboarding copy is done, and we decided blue not coral for the icon",
+      "ZENHANCEDNOTETEXT": "**Standup with Lena**\n\nMarco: the onboarding copy is done.\n\n**Decision** \u2014 blue accent for the icon, not coral.\n\n**Action** \u2014 Send Lena the pricing deck by Friday at 5 PM.",
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": "EEON",
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "a2766ee6e39e4e5d84d9f870460337ff",
+      "ZTITLE": "StockAlarm streaming decision",
+      "ZCONTENT": "Going with WebSocket for now \u2014 Polygon's SSE has too much retry noise. Patrick mentioned the same. Need to write the connection-pool config.",
+      "ZTRANSCRIPT": "Going with WebSocket for now \u2014 Polygon's SSE has too much retry noise. Patrick mentioned the same. Need to write the connection-pool config.",
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": "StockAlarm",
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "695422fdbb724d3295514cd8aa05d6fc",
+      "ZTITLE": "Reflection feature scoping",
+      "ZCONTENT": "User Q&A across all notes \u2014 should it use compiled article summaries (cheap) or raw notes (expensive)? Tier A: compiled. Tier C: map-reduce only when scope is huge.",
+      "ZTRANSCRIPT": "User Q&A across all notes \u2014 should it use compiled article summaries (cheap) or raw notes (expensive)? Tier A: compiled. Tier C: map-reduce only when scope is huge.",
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": "EEON",
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "682317ee7fda420581b22765aca861f8",
+      "ZTITLE": "Patrick \u2014 pricing tier feedback",
+      "ZCONTENT": "Patrick said $19/mo is fine for power traders, $9/mo is the right entry. Wants annual discount.",
+      "ZTRANSCRIPT": "Patrick said $19/mo is fine for power traders, $9/mo is the right entry. Wants annual discount.",
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": "StockAlarm",
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "35040437f61346b4b8bd7aed07511441",
+      "ZTITLE": "EEON adaptive layout idea",
+      "ZCONTENT": "What if knowledge and notes were anchored at the top universally? The persona-shaped middle gets reordered by signal density. Talked through this with the design swarm.",
+      "ZTRANSCRIPT": "What if knowledge and notes were anchored at the top universally? The persona-shaped middle gets reordered by signal density. Talked through this with the design swarm.",
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": "EEON",
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "d52fca47728d4511b7acd0399dd1b694",
+      "ZTITLE": "Voice-first design constraint",
+      "ZCONTENT": "Capture button MUST be at the bottom thumb zone, always reachable. Knowledge is the value layer; let users navigate into it from anywhere on home.",
+      "ZTRANSCRIPT": "Capture button MUST be at the bottom thumb zone, always reachable. Knowledge is the value layer; let users navigate into it from anywhere on home.",
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": "EEON",
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "13af88c062ee4781afac351a3e1d157f",
+      "ZTITLE": "Morning plan",
+      "ZCONTENT": "Three things today: send Lena the pricing deck, review StockAlarm pricing with Patrick, and decide on Flash AI Cards.",
+      "ZTRANSCRIPT": "Three things today: send Lena the pricing deck, review StockAlarm pricing with Patrick, and decide on Flash AI Cards.",
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": null,
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "530e123496d04c4f97414ce2fa6420e1",
+      "ZTITLE": "Your Profile",
+      "ZCONTENT": "I'm Shawn \u2014 a founder running multiple AI-first companies. StockAlarm is my main focus right now. I capture meetings, ideas, half-baked product specs, and learnings as voice notes. I think out loud.",
+      "ZTRANSCRIPT": null,
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": null,
+      "ZANNOTATION": null
+    },
+    {
+      "ZID": "7337c417912647518870eb78a1097472",
+      "ZTITLE": "Craig sync notes",
+      "ZCONTENT": "Craig's pulling the streaming infrastructure from his other project. Should be in main by Friday. Decision: pair on the integration, not async.",
+      "ZTRANSCRIPT": "Craig's pulling the streaming infrastructure from his other project. Should be in main by Friday. Decision: pair on the integration, not async.",
+      "ZENHANCEDNOTETEXT": null,
+      "ZPROJECTID": null,
+      "ZINFERREDPROJECTNAME": "StockAlarm",
+      "ZANNOTATION": null
+    }
+  ],
+  "actions": [
+    {
+      "Z_PK": 1,
+      "Z_ENT": 4,
+      "Z_OPT": 1,
+      "ZISBLOCKED": 0,
+      "ZISCOMPLETED": 0,
+      "ZCOMPLETEDAT": null,
+      "ZCREATEDAT": 813184110.592251,
+      "ZCONTENT": "Reply to Craig about the streaming integration",
+      "ZDEADLINE": "Next Monday",
+      "ZOWNER": "Me",
+      "ZPRIORITY": "Normal",
+      "ZID": "ccbe154d80da4057b81f2cffee12e553",
+      "ZSOURCENOTEID": null
+    },
+    {
+      "Z_PK": 2,
+      "Z_ENT": 4,
+      "Z_OPT": 1,
+      "ZISBLOCKED": 0,
+      "ZISCOMPLETED": 0,
+      "ZCOMPLETEDAT": null,
+      "ZCREATEDAT": 813184110.604679,
+      "ZCONTENT": "Send Lena the pricing deck",
+      "ZDEADLINE": "Friday 5:00 PM",
+      "ZOWNER": "Me",
+      "ZPRIORITY": "High",
+      "ZID": "1617602419f145fda1e8a5ef4bddb50f",
+      "ZSOURCENOTEID": "8945199aa24543d4b5ee36b5d2c1db4c"
+    },
+    {
+      "Z_PK": 3,
+      "Z_ENT": 4,
+      "Z_OPT": 1,
+      "ZISBLOCKED": 0,
+      "ZISCOMPLETED": 0,
+      "ZCOMPLETEDAT": null,
+      "ZCREATEDAT": 813184110.592234,
+      "ZCONTENT": "Send Patrick the updated pricing deck",
+      "ZDEADLINE": "This week",
+      "ZOWNER": "Me",
+      "ZPRIORITY": "Normal",
+      "ZID": "453b9d6af4994a21a197700cedc01a3d",
+      "ZSOURCENOTEID": null
+    },
+    {
+      "Z_PK": 4,
+      "Z_ENT": 4,
+      "Z_OPT": 1,
+      "ZISBLOCKED": 0,
+      "ZISCOMPLETED": 0,
+      "ZCOMPLETEDAT": null,
+      "ZCREATEDAT": 813184110.592244,
+      "ZCONTENT": "Write streaming pool config for StockAlarm",
+      "ZDEADLINE": "Friday",
+      "ZOWNER": "Me",
+      "ZPRIORITY": "Normal",
+      "ZID": "9acb18b2b66845f680f12b5e539d546d",
+      "ZSOURCENOTEID": null
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "redExit": 1,
+  "redReason": "AssertionError: Returned real report excerpt changed",
+  "green": {
+    "passed": true,
+    "method": "actual QA SQLite versus real pre-save snapshot",
+    "sourceID": "8945199a-a245-43d4-b5ee-36b5d2c1db4c",
+    "resultID": "fe668790-c989-4873-b506-4721aa0ab0cc",
+    "originalNotesUnchanged": 11,
+    "taskRowsUnchanged": 4,
+    "resultCount": 1,
+    "projectName": "EEON",
+    "explicitProjectIDExercised": false,
+    "exactActualReportExcerpt": true,
+    "scope": "seeded simulator excerpt; no full-report UI, physical recording, CloudKit sync, connector writes or production release"
+  },
+  "method": "real disposable SQLite result changed, guard rejected, exact content restored in finally, same guard passed"
+}

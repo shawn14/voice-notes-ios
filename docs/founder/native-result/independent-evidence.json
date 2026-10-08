@@ -1,0 +1,30 @@
+{
+  "verifier": "independent fresh refuter; direct readonly live SQLite + native log + actual attachments",
+  "observed_at": "2026-10-08T20:32:01.748129+00:00",
+  "checks": {
+    "one_new_note": true,
+    "original_11_projected_fields_unchanged": true,
+    "four_tasks_all_columns_unchanged": true,
+    "inferred_EEON_project": true,
+    "explicit_projectId_NIL": true,
+    "source_UUID_annotation": true,
+    "verbatim_actual_report_excerpt": true,
+    "failed_draft_not_persisted": true
+  },
+  "pass": true,
+  "notes": 12,
+  "tasks": 4,
+  "visual_evidence": {
+    "success": "81C1D0DC-0D0A-4CFC-91A0-AC97BADF0DC0.png reopened result, matching source UUID/link and actual excerpt",
+    "failure": "4351CB44-CF94-4D6C-805C-30F012FAB729.png exact failed draft retained with permission error, keyboard and Save result"
+  },
+  "native_tests": "actual log: result pass56.613s; readonly failure pass29.688s; success test relaunch excludes seeding",
+  "failure_scope": "Real SwiftData allowsSave:false on same store URL; not filesystem chmod/disk-full/network/crash",
+  "boundaries": [
+    "iPhone16Pro iOS26.2/23C52 simulator; physical phone/iPad/iPadOS27 untested",
+    "inferred EEON only; explicit projectId NIL",
+    "actual report excerpt only; full report not persisted in this proof",
+    "11 original notes compared only baseline projected fields; all four task columns equal",
+    "CloudKit sync, connector write-back, source-link tap and failed draft survival after termination untested"
+  ]
+}
