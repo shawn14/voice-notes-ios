@@ -2,10 +2,11 @@
 """Compare actual QA SQLite after result tests to its real pre-save snapshot."""
 import html,json,re,sqlite3,subprocess,sys,uuid
 from pathlib import Path
-if len(sys.argv) not in (4,5) or (len(sys.argv)==5 and sys.argv[4]!='--check-next-brief'):
-    raise SystemExit('Usage: verify-native-result.py <QA-device-UUID> <before.json> <actual-agent-report.md> [--check-next-brief]')
+if len(sys.argv) < 4 or any(x not in ('--check-next-brief','--full-report') for x in sys.argv[4:]):
+    raise SystemExit('Usage: verify-native-result.py <QA-device-UUID> <before.json> <actual-agent-report.md> [--check-next-brief] [--full-report]')
 device,before_path,report_path=sys.argv[1:4]
-check_next=len(sys.argv)==5
+check_next='--check-next-brief' in sys.argv[4:]
+full_report='--full-report' in sys.argv[4:]
 uuid.UUID(device)
 before=json.loads(Path(before_path).read_text())
 store=Path(before['store']).resolve()
@@ -36,7 +37,8 @@ assert result['ZINFERREDPROJECTNAME']==source['ZINFERREDPROJECTNAME']=='EEON'
 report=Path(report_path).read_text()
 a=report.index('## Reported Completion From Notes');b=report.index('## Actually Verified',a)
 excerpt=report[a:b].strip()
-assert result['ZCONTENT'].endswith(excerpt), 'Returned real report excerpt changed'
+expected_report=report if full_report else excerpt
+assert result['ZCONTENT'].endswith('## Agent report\n'+expected_report), 'Returned actual report changed'
 assert result['ZCONTENT'].startswith('Agent-reported result. Saving this report does not independently verify its claims or complete tasks.')
 next_sources=[]
 if check_next:
@@ -58,4 +60,4 @@ if check_next:
         assert html.unescape(match[2])==(n['ZTRANSCRIPT'] or n['ZCONTENT']), 'Next brief source text differs from actual database'
     wrong=next(n for n in after_notes if n['ZTITLE']=='Different EEON project')
     assert wrong['ZPROJECTID']!=source['ZPROJECTID'] and wrong['ZID'] not in next_sources
-print(json.dumps({'passed':True,'method':'actual QA SQLite versus real pre-save snapshot','sourceID':str(source_id),'resultID':str(uuid.UUID(hex=result['ZID'])),'originalNotesUnchanged':len(before['notes']),'taskRowsUnchanged':len(before['actions']),'resultCount':1,'projectName':'EEON','explicitProjectIDExercised':source['ZPROJECTID'] is not None,'exactActualReportExcerpt':True,'nextBriefChecked':check_next,'nextBriefSourceIDs':next_sources,'scope':'seeded simulator excerpt; no full-report UI, physical recording, CloudKit sync, connector writes or production release'},indent=2))
+print(json.dumps({'passed':True,'method':'actual QA SQLite versus real pre-save snapshot','sourceID':str(source_id),'resultID':str(uuid.UUID(hex=result['ZID'])),'originalNotesUnchanged':len(before['notes']),'taskRowsUnchanged':len(before['actions']),'resultCount':1,'projectName':'EEON','explicitProjectIDExercised':source['ZPROJECTID'] is not None,'exactActualReportExcerpt':not full_report,'exactActualFullReport':full_report,'nextBriefChecked':check_next,'nextBriefSourceIDs':next_sources,'scope':('seeded simulator full report' if full_report else 'seeded simulator excerpt')+'; no physical recording, CloudKit sync, connector writes or production release'},indent=2))
