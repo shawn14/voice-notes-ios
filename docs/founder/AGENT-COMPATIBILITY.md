@@ -8,9 +8,9 @@ Primary path: one remote MCP URL, OAuth browser approval on the phone, then boun
 | Codex 0.157.1 | Installed CLI exposes mcp add/login; official setup docs inspected. | Not exercised. |
 | Gemini CLI 0.61.0 | Installed CLI MCP help and official HTTP/OAuth docs inspected; login is interactive `/mcp auth eeon`. | Not exercised. |
 | Grokbot | No installed binary or canonical configuration found in checked local sources. | Not exercised; no invented command. |
-| MCP TypeScript SDK 1.29.x (locked package) | Actual SDK OAuth discovery, DCR, PKCE, initialize, tool schemas, search/get_note, revocation and cleanup passed against the deployed EEON connector. | Protocol only; does not execute a model or build a project. |
+| MCP TypeScript SDK 1.30.0 (resolved lockfile package) | Actual SDK OAuth discovery, DCR, PKCE, initialize, tool schemas, search/get_note, revocation and cleanup passed against the deployed EEON connector. | Protocol only; does not execute a model or build a project. |
 
-` sdk-proof.log` records all seven SDK checks. No customer notes, agent configuration, model API, or persistent client tokens were used. The first SDK run passed discovery/read, then the test mistakenly followed Disconnect's307 redirect as a POST into `/connect`, causing405. Corrected test uses manual redirects and then independently checks revoked credentials receive401. Cleanup is in `finally`.
+`sdk-proof.log` records all seven SDK checks. No customer notes, agent configuration, model API, or persistent client tokens were used. The first SDK run passed discovery/read, then the test mistakenly followed Disconnect's307 redirect as a POST into `/connect`, causing405. Corrected test uses manual redirects and then independently checks revoked credentials receive401. Cleanup is in `finally`.
 
 The local export server builds and all12 existing tests pass. Fixture/CloudKit-adapter tests prove local code behavior, not live CloudKit sync or native-client integrations. The hosted SDK proof uses the actual deployed mirror and OAuth service.
 
