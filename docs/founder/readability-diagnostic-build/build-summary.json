@@ -1,0 +1,9 @@
+{
+  "source": "6eaf4df",
+  "signedQABuildPassed": true,
+  "runtimeUITestStarted": false,
+  "device": "68CC2346-C1CF-4C81-88FF-E82CF682E85B",
+  "configuration": "existing phone-only QA target, ad-hoc simulator signing, package resolution disabled",
+  "limits": "Typecheck/build only; corrected readability and runtime fixture still unverified",
+  "stopReason": "Shared available disk fell from15.453GiB to7.830GiB before UI run"
+}
