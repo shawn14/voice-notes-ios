@@ -1,0 +1,20 @@
+
+RegisterExecutionPolicyException /tmp/eeon-native-claude/.build/founder-renewed-readability/Build/Products/Debug-iphonesimulator/voice\ notes\ UITests-Runner.app/PlugIns/voice\ notes\ UITests.xctest (in target 'voice notes UITests' from project '.FounderPhoneQA')
+    cd /tmp/eeon-native-claude
+    builtin-RegisterExecutionPolicyException /tmp/eeon-native-claude/.build/founder-renewed-readability/Build/Products/Debug-iphonesimulator/voice\ notes\ UITests-Runner.app/PlugIns/voice\ notes\ UITests.xctest
+
+CodeSign /tmp/eeon-native-claude/.build/founder-renewed-readability/Build/Products/Debug-iphonesimulator/voice\ notes\ UITests-Runner.app (in target 'voice notes UITests' from project '.FounderPhoneQA')
+    cd /tmp/eeon-native-claude
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /tmp/eeon-native-claude/.build/founder-renewed-readability/Build/Products/Debug-iphonesimulator/voice\ notes\ UITests-Runner.app
+/tmp/eeon-native-claude/.build/founder-renewed-readability/Build/Products/Debug-iphonesimulator/voice notes UITests-Runner.app: replacing existing signature
+
+Touch /tmp/eeon-native-claude/.build/founder-renewed-readability/Build/Products/Debug-iphonesimulator/voice\ notes\ UITests-Runner.app/PlugIns/voice\ notes\ UITests.xctest (in target 'voice notes UITests' from project '.FounderPhoneQA')
+    cd /tmp/eeon-native-claude
+    /usr/bin/touch -c /tmp/eeon-native-claude/.build/founder-renewed-readability/Build/Products/Debug-iphonesimulator/voice\ notes\ UITests-Runner.app/PlugIns/voice\ notes\ UITests.xctest
+
+note: Disabling hardened runtime with ad-hoc codesigning. (in target 'VoiceNotesWidgetExtension' from project '.FounderPhoneQA')
+** TEST BUILD SUCCEEDED **
+

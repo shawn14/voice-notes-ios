@@ -1,0 +1,10 @@
+{
+  "source": "6eaf4df",
+  "compiledAppSHA256": "dfa6c1dde0c37e8cde922cff3ceec9a916865dfbac5f13c62dad1d9b7329c7fb",
+  "compiledTestSHA256": "41be649090ffebf08286b46f3adfdaa711e91a5a31faa03283ff37cfa8ae697c",
+  "xctestrun": ".build/readability-qa-products/voice notes UITests_voice notes UITests_iphonesimulator26.2-arm64.xctestrun",
+  "xctestrunSHA256": "573e13bc38b7ff1bf96b68affbbe0f19dfe208dde609cc2932b3b462944ea0c8",
+  "pathValidation": "TestHost, UITargetApp and dependent product paths resolve relative to __TESTROOT__; products preserved together",
+  "executedFromRetainedProducts": false,
+  "limits": "Signed build/typecheck only; no current UI/fixture/DB acceptance"
+}
