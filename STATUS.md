@@ -351,3 +351,7 @@
 - Actual signed iPhone16Pro/iOS26.2 QA test exited65: seeded note tap left Home visible; prepareAgentBrief absent. Cause not yet established. Real summary/navigation log docs/founder/native-iphone/. No iPhone handoff pass.
 - Standing focused test now retains failure screenshot/accessibility hierarchy and stops at missing control; diagnostic change not rerun. User-requested disk cleanup removed owned simulator and rebuildable outputs, preserving source/receipts. Measured2.01GB recovered.
 - Next: inspect real phone navigation with focused signed QA run when reserve allows. No physical-phone seeded tests, no founder release.
+
+## 2026-10-08 — iPhone seeded flow passes on rerun
+- Signed focused iPhone16Pro/iOS26.2 test exit0,37.830s. Actual copied clipboard versus read-only SwiftData guard passes4distinctsourceIDs, custom request and exact originals/separate rewrite. No navigation product fix made; prior failure cause remains unresolved.
+- Fastlane screenshot output folder missing and result has no screenshot attachments; no visual proof claimed. Added XCTest final-screen attachment for next runs (not rerun). Actual receipts docs/founder/native-iphone/. No physical/connected/native-auth/write-back/release claim.

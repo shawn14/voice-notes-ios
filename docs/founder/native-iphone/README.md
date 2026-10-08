@@ -1,9 +1,13 @@
-# Native iPhone founder handoff — failing proof
+# Native iPhone founder handoff
 
-On 2026-10-08, the real signed QA app on disposable iPhone 16 Pro / iOS 26.2 failed `ScreenshotTests/testFounderAgentBrief`. The test tapped the seeded Standup with Lena row; the resulting accessibility hierarchy still showed Home, and `prepareAgentBrief` was absent. This does not establish whether the row tap, navigation, or test targeting is at fault.
+On 2026-10-08, a signed QA app on disposable iPhone 16 Pro / iOS 26.2 passed `ScreenshotTests/testFounderAgentBrief` (exit0,37.830seconds): open Standup with Lena, prepare brief, choose Build, edit request, switch to Draft while retaining the request, and copy.
 
-Evidence: [test summary](failed-test-summary.json) and [actual navigation log](failed-navigation.log). No phone brief/copy success is claimed. The iPad proof is separate and cannot establish iPhone behavior.
+[Actual test summary](passed-test-summary.json), [copied clipboard](copied-brief.md), and [live clipboard/database comparison](clipboard-check.json) support that limited seeded flow. The latter read actual SwiftData SQLite read-only and checked four distinct source IDs, exact originals and separate AI rewrite.
 
-The disposable simulator and rebuildable output were removed at Shawn's request to recover disk space. Source, diagnostics, and the QA project remain. The standing test now retains a screenshot and complete accessibility hierarchy at this failure and stops before trying to operate an absent button. Its changed diagnostic path has not yet run.
+## Prior failure is unresolved
 
-Next: run the focused test using the established signed QA project when disk reserve permits, inspect the captured phone screen and hierarchy, identify the first failed navigation hop, and rerun the same test after the product fix. Never seed tests on Shawn's physical phone.
+The preceding run tapped the same seeded note and remained on Home; prepareAgentBrief was absent. [Failing summary](failed-test-summary.json) and [actual navigation log](failed-navigation.log) are retained. No product navigation change was made between these runs. The pass does not explain or eliminate that earlier failure. The standing test now retains screen/hierarchy when the control is absent.
+
+## Limits
+
+No physical recording, transcription, real user account, connected-note access, native OAuth login, agent result write-back or release is established. This is a seeded simulator proof. The Fastlane screenshot helper could not write its output folder, and this result bundle contains no screenshot attachment; no visual screen proof is claimed. The test now also retains its final screen through XCTest for future runs, independent of that folder. That attachment change has not run.

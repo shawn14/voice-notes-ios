@@ -551,6 +551,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(copy.isHittable)
         copy.tap()
         XCTAssertTrue(app.buttons["Brief copied"].waitForExistence(timeout: 3))
+        keep("FounderAgentBrief")
         snapshot("FounderAgentBrief")
     }
 

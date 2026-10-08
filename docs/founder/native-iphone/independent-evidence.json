@@ -1,0 +1,53 @@
+{
+  "passed": true,
+  "method": "Independent live simctl clipboard versus read-only actual SwiftData shared-app-group SQLite (live WAL included)",
+  "device": "57CF5858-CD25-4505-A452-BCD74BE71B19",
+  "noteCount": 11,
+  "included": [
+    {
+      "id": "BAA7B363-2BD4-45ED-9D7E-7D3A3D521FDA",
+      "title": "Standup with Lena",
+      "originalExact": true,
+      "kind": "Primary"
+    },
+    {
+      "id": "F43340E2-631F-4863-ACFF-76F9A7D8F846",
+      "title": "Reflection feature scoping",
+      "originalExact": true,
+      "kind": "Related"
+    },
+    {
+      "id": "6E3DB1D2-C2BF-4DC4-87E1-9B571B331026",
+      "title": "EEON adaptive layout idea",
+      "originalExact": true,
+      "kind": "Related"
+    },
+    {
+      "id": "A8CF1CA1-A3A8-43A3-8AAA-D454D2BC6667",
+      "title": "Voice-first design constraint",
+      "originalExact": true,
+      "kind": "Related"
+    }
+  ],
+  "excludedTitles": [
+    "Morning plan",
+    "Craig sync notes",
+    "Your Purpose",
+    "Flash Cards revival?",
+    "Your Profile",
+    "StockAlarm streaming decision",
+    "Patrick \u2014 pricing tier feedback"
+  ],
+  "customRequestExact": true,
+  "primaryRewriteExactAndSeparate": true,
+  "relatedNewestFirst": true,
+  "allSeededEEONNotesIncluded": true,
+  "unrelatedIDsExcluded": true,
+  "offlineAccessHonest": true,
+  "clipboardSHA256": "013c69b2b7a3107271cc307a13b5d4b138fa11db367159a3134511dd49f7678c",
+  "limits": [
+    "Seeded iPhone simulator only",
+    "Does not establish physical recording, native OAuth, general project filtering, or production release",
+    "Clipboard/database fidelity independently observed; UI navigation timing not independently driven"
+  ]
+}

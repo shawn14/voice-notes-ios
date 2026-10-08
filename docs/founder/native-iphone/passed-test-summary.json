@@ -1,0 +1,42 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "57CF5858-CD25-4505-A452-BCD74BE71B19",
+        "deviceName" : "EEON Founder Navigation QA",
+        "modelName" : "iPhone 16 Pro",
+        "osBuildNumber" : "23C52",
+        "osVersion" : "26.2",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 0,
+      "passedTests" : 1,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "voice notes UITests · Built with macOS 15.6",
+  "expectedFailures" : 0,
+  "failedTests" : 0,
+  "finishTime" : 1791490234.759,
+  "passedTests" : 1,
+  "result" : "Passed",
+  "skippedTests" : 0,
+  "startTime" : 1791489945.467,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+
+  ],
+  "title" : "Test - voice notes UITests",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 1
+}
