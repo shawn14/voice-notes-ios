@@ -1,0 +1,64 @@
+[
+  {
+    "type": "thread.started"
+  },
+  {
+    "type": "turn.started"
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "agent_message",
+      "text": "I’ll read only the specified EEON note, then write a scoped `launch-plan.md` in the current workspace from that source."
+    }
+  },
+  {
+    "type": "item.started",
+    "item": {
+      "type": "mcp_tool_call",
+      "status": "in_progress",
+      "server": "eeon",
+      "tool": "get_note"
+    }
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "mcp_tool_call",
+      "status": "completed",
+      "server": "eeon",
+      "tool": "get_note"
+    }
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "agent_message",
+      "text": "The note is titled “Founder SDK compatibility proof” and names project `Orbit`. I’m writing the launch plan now, keeping “done” limited to what the note actually states."
+    }
+  },
+  {
+    "type": "item.started",
+    "item": {
+      "type": "file_change",
+      "status": "in_progress"
+    }
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "file_change",
+      "status": "completed"
+    }
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "agent_message",
+      "text": "Created `launch-plan.md` from EEON note `2e9580b5-6159-4d88-ab0b-a2ed36bc19f4`.\n\nOutput path: `/private/var/folders/dd/2mfn814j6wl2pywnhmn3rphm0000gn/T/eeon-codex-proof-FzxQJV/launch-plan.md`"
+    }
+  },
+  {
+    "type": "turn.completed"
+  }
+]

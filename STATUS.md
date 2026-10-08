@@ -317,3 +317,9 @@
 - Founder handoff now preserves transcript/content and labels the AI rewrite or user edit separately, including edit timestamp and original-text availability. Formatter directly enforces8-related-note bound. No SwiftData/schema changes.
 - Reproduced actual source-quotation defect red; formatter green after escaping body text. Independent refuter found title/project metadata gap; fixed and independently rechecked green. Durable receipts `docs/founder/source-fidelity/` and explanation `docs/founder/README.md`.
 - Proven layer remains Foundation formatter; native caller/UI/clipboard and native agent execution still require actual runtime proof. No merge/release.
+
+## 2026-10-08 — actual Codex source-to-project proof
+- Actual installed Codex0.157.1 reads the disposable hosted EEON note through get_note and creates source-cited launch-plan.md with unfinished work separated. Test rejects exit0 without a completed tool read. Native proof uses SDK-issued temporary OAuth agent credential, ignores user config, ephemeral session/workspace, only get_note exposed/preapproved; no global config edits or publication.
+- Standing option `mcp/test/hosted-client.mjs <deployed-base> --native-codex --receipt-dir=<absolute-folder>`; builder receipts `docs/founder/native-codex/`. Independent verification pending in the live check at time of checkpoint.
+- Native MCP login and app clipboard/context selection remain unproven. Claude Code auth preflight says signed out. Xcode preflight confirms26.2 SDK plus only26.5 runtime; free disk20GiB. No founder merge/release.
+- Fresh native Codex refuter reran the actual deployed read-and-plan flow: exit0, matching get_note/source artifact, no invented completions, revoked credentials401 and cleanup. Independent trace/plan saved beside builder receipts. Goal remains incomplete pending native app path, login/other client proofs and fuller project workflow.

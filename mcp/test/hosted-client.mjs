@@ -2,6 +2,10 @@
 // customer notes, local agent configuration, model calls, or persisted tokens.
 // Run: node test/hosted-client.mjs https://www.eeon.com
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -85,6 +89,37 @@ try {
   assert(!note.isError)
   assert(JSON.stringify(note).includes('Keep unfinished work distinct'))
   pass('SDK search and get_note read the real mirrored source')
+  if (process.argv.includes('--native-codex')) {
+    const workspace = await mkdtemp(join(tmpdir(), 'eeon-codex-proof-'))
+    try {
+      const args = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'workspace-write', '--json',
+        '-c', 'mcp_servers.eeon.url=' + JSON.stringify(url.toString()),
+        '-c', 'mcp_servers.eeon.bearer_token_env_var="EEON_PROOF_AGENT_TOKEN"',
+        '-c', 'mcp_servers.eeon.enabled_tools=["get_note"]',
+        '-c', 'mcp_servers.eeon.tools.get_note.approval_mode="approve"', '-']
+      const child = spawn('codex', args, { cwd: workspace, env: { ...process.env, EEON_PROOF_AGENT_TOKEN: tokens.access_token }, stdio: ['pipe', 'pipe', 'pipe'] })
+      let events = '', diagnostics = ''
+      child.stdout.on('data', data => { events += data })
+      child.stderr.on('data', data => { diagnostics += data })
+      const timeout = setTimeout(() => child.kill('SIGTERM'), 120000)
+      const completed = new Promise((resolve, reject) => { child.on('error', reject); child.on('close', code => resolve(code)) })
+      child.stdin.end(`Use the EEON MCP get_note tool to read note ID ${noteId}. Then create launch-plan.md in this workspace from that source. Include the project name, a practical next step, and a section explicitly separating unfinished work from completed work. Do not access other notes, contact anyone, publish, deploy, or run external services. Do not claim anything was completed merely because it appears in the note. This is a disposable integration test. Report the source note ID and output path.`)
+      let code
+      try { code = await completed } finally { clearTimeout(timeout) }
+      assert.equal(code, 0, 'Native Codex exits successfully (diagnostics withheld to avoid credential leakage)')
+      const records = events.split('\n').filter(Boolean).map(line => JSON.parse(line))
+      const receiptDir = process.argv.find(arg => arg.startsWith('--receipt-dir='))?.slice('--receipt-dir='.length)
+      const redact = value => value.replaceAll(tokens.access_token, '[REDACTED]').replaceAll(primary, '[REDACTED]').replaceAll(verifier, '[REDACTED]')
+      const trace = records.map(record => ({ type: record.type, item: record.item ? { type: record.item.type, status: record.item.status, server: record.item.server, tool: record.item.tool, arguments: record.item.type === 'mcp_tool_call' ? JSON.parse(redact(JSON.stringify(record.item.arguments ?? {}))) : undefined, result: record.item.type === 'mcp_tool_call' ? JSON.parse(redact(JSON.stringify(record.item.result ?? {}))) : undefined, error: record.item.error, text: record.item.type === 'agent_message' ? redact(record.item.text ?? '') : undefined } : undefined }))
+      if (receiptDir) { await mkdir(receiptDir, { recursive: true }); await writeFile(join(receiptDir, 'native-trace.json'), JSON.stringify(trace, null, 2)) }
+      assert(records.some(record => record.item?.type === 'mcp_tool_call' && record.item?.tool === 'get_note' && record.item?.status === 'completed'), 'Native client trace proves actual get_note call')
+      const plan = await readFile(join(workspace, 'launch-plan.md'), 'utf8')
+      if (receiptDir) await writeFile(join(receiptDir, 'launch-plan.md'), redact(plan))
+      assert(plan.includes('Orbit') && plan.includes(noteId), 'Produced artifact reflects cited project source')
+      assert(/unfinished|incomplete|not.*completed|not.*done/i.test(plan), 'Produced artifact distinguishes unfinished work')
+      console.log('PASS native Codex actual get_note trace + inspected launch-plan.md; authentication seeded from disposable SDK OAuth, native login flow not tested')
+    } finally { await rm(workspace, { recursive: true, force: true }) }
+  }
   await revoke(primary)
   primary = null
   const denied = await fetch(url, { method: 'POST', headers: { ...ua, Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 99, method: 'tools/list' }), signal: AbortSignal.timeout(30000) })

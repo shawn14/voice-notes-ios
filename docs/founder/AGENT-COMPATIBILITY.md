@@ -5,7 +5,7 @@ Primary path: one remote MCP URL, OAuth browser approval on the phone, then boun
 | Client | Setup evidence | Native OAuth/source read/work execution |
 | --- | --- | --- |
 | Claude Code 2.1.294 | Installed CLI help and official HTTP/OAuth docs inspected. Prior repo runbook records native OAuth discovery. | This founder flow has not been exercised in a native session. |
-| Codex 0.157.1 | Installed CLI exposes mcp add/login; official setup docs inspected. | Not exercised. |
+| Codex 0.157.1 | Installed CLI exposes mcp add/login; official setup docs inspected. | Actual get_note + source-cited launch-plan creation passed in an isolated ephemeral run with a temporary SDK-issued agent token. Native MCP login remains untested. |
 | Gemini CLI 0.61.0 | Installed CLI MCP help and official HTTP/OAuth docs inspected; login is interactive `/mcp auth eeon`. | Not exercised. |
 | Grokbot | No installed binary or canonical configuration found in checked local sources. | Not exercised; no invented command. |
 | MCP TypeScript SDK 1.30.0 (resolved lockfile package) | Actual SDK OAuth discovery, DCR, PKCE, initialize, tool schemas, search/get_note, revocation and cleanup passed against the deployed EEON connector. | Protocol only; does not execute a model or build a project. |

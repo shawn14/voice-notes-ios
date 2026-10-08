@@ -38,7 +38,7 @@ Capture an idea or project update. On the founder handoff branch, Note Detail â†
 
 - The deployed raw OAuth lifecycle has a standing 20-check test in `v0-eeon-app-design/scripts/e2e-agent-oauth.mjs`.
 - Standard MCP SDK proof: `node mcp/test/hosted-client.mjs https://www.eeon.com`. It uses a disposable encrypted mirror, actual SDK OAuth discovery/PKCE and HTTP transport, lists tools, finds/reads the source, and revokes the connection. It never uses customer notes, saved agent settings, or model calls. A protocol pass is not a native-client pass.
-- Native Claude Code, Codex, Gemini and Grokbot execution flows need individual read-and-act receipts before advertised support. Installed CLI syntax was inspected for Claude Code2.1.294, Codex0.157.1, Gemini0.61.0 on2026-10-08.
+- Native Codex read-and-plan proof is available with `node test/hosted-client.mjs https://www.eeon.com --native-codex --receipt-dir=<absolute-output-folder>`. It uses the installed signed-in CLI, temporary SDK-issued OAuth credentials, only get_note preapproved, ignored user config, and an ephemeral workspace. This is actual note reading and local artifact production, not native MCP login proof. Claude Code, Gemini and Grokbot execution still need individual receipts before advertised support. Installed CLI syntax was inspected for Claude Code2.1.294, Codex0.157.1, Gemini0.61.0 on2026-10-08.
 - A stale Authorization header disables Claude Code OAuth. Remove the stale entry and re-add URL-only. Turning AI agents off on the phone revokes agents and deletes the mirror.
 
 Official setup references: [Claude Code](https://code.claude.com/docs/en/mcp), [Codex](https://learn.chatgpt.com/docs/extend/mcp?surface=cli), [Gemini CLI](https://geminicli.com/docs/tools/mcp-server/).

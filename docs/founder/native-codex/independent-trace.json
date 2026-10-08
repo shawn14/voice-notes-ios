@@ -1,0 +1,96 @@
+[
+  {
+    "type": "thread.started"
+  },
+  {
+    "type": "turn.started"
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "agent_message",
+      "text": "I’ll read only the specified EEON note, then write a small `launch-plan.md` in the current workspace from that source without touching external services or other notes."
+    }
+  },
+  {
+    "type": "item.started",
+    "item": {
+      "type": "mcp_tool_call",
+      "status": "in_progress",
+      "server": "eeon",
+      "tool": "get_note",
+      "arguments": {
+        "id": "5c30829f-ed4e-42d2-8e0a-e3adf6b94ec9"
+      },
+      "result": {},
+      "error": null
+    }
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "mcp_tool_call",
+      "status": "completed",
+      "server": "eeon",
+      "tool": "get_note",
+      "arguments": {
+        "id": "5c30829f-ed4e-42d2-8e0a-e3adf6b94ec9"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "---\neeon: 1\nid: \"5c30829f-ed4e-42d2-8e0a-e3adf6b94ec9\"\nkind: \"note\"\nintent: \"\"\nrecord_name: \"5c30829f-ed4e-42d2-8e0a-e3adf6b94ec9\"\ntitle: \"Founder SDK compatibility proof\"\nsource: \"voice\"\ncreated: \"2026-10-08T19:06:56.824Z\"\nupdated: \"2026-10-08T19:06:56.824Z\"\nproject: \"Orbit\"\n---\n\n# Founder SDK compatibility proof\n\n_2026-10-08T19:06:56.824Z - EEON_\n\nProject Orbit: draft a launch plan. Keep unfinished work distinct from done work.\n"
+          }
+        ],
+        "structured_content": null
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "agent_message",
+      "text": "The note title is “Founder SDK compatibility proof,” and it names project “Orbit.” I’m turning only that note text into a concise launch plan and marking completed work as unverified rather than assuming it is done."
+    }
+  },
+  {
+    "type": "item.started",
+    "item": {
+      "type": "command_execution",
+      "status": "in_progress"
+    }
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "command_execution",
+      "status": "completed"
+    }
+  },
+  {
+    "type": "item.started",
+    "item": {
+      "type": "file_change",
+      "status": "in_progress"
+    }
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "file_change",
+      "status": "completed"
+    }
+  },
+  {
+    "type": "item.completed",
+    "item": {
+      "type": "agent_message",
+      "text": "Created `launch-plan.md` from EEON note `5c30829f-ed4e-42d2-8e0a-e3adf6b94ec9`.\n\nOutput path: [/private/var/folders/dd/2mfn814j6wl2pywnhmn3rphm0000gn/T/eeon-codex-proof-JlL3eO/launch-plan.md](/private/var/folders/dd/2mfn814j6wl2pywnhmn3rphm0000gn/T/eeon-codex-proof-JlL3eO/launch-plan.md)"
+    }
+  },
+  {
+    "type": "turn.completed"
+  }
+]
