@@ -557,6 +557,17 @@ final class ScreenshotTests: XCTestCase {
 
     /// A verbatim excerpt of the actual native agent report, not invented work.
     func testFounderAgentResult() throws {
+        try exerciseFounderAgentResult(verifyNextBrief: false)
+    }
+
+    func testFounderAgentResultExplicitProject() throws {
+        app.terminate()
+        app.launchArguments.append("-SeedFounderExplicitProject")
+        app.launch()
+        try exerciseFounderAgentResult(verifyNextBrief: true)
+    }
+
+    private func exerciseFounderAgentResult(verifyNextBrief: Bool) throws {
         dismissGatesIfNeeded()
         XCTAssertTrue(tapSeededNote(), "Seeded source missing")
         let options = app.buttons["Note options"]
@@ -593,6 +604,18 @@ This is recorded as a note statement only. The actual onboarding copy was not in
         XCTAssertTrue(anyElement(labelContaining: "Agent-reported result").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["agentResultSource"].waitForExistence(timeout: 5), "Result must retain a source link")
         keep("FounderAgentResult")
+        if verifyNextBrief {
+            app.buttons["agentResultSource"].tap()
+            XCTAssertTrue(app.staticTexts["Standup with Lena"].waitForExistence(timeout: 5), "Source link must open its actual original note")
+            let prepare = app.buttons["prepareAgentBrief"]
+            XCTAssertTrue(prepare.waitForExistence(timeout: 5))
+            prepare.tap()
+            let copy = app.buttons["copyAgentBrief"]
+            XCTAssertTrue(copy.waitForExistence(timeout: 5))
+            copy.tap()
+            XCTAssertTrue(app.buttons["Brief copied"].waitForExistence(timeout: 3))
+            keep("FounderExplicitProjectNextBrief")
+        }
     }
 
     func testFounderAgentResultReadOnlyFailure() throws {

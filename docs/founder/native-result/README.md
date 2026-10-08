@@ -17,3 +17,13 @@ Use a fresh disposable simulator and signed phone-only QA project, with the same
 Independent evidence is in independent-evidence.json. guard-red-green.json records actual reserved SQLite corruption rejected and exact restoration accepted; mutation was after independent live reads, and restored in finally before cleanup.
 
 Owned simulator/build/temp data were removed after all receipts were saved. Source and QA project are retained; no release.
+
+## Explicit project and next-handoff gate — prepared, not run
+
+`testFounderAgentResultExplicitProject` uses DEBUG+simulator+UITestMode-only `-SeedFounderExplicitProject`. It creates two real SwiftData Project records both named EEON with different UUIDs, assigns the primary and three related source notes to the intended ID, and adds a same-name wrong-project note. This is reserved QA data, never a production or physical-phone fixture.
+
+The flow shares the existing result-save/relaunch test, then actually taps Open source note, requires the original title, prepares and copies the next brief. The result should appear in that brief's project memory, while the other same-name project's note must not.
+
+Run on a fresh signed disposable simulator when disk reserve is restored; focus only this explicit-project case plus ReadOnlyFailure. Use capture-native-result-baseline.py with `--require-explicit-project` so the snapshot cannot race and capture the initial unassigned seed. After both tests, verify-native-result.py with `--check-next-brief` requires real source/result IDs, unchanged original/task/project fields, two real same-name project records, exact intended-project clipboard set, exact quoted originals, and returned result included. Save actual clipboard/screens/receipts and obtain fresh independent verification before claiming this boundary passed.
+
+Only Swift source syntax and Python syntax were parsed for this extension. Neither native fixture/type checking nor either new script option has been exercised against runtime state. The previous637a0d3 proof remains inferred-project/excerpt-only and is not retroactively expanded.

@@ -32,12 +32,46 @@ enum ScreenshotSeed {
         let descriptor = FetchDescriptor<Note>()
         let existingNotes = (try? context.fetch(descriptor)) ?? []
         let nonSeedCount = existingNotes.filter { $0.sourceType != .profileSeed && $0.sourceType != .purposeSeed }.count
-        if nonSeedCount > 5 { return }
+        if nonSeedCount > 5 {
+            seedExplicitFounderProjectIfNeeded(in: context)
+            return
+        }
 
         // Mark onboarding complete so the test launches into AIHomeView
         UserDefaults.standard.set(OnboardingState.completed.rawValue, forKey: "onboardingState")
 
         seedFounder(in: context)
+        seedExplicitFounderProjectIfNeeded(in: context)
+    }
+
+    /// Adversarial project identity fixture, never selected on physical devices.
+    @MainActor
+    private static func seedExplicitFounderProjectIfNeeded(in context: ModelContext) {
+        #if targetEnvironment(simulator)
+        let args = ProcessInfo.processInfo.arguments
+        guard args.contains("-UITestMode"), args.contains("-SeedFounderExplicitProject") else { return }
+        do {
+            let projects = try context.fetch(FetchDescriptor<Project>())
+            func project(marker: String) -> Project {
+                if let existing = projects.first(where: { $0.aliases.contains(marker) }) { return existing }
+                let created = Project(name: "EEON")
+                created.addAlias(marker)
+                context.insert(created)
+                return created
+            }
+            let intended = project(marker: "eeon-proof-intended")
+            let sameNameOther = project(marker: "eeon-proof-other")
+            let notes = try context.fetch(FetchDescriptor<Note>())
+            let sourceTitles = Set(["Standup with Lena", "Reflection feature scoping", "EEON adaptive layout idea", "Voice-first design constraint"])
+            for note in notes where sourceTitles.contains(note.title) { note.projectId = intended.id }
+            if !notes.contains(where: { $0.title == "Different EEON project" }) {
+                let other = Note(title: "Different EEON project", content: "This belongs to another project with the same name. Exclude it from the intended project brief.", projectId: sameNameOther.id)
+                other.inferredProjectName = "EEON"
+                context.insert(other)
+            }
+            try context.save()
+        } catch { print("[FounderProjectProof] Seed failed: \(error)") }
+        #endif
     }
 
     /// `-SeedSpeakerAudio <path>`: a note backed by a real two-voice
