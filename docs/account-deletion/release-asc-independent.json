@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-10-08T14:22:37.728986+00:00",
+  "version": {
+    "id": "739e0eb1-fbce-43c1-996c-4d86b8d7125b",
+    "version": "3.10.0",
+    "state": "WAITING_FOR_REVIEW",
+    "selectedBuildId": "fb183b0e-cb47-49bc-8481-b7bd6429a74d"
+  },
+  "build": {
+    "id": "fb183b0e-cb47-49bc-8481-b7bd6429a74d",
+    "number": "171",
+    "processingState": "VALID"
+  },
+  "reviewSubmission": {
+    "id": "9c65b55a-0c8d-4222-b9ab-b4e1f91ed38c",
+    "state": "WAITING_FOR_REVIEW",
+    "submittedDate": "2026-10-08T14:21:31.601Z"
+  },
+  "items": [
+    {
+      "id": "OWM2NWI1NWEtMGM4ZC00MjIyLWI5YWItYjRlMWY5MWVkMzhjfDZ8ODkyMjgyNDE1",
+      "state": "READY_FOR_REVIEW",
+      "versionId": "739e0eb1-fbce-43c1-996c-4d86b8d7125b"
+    }
+  ],
+  "verified": true
+}
