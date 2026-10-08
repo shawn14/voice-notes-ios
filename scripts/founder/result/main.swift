@@ -22,5 +22,10 @@ for invalid in [" \n\t", String(repeating: "x", count: 100_001)] {
     } catch { }
 }
 let evidence: [String: Any] = ["passed": true, "method": "actual production helper with actual native-agent report and copied source packet", "sourceID": sourceID.uuidString, "reportCharacters": report.count, "verbatimReport": true, "sourceAnnotationRoundTrip": true, "blankAndOversizeRejected": true, "scope": "formatter only; no native UI or SwiftData persistence proof"]
+
+precondition(AgentResultDraft.report(content: draft.content, annotation: draft.annotation) == report)
+precondition(AgentResultDraft.report(content: "User edited body", annotation: draft.annotation) == nil)
+precondition(AgentResultDraft.report(content: draft.content, annotation: "Unrelated annotation") == nil)
+
 let data = try JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys])
 print(String(data: data, encoding: .utf8)!)

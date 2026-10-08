@@ -667,6 +667,11 @@ This is recorded as a note statement only. The actual onboarding copy was not in
         result.tap()
         XCTAssertTrue(anyElement(labelContaining: "Agent-reported result").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["agentResultSource"].waitForExistence(timeout: 5), "Result must retain a source link")
+        if useFullReport {
+            XCTAssertTrue(app.staticTexts["agentResultDisclosure"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["EEON Draft Landing Page Handoff"].waitForExistence(timeout: 5), "Report heading should render without Markdown markers")
+            XCTAssertFalse(app.staticTexts["## Agent report"].exists, "Internal wrapper must not appear as report content")
+        }
         keep("FounderAgentResult")
         if verifyNextBrief {
             app.buttons["agentResultSource"].tap()

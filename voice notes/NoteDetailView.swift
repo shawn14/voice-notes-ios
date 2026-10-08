@@ -948,7 +948,10 @@ struct NoteDetailView: View {
             }
 
             // Source type chip
-            if let label = note.sourceType.label {
+            if agentResultReport != nil {
+                Text("Agent-reported result")
+                    .font(.caption).foregroundStyle(.eeonTextSecondary)
+            } else if let label = note.sourceType.label {
                 HStack(spacing: 4) {
                     if let icon = note.sourceType.badgeIcon {
                         Image(systemName: icon)
@@ -989,7 +992,7 @@ struct NoteDetailView: View {
             }
 
             // Annotation if present
-            if let annotation = note.annotation, !annotation.isEmpty {
+            if agentResultReport == nil, let annotation = note.annotation, !annotation.isEmpty {
                 Text(annotation)
                     .font(.caption)
                     .foregroundStyle(.eeonTextSecondary)
@@ -1095,7 +1098,12 @@ struct NoteDetailView: View {
                     .background(Capsule().fill(Color.eeonAccentAI))
                 }
             } else {
-                if showingTranscript, !transcriptSpans.isEmpty, alignedTranscript == displayText {
+                if !showingTranscript, let report = agentResultReport, displayText == note.content {
+                    Text("This report contains the agent’s claims. Saving it does not verify the work or complete tasks.")
+                        .font(.subheadline).foregroundStyle(.eeonTextSecondary)
+                        .accessibilityIdentifier("agentResultDisclosure")
+                    AgentReportTextView(report: report)
+                } else if showingTranscript, !transcriptSpans.isEmpty, alignedTranscript == displayText {
                     // Tap a sentence to hear it; the one playing is tinted.
                     SyncedTranscriptText(
                         text: alignedTranscript,
@@ -1581,6 +1589,10 @@ struct NoteDetailView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    private var agentResultReport: String? {
+        AgentResultDraft.report(content: note.content, annotation: note.annotation)
     }
 
     private var agentResultSource: Note? {

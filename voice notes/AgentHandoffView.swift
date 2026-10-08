@@ -154,3 +154,58 @@ struct AgentResultView: View {
         } catch { saveError = error.localizedDescription }
     }
 }
+
+/// Lightweight report presentation: heading/list hierarchy, preserved code lines,
+/// and the existing inline Markdown parser. No mutation or network requests.
+struct AgentReportTextView: View {
+    let report: String
+    private struct Block {
+        let text: String
+        let heading: Int
+        let code: Bool
+    }
+    private var blocks: [Block] {
+        var result: [Block] = []
+        var paragraph: [String] = []
+        var inCode = false
+        func flush() {
+            if !paragraph.isEmpty {
+                result.append(Block(text: paragraph.joined(separator: "\n"), heading: 0, code: inCode))
+                paragraph.removeAll()
+            }
+        }
+        for line in report.components(separatedBy: "\n") {
+            if line.hasPrefix("```") { flush(); inCode.toggle(); continue }
+            if inCode { paragraph.append(line); continue }
+            if line.trimmingCharacters(in: .whitespaces).isEmpty { flush(); continue }
+            let hashes = line.prefix { $0 == "#" }.count
+            if (1...6).contains(hashes), line.dropFirst(hashes).hasPrefix(" ") {
+                flush()
+                result.append(Block(text: String(line.dropFirst(hashes + 1)), heading: hashes, code: false))
+            } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                flush()
+                result.append(Block(text: "• " + String(line.dropFirst(2)), heading: 0, code: false))
+            } else { paragraph.append(line) }
+        }
+        flush()
+        return result
+    }
+    var body: some View {
+        let content = blocks
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(content.indices, id: \.self) { index in
+                let block = content[index]
+                Text(block.code ? AttributedString(block.text) : inline(block.text))
+                    .font(block.code ? .system(.body, design: .monospaced) : block.heading == 1 ? .title2.bold() : block.heading > 0 ? .headline : .body)
+                    .foregroundStyle(.eeonTextPrimary)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(block.heading > 0 ? .isHeader : [])
+            }
+        }
+    }
+    private func inline(_ text: String) -> AttributedString {
+        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+    }
+}

@@ -130,6 +130,13 @@ struct AgentResultDraft {
     var content: String {
         "Agent-reported result. Saving this report does not independently verify its claims or complete tasks.\nSource note ID: " + sourceID.uuidString + "\n\n## Agent report\n" + report
     }
+    /// Strip only our exact wrapper for display; persisted text remains verbatim.
+    static func report(content: String, annotation: String?) -> String? {
+        guard let id = sourceID(annotation: annotation) else { return nil }
+        let prefix = "Agent-reported result. Saving this report does not independently verify its claims or complete tasks.\nSource note ID: " + id.uuidString + "\n\n## Agent report\n"
+        guard content.hasPrefix(prefix) else { return nil }
+        return String(content.dropFirst(prefix.count))
+    }
     static func sourceID(annotation: String?) -> UUID? {
         guard let annotation else { return nil }
         let lines = annotation.components(separatedBy: "\n")
