@@ -43,6 +43,33 @@ final class ScreenshotTests: XCTestCase {
         app = nil
     }
 
+    // App Review 2.1(a), 3.10.0 (170): the Account row must present on iPad.
+    // Cancel exercises the real presenter without deleting a user's data.
+    func testAccountDeletionConfirmation() throws {
+        dismissGatesIfNeeded()
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
+        let account = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Shawn Carpenter")).firstMatch
+        XCTAssertTrue(account.waitForExistence(timeout: 5), app.debugDescription)
+        account.tap()
+        let delete = app.buttons["Delete Account & Data"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        if !delete.isHittable { app.swipeUp() }
+        delete.tap()
+        let cancel = app.buttons["Cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5), "Deletion confirmation must appear from Account")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "This will permanently delete your account")).firstMatch.exists)
+        cancel.tap()
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        XCTAssertFalse(cancel.exists)
+        delete.tap()
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5), "Confirmation must reopen after cancellation")
+        // This account and database belong to the disposable simulator fixture.
+        app.alerts.buttons["Delete Account & Data"].tap()
+        XCTAssertTrue(app.staticTexts["Welcome to EEON"].waitForExistence(timeout: 10), "Deletion must return to onboarding")
+    }
+
     // MARK: - Screenshot Tests
 
     func testCaptureScreenshots() throws {

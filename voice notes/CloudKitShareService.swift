@@ -70,6 +70,7 @@ actor CloudKitShareService {
 
         // Save to public database
         let savedRecord = try await publicDB.save(record)
+        Self.trackPublishedShare(id: savedRecord.recordID.recordName)
 
         // Build the SharedNote result
         var audioDownloadURL: URL? = nil
@@ -137,6 +138,36 @@ actor CloudKitShareService {
     func deleteSharedNote(id: String) async throws {
         let recordID = CKRecord.ID(recordName: id)
         try await publicDB.deleteRecord(withID: recordID)
+    }
+
+    /// Take down share links (Delete Account & Data). The ids are passed in
+    /// because the caller wipes UserDefaults before these requests finish.
+    /// Links published before tracking existed (2026-10-01) can't be found;
+    /// they expire on their own (90 days at most).
+    func deleteSharedNotes(ids: [String]) async {
+        for id in ids {
+            do {
+                try await deleteSharedNote(id: id)
+            } catch {
+                print("Failed to delete shared note \(id): \(error)")
+            }
+        }
+    }
+
+    // MARK: - Published Share Tracking
+
+    private static let publishedSharesKey = "publishedShareRecordIds"
+
+    /// Record names of every share link this device has published.
+    static var publishedShareIds: [String] {
+        UserDefaults.standard.stringArray(forKey: publishedSharesKey) ?? []
+    }
+
+    private static func trackPublishedShare(id: String) {
+        var ids = publishedShareIds
+        guard !ids.contains(id) else { return }
+        ids.append(id)
+        UserDefaults.standard.set(ids, forKey: publishedSharesKey)
     }
 
     // MARK: - Check CloudKit Availability
