@@ -1,0 +1,1 @@
+voice,journal,dictation,transcribe,meeting,reminders,decisions,commitments,thoughts,follow up

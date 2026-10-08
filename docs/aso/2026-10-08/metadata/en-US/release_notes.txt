@@ -1,0 +1,5 @@
+3.10.0 — Your notes, in your AI agents
+• New: Settings → AI agents. Turn it on and Claude Code, Codex, Cursor, or Claude can read your notes, read-only
+• Connect a computer in seconds: scan its QR code with EEON and tap Allow. No passwords or keys to copy
+• Send to an Agent: one tap on any note copies a ready prompt for your AI tool
+• Calendar: tapping an event no longer starts the video call. Join from the call button instead
