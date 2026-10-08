@@ -1,0 +1,22 @@
+APP: EEON: AI Memory & Notes (6758273499)  slug=voice-notes  subs=pro_monthly, pro_annual
+
+=== PHASE submit (APPLY=true) version=3.10.0 build=171 ===
+build 171 processingState=VALID
+
+pro_monthly state=APPROVED
+  subscriptionSubmission: already-submitted-or-not-allowed:ENTITY_ERROR.RELATIONSHIP.INVALID Subscription 6758279481 has no pending version for submission
+
+pro_annual state=APPROVED
+  subscriptionSubmission: already-submitted-or-not-allowed:ENTITY_ERROR.RELATIONSHIP.INVALID Subscription 6758279451 has no pending version for submission
+
+version 3.10.0 state=PREPARE_FOR_SUBMISSION (739e0eb1-fbce-43c1-996c-4d86b8d7125b)
+canceled active review submissions: 9c65b55a-0c8d-4222-b9ab-b4e1f91ed38c:READY_FOR_REVIEW
+attached build 171
+app review submission: 9c65b55a-0c8d-4222-b9ab-b4e1f91ed38c
+
+-- readback --
+version 3.10.0: WAITING_FOR_REVIEW
+pro_monthly: APPROVED
+pro_annual: APPROVED
+
+DONE (APPLY=true, PHASE=submit)

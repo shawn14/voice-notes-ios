@@ -1,0 +1,12 @@
+{
+  "version": "3.10.0",
+  "build": "171",
+  "bundle": "voice.notes.voice-notes",
+  "cloudKitTokenResolved": true,
+  "cameraUsagePresent": true,
+  "deletionAlertPresent": true,
+  "deletionAssociatedModelsPresent": true,
+  "hasWatchApp": false,
+  "sha256": "c5d6a9f84237056a070b41237d5f0141f66d28d9dcba59f61a62a809166a5f09",
+  "sizeBytes": 10584744
+}
