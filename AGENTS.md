@@ -348,3 +348,9 @@ When asked to build a non-trivial feature, check `docs/superpowers/plans/` first
 ## Dead Code
 
 `ContentView.swift` is unused (noted in the file itself). The actual entry point is `voice_notesApp` → `AIHomeView`. Many v1 dashboard views remain in the codebase but are disconnected from navigation (see View Hierarchy section above).
+
+## iPad account deletion regression (2026-10-08)
+
+Keep the Delete Account confirmation on the visible Account control, as an alert. Do not move it to the parent Settings presenter: App Review build170's button highlighted but no dialog appeared on iPad. Standing regression `ScreenshotTests.testAccountDeletionConfirmation`; evidence and runnable simulator recipe: `docs/account-deletion/README.md`. Explicitly boot/wait before tests and disable parallel simulator cloning. The fix must retain a destructive confirmation before calling the existing deletion routine.
+
+Complete-deletion proof: `scripts/prove-account-deletion.py` drives the disposable simulator UI and checks actual persistence across all17 models and a no-seed relaunch. Build170 lacked complete deletion; focused review fix reuses04cceca. No mocked database; explicit `--confirm-disposable-simulator` required. Full runtime receipts are in `docs/account-deletion/`.

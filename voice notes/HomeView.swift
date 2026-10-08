@@ -2711,8 +2711,18 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    // Present from the visible Account control. A parent Settings
+                    // popover cannot anchor here when this destination is pushed on iPad.
                     Button("Delete Account & Data", role: .destructive) {
                         showingDeleteAllDataConfirm = true
+                    }
+                    .alert("Delete Account & Data?", isPresented: $showingDeleteAllDataConfirm) {
+                        Button("Delete Account & Data", role: .destructive) {
+                            deleteAllDataAndSignOut()
+                        }
+                        Button("Cancel", role: .cancel) { }
+                    } message: {
+                        Text("This will permanently delete your account and all associated data including notes, projects, and recordings. This action cannot be undone.")
                     }
                 } footer: {
                     Text("This permanently deletes your account, notes, projects, and associated data from this device and iCloud. This action cannot be undone.")
@@ -3306,14 +3316,6 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("Your notes will be kept and synced with iCloud. You can sign back in anytime.")
-            }
-            .confirmationDialog("Delete Account & Data?", isPresented: $showingDeleteAllDataConfirm, titleVisibility: .visible) {
-                Button("Delete Account & Data", role: .destructive) {
-                    deleteAllDataAndSignOut()
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("This will permanently delete your account and all associated data including notes, projects, and recordings. This action cannot be undone.")
             }
             .alert("Export failed", isPresented: Binding(
                 get: { exportError != nil },
